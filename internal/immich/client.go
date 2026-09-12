@@ -38,17 +38,19 @@ type Metadata struct {
 // Client owns a fixed provider authority and credential. Reuse it across requests.
 // Construct it with New; it is safe for concurrent use and emits no logs.
 type Client struct {
-	endpoint string
-	key      string
-	http     *http.Client
+	endpoint       string
+	searchEndpoint string
+	key            string
+	http           *http.Client
 }
 
 // New consumes the provider configuration and separate key returned by config.Load.
 // Those validated inputs must remain trusted; this function performs no file I/O.
 func New(provider config.Provider, key string) *Client {
 	return &Client{
-		endpoint: strings.TrimSuffix(provider.BaseURL, "/") + "/api/assets/",
-		key:      key,
+		endpoint:       strings.TrimSuffix(provider.BaseURL, "/") + "/api/assets/",
+		searchEndpoint: strings.TrimSuffix(provider.BaseURL, "/") + "/api/search/metadata",
+		key:            key,
 		http: &http.Client{
 			Timeout:       provider.RequestTimeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
