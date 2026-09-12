@@ -52,12 +52,9 @@ func serveListener(ctx context.Context, server *http.Server, listener net.Listen
 	go func() { done <- server.Serve(listener) }()
 	logger.Info("listening", "listen", listener.Addr().String())
 	select {
-	case err := <-done:
+	case <-done:
 		_ = server.Close()
-		if err != nil {
-			return errors.New("HTTP server stopped unexpectedly")
-		}
-		return errors.New("HTTP server exited unexpectedly")
+		return errors.New("HTTP server stopped unexpectedly")
 	case <-ctx.Done():
 		logger.Info("stopping")
 	}

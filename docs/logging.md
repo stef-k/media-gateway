@@ -53,6 +53,21 @@ Do not routinely log:
 
 Known-private or malformed public requests are normal hostile/invalid Internet traffic and must not become an unbounded warning-log amplification path. Routine policy denials should normally remain quiet or low-verbosity; unexpected invariant/provider failures merit higher severity.
 
+## Service shell events
+
+The shell emits JSON `slog` records to stderr at INFO for `starting`,
+`configuration loaded`, `listening`, `stopping`, and `stopped`. Startup metadata is
+limited to build provenance and the validated loopback listener. It never dumps
+configuration, roots, provider URLs or credential paths. Configuration errors use
+the shared loader's sanitized field/operation messages; bind/serve/shutdown errors
+use fixed failure descriptions and cause a nonzero exit.
+
+Every route currently returns a fixed `404` without application request logging.
+The standard HTTP server's connection error logger is discarded because its free
+text can include request-controlled data; lifecycle failures are reported separately
+through `slog`. Revisit this choice if later handlers introduce panic-prone work,
+while preserving privacy and bounded diagnostic volume.
+
 ## Operational split
 
 Conceptually:
