@@ -28,7 +28,7 @@ func gatewayFor(t *testing.T, provider *httptest.Server, logs io.Writer, timeout
 	t.Cleanup(client.CloseIdleConnections)
 	policy := config.Policy{AllowedRoots: []string{"/external/photos"}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
-	server.Config = newServer(deliveryHandler(client, policy, slog.New(slog.NewJSONHandler(logs, nil))))
+	server.Config = newServer(gatewayHandler(client, policy, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()
 	t.Cleanup(server.Close)
 	return server
