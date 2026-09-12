@@ -46,11 +46,25 @@ Go has no separate LTS channel; the project follows supported stable Go releases
 
 Image delivery is the first production target. Video delivery may follow once range/streaming behavior is specified and tested.
 
+The foundation epic is intentionally decomposed before implementation: #9 owns the Go/configuration core and #10 owns the executable lifecycle, logging and CI shell. Coarse epics are not handed to coding agents when a bounded child issue exists.
+
+## Logging
+
+Logging is deliberately split rather than duplicated:
+
+- nginx owns public HTTP access and proxy/transport logging;
+- Media Gateway uses Go `log/slog` for lifecycle, sanitized startup state and provider/runtime/security diagnostics;
+- under systemd, application logs go to stderr/stdout and journald owns storage/rotation;
+- the Go service does not implement its own logfile/rotation subsystem or a second full access log.
+
+See [Logging](docs/logging.md) for privacy and severity rules.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Security model](docs/security.md)
 - [Toolchain and dependency policy](docs/toolchain.md)
+- [Logging](docs/logging.md)
 - [Deployment](docs/deployment.md)
 - [Roadmap](docs/roadmap.md)
 - [GitHub Pages documentation](docs/index.md)
