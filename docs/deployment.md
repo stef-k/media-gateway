@@ -37,7 +37,7 @@ A typical credential file should be owned/readable only by root and the service 
 
 ## Configuration
 
-Start from [`../deploy/config.toml.example`](../deploy/config.toml.example) once the implementation schema is finalized.
+Start from the repository's [`deploy/config.toml.example`](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) once the implementation schema is finalized.
 
 The reference shape keeps secrets separate:
 
@@ -50,7 +50,7 @@ Changing the publication policy is security-sensitive configuration work. Valida
 
 ## systemd
 
-The reference [`media-gateway.service`](../deploy/media-gateway.service) is intentionally conservative:
+The reference [`deploy/media-gateway.service`](https://github.com/stef-k/media-gateway/blob/main/deploy/media-gateway.service) is intentionally conservative:
 
 - dedicated user/group;
 - loopback service;
@@ -74,7 +74,7 @@ Start the service only after the provider credential and validated configuration
 
 nginx is the public HTTP boundary; Media Gateway itself remains loopback-only.
 
-The reference [`nginx.conf`](../deploy/nginx.conf) demonstrates a dedicated origin vhost that:
+The reference [`deploy/nginx.conf`](https://github.com/stef-k/media-gateway/blob/main/deploy/nginx.conf) demonstrates a dedicated origin vhost that:
 
 - proxies only `/media/` to the gateway;
 - accepts only `GET`/`HEAD` for the public media path;
