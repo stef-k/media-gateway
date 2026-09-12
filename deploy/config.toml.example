@@ -1,0 +1,35 @@
+# Media Gateway example configuration.
+#
+# This is a design/bootstrap example. Issue #2 owns the final validated schema.
+# Never place provider credentials directly in this file or in Git.
+
+[server]
+listen = "127.0.0.1:2290"
+public_base_url = "https://media.example.com"
+
+[provider]
+type = "immich"
+base_url = "http://127.0.0.1:2283"
+api_key_file = "/etc/media-gateway/immich.key"
+request_timeout = "15s"
+
+[policy]
+allowed_roots = ["/media/archive"]
+
+# Rules match exact normalized directory segments, never prefixes/globs.
+[[policy.rules]]
+segment = "public"
+media = ["image", "video"]
+
+[[policy.rules]]
+segment = "public-images"
+media = ["image"]
+
+[[policy.rules]]
+segment = "public-videos"
+media = ["video"]
+
+[delivery]
+# V0 must still deny media types/representations the implementation does not support.
+allow_original = false
+image_variant = "preview"

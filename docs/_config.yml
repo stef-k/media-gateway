@@ -1,0 +1,10 @@
+remote_theme: stef-k/.github@main
+
+plugins:
+  - jekyll-remote-theme
+
+title: Media Gateway
+description: Fail-closed publication gateway for private media providers.
+url: https://stef-k.github.io
+baseurl: /media-gateway
+repository: stef-k/media-gateway

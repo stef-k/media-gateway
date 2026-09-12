@@ -1,0 +1,19 @@
+# Go build/test output
+/bin/
+/dist/
+*.test
+*.out
+coverage.out
+
+# Local configuration and secrets
+config.toml
+*.local.toml
+*.key
+*.secret
+.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
