@@ -4,7 +4,7 @@ Media Gateway is a small, fail-closed publication gateway for serving explicitly
 
 The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through `https://media.stefk.me` for consumers such as WordPress.
 
-> **Status:** configuration and loopback service shell implemented; provider integration and media delivery are not implemented yet. There is no production release.
+> **Status:** configuration, loopback service shell, pure publication policy and standalone Immich metadata adapter implemented; public wiring and media delivery are not implemented yet. There is no production release.
 
 ## Core idea
 
