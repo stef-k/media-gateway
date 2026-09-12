@@ -1,4 +1,4 @@
-// Command media-gateway runs the loopback-only service shell.
+// Command media-gateway runs the loopback-only image preview service.
 package main
 
 import (
@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/stef-k/media-gateway/internal/config"
+	"github.com/stef-k/media-gateway/internal/immich"
 )
 
 // main owns process signals and translates runtime failure into an exit status.
@@ -47,14 +48,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	logger.Info("starting", "build", buildMetadata())
-	cfg, _, err := config.Load(*filename)
+	cfg, key, err := config.Load(*filename)
 	if err != nil {
 		// Load guarantees field/operation-only errors without private input values.
 		logger.Error("configuration rejected", "error", err)
 		return 1
 	}
 	logger.Info("configuration loaded", "listen", cfg.Server.Listen)
-	if err := serve(ctx, cfg.Server.Listen, logger); err != nil {
+	client := immich.New(cfg.Provider, key)
+	defer client.CloseIdleConnections()
+	if err := serve(ctx, cfg.Server.Listen, deliveryHandler(client, cfg.Policy, logger), logger); err != nil {
 		logger.Error("service failed", "error", err)
 		return 1
 	}

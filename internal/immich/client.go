@@ -1,4 +1,4 @@
-// Package immich retrieves private metadata; it neither authorizes nor delivers media.
+// Package immich retrieves private metadata and previews; it never grants publication.
 package immich
 
 import (

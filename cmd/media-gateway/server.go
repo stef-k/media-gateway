@@ -14,26 +14,24 @@ import (
 // shutdownTimeout fits inside the reference systemd TimeoutStopSec=30s.
 const shutdownTimeout = 10 * time.Second
 
-// newServer denies every route without mux redirects, request reflection or logs.
-func newServer() *http.Server {
+// newServer applies finite HTTP bounds to the supplied public handler.
+func newServer(handler http.Handler) *http.Server {
 	return &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "not found", http.StatusNotFound)
-		}),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		WriteTimeout:      deliveryTimeout + 5*time.Second,
 		IdleTimeout:       30 * time.Second,
 		MaxHeaderBytes:    16 << 10,
 		// net/http diagnostics may contain attacker-controlled request/connection data.
-		// The fixed handler has no panic-prone application work; lifecycle errors are
+		// Streaming aborts use http.ErrAbortHandler; lifecycle errors are
 		// reported separately through slog, without a per-connection log-flood path.
 		ErrorLog: log.New(io.Discard, "", 0),
 	}
 }
 
 // serve accepts only the listener value returned by config.Load in run.
-func serve(ctx context.Context, address string, logger *slog.Logger) error {
+func serve(ctx context.Context, address string, handler http.Handler, logger *slog.Logger) error {
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -42,7 +40,7 @@ func serve(ctx context.Context, address string, logger *slog.Logger) error {
 		}
 		return errors.New("cannot bind configured loopback listener")
 	}
-	return serveListener(ctx, newServer(), listener, logger, shutdownTimeout)
+	return serveListener(ctx, newServer(handler), listener, logger, shutdownTimeout)
 }
 
 // serveListener owns the listener and waits for both Serve and bounded shutdown.
