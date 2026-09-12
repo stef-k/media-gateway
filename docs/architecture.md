@@ -178,13 +178,22 @@ The exact consumer API should be designed when the first consumer integration is
 
 ## Provider boundary
 
-`internal/immich` provides a concrete metadata/preview client so provider-specific HTTP/JSON
+`internal/immich` provides a concrete metadata/preview/candidate client so provider-specific HTTP/JSON
 stays outside the pure publication evaluator. Its `Asset` method returns only ID,
 unchanged original path and normalized media type. It does not grant publication
 itself. The public handler calls `Asset`, requires image media, evaluates
 `publication.Eligible`, and only then calls `Preview`. Startup constructs one client
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
+
+`Client.SearchCandidates` adds one bounded image-candidate page or an exact
+UUIDv4 candidate lookup through the same private transport. Candidates retain
+private provider paths, nullable dimensions and capture/local times internally.
+They are **not publication-authorized**, including when a provider filter matched.
+Before any consumer receives a result, the next consumer layer must evaluate
+every candidate with `publication.Eligible` and omit provider paths. This adapter
+adds no HTTP routes, service wiring or public delivery behavior. See the
+[reviewed search contract](deployment.md#reviewed-candidate-search-contract).
 
 The provider needs only capabilities required by current issues, initially:
 

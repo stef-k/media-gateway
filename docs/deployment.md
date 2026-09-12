@@ -178,7 +178,8 @@ Use a non-administrator account with access to the intended assets and an API ke
 restricted to **`asset.read` + `asset.view`**, sent only in the **`x-api-key`** header. This is the
 union required by the implemented metadata (`asset.read`) and preview
 (`asset.view`) operations; it does not override Immich's asset-access checks.
-No administrator, original-download, search or write permission is required.
+No administrator, original-download or write permission is required. Candidate
+search also uses `asset.read`; it introduces no additional permission.
 
 The OpenAPI and [controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/asset.controller.ts)
 require UUIDv4 identifiers: hyphenated hexadecimal `8-4-4-4-12`, version nibble
@@ -211,6 +212,70 @@ and other failures to fixed 502 responses. No public metadata endpoint exists.
 This verification is an upstream API/source review plus local HTTP contract tests,
 not qualification against a deployed Immich instance. Re-check API permissions
 and run provider/policy smoke tests when upgrading Immich.
+
+### Reviewed candidate search contract
+
+Re-verified on **2026-09-13** against official Immich OpenAPI **3.2.0** at
+[commit `0f901eea5ec2d3ebf85188b8c1dd193ae3619966`](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/open-api/immich-openapi-specs.json).
+`searchAssets` uses only `POST /api/search/metadata`, `x-api-key`, permission
+`asset.read`, and a direct HTTP 200 `application/json` response. The
+[controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/search.controller.ts)
+and [service](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/services/search.service.ts)
+confirm the structured request and cursor response path.
+
+`Client.SearchCandidates(ctx, CandidateQuery{Limit: 25})` constructs:
+
+```json
+{
+  "filter": {"type": {"eq": "IMAGE"}},
+  "orderBy": {"field": "fileCreatedAt", "direction": "desc"},
+  "size": 25,
+  "withExif": false,
+  "withPeople": false,
+  "withStacked": false
+}
+```
+
+The gateway fixes all filter/operator/order fields; there is no caller-selected
+path, URL, type, sort or arbitrary search tree. It uses no deprecated flat search
+fields. An optional `ID` adds only `filter.id.eq` after UUIDv4 validation, requires
+no cursor, and permits at most one matching result (case-insensitive UUID match).
+An absent exact candidate is a successful empty page. `Limit` must be 1–100,
+smaller than Immich's schema maximum of 1000. No retries or automatic page scans
+occur. Ordering is newest `fileCreatedAt` first; the reviewed
+[ordering implementation](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/utils/database.ts)
+uses asset ID as its deterministic tie-break. Pagination is not a stable snapshot
+of a changing provider library.
+
+A nonempty `Cursor` is passed only in the JSON body's `cursor` field. Both input
+and returned cursors must be valid UTF-8, at most 1024 bytes, and contain no Unicode
+control characters. They remain opaque and must not be logged. The adapter
+requires `assets.items`, matching `assets.count`, and `assets.nextCursor` (a
+nonempty bounded string or explicit `null` for completion). It returns
+`CandidatePage.Items` and `NextCursor`; terminal `null` maps to an empty string.
+
+Every item requires a UUIDv4 ID, nonempty unchanged `originalPath`, exact `IMAGE`
+type (mapped to `image`), `width`, `height`, `fileCreatedAt` and `localDateTime`.
+Dimensions use the schema's nullable nonnegative integer range through
+9007199254740991: `null` means unknown, and zero is preserved. Times must parse
+as RFC3339 with optional fractional seconds and are preserved as strings.
+`fileCreatedAt` represents capture time; `localDateTime` retains the provider's
+local wall-clock semantics and is not converted into another timezone. No EXIF,
+GPS, people or unrelated provider metadata enters the candidate result.
+
+The existing fixed origin, credential-safe transport, redirect rejection,
+timeouts and cancellation apply. The entire JSON body, including ignored fields,
+is capped at 1 MiB before decoding; excess candidates, invalid shapes, unsupported
+media and malformed fields reject the whole page. Search uses the existing fixed
+error classes plus `ErrSearchQuery` for invalid pagination/query inputs. It emits
+no logs and exposes no provider values through errors.
+
+**Candidate discovery is not authorization.** Private, outside-root and crafted
+paths can be returned unchanged for later `publication.Eligible` evaluation.
+Every item must pass that evaluation before a consumer receives it; provider
+search filters and consumer references never grant permission. #20 adds no
+localhost or public consumer HTTP API. Source review and fake-provider tests do
+not change #18/#4 qualification state or establish production preview safety.
 
 ### Reviewed preview contract
 
