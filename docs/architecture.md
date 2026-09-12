@@ -1,0 +1,277 @@
+# Architecture
+
+## Purpose
+
+Media Gateway is a small, fail-closed HTTP publication boundary between a private media provider and public consumers.
+
+The initial deployment uses Immich as the provider. Immich remains private and indexes a read-only external archive. Media Gateway is the only component allowed to turn a provider asset into an Internet-deliverable response, and only after re-evaluating publication policy from current provider metadata.
+
+The service is intentionally smaller than the applications consuming it. It has no media-management UI, no publication database, no direct NAS access and no generic proxy behavior.
+
+## Initial deployment
+
+```text
+                                  PRIVATE
+
+                     NAS curated photo archive
+                                |
+                                v
+                              Immich
+                         127.0.0.1:2283
+                                |
+                         private API key
+                                |
+                                v
+                      +-------------------+
+                      |   Media Gateway   |
+                      | 127.0.0.1:2290   |
+                      +---------+---------+
+                                |
+                       public routes only
+                                |
+                                v
+                              nginx
+                                |
+                       Cloudflare / HTTPS
+                                |
+=============================== | ===============================
+                              Internet
+                                |
+                                v
+                        media.stefk.me
+```
+
+The exact deployment may differ for other installations. The architectural requirements are:
+
+- the provider is not directly Internet-exposed by Media Gateway;
+- the gateway binds to a private/loopback interface unless an operator deliberately supplies an equivalent protected network boundary;
+- the public reverse proxy exposes only public delivery routes;
+- provider credentials stay on the trusted host and are never sent to consumers.
+
+## Trust boundaries
+
+### Media provider
+
+Immich owns indexing, metadata extraction, asset identity and media retrieval. It may see both private and publication-eligible assets.
+
+Media Gateway must therefore treat provider reachability as **capability to inspect**, not permission to publish.
+
+### Publication policy
+
+The initial deployment uses provider-indexed path metadata as the single publication switch.
+
+Configured root:
+
+```text
+/media/archive
+```
+
+Eligible exact directory segments:
+
+```text
+public          -> images and videos eligible
+public-images   -> images eligible
+public-videos   -> videos eligible
+```
+
+Anything else is private.
+
+This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
+
+A production version may support only a subset of the media types declared by policy. For example, V0 targets images first; video remains denied until the video-delivery slice is implemented and validated.
+
+### Consumer applications
+
+Consumers such as WordPress may store a provider asset reference, alt text, captions or presentation metadata. Consumer state never grants publication permission.
+
+A request for a consumer-referenced asset must still pass the gateway's current provider-root, path-segment and media-type checks. A compromised consumer must not be able to use a private asset ID to bypass policy.
+
+## V0 request flow
+
+A public image request is conceptually:
+
+```text
+GET /media/<provider-asset-id>/<variant>
+          |
+          v
+validate route/method/identifier/variant
+          |
+          v
+query Immich for current asset metadata
+          |
+          v
+asset path under configured allowed root?
+          | no -> 404
+          v yes
+contains an exact eligible directory segment?
+          | no -> 404
+          v yes
+provider media type permitted by that rule and implemented by gateway?
+          | no -> 404
+          v yes
+request an approved provider representation/preview
+          |
+          v
+validate bounded upstream response
+          |
+          v
+stream public response
+```
+
+Every delivery request re-evaluates policy. A file moved out of an eligible path therefore becomes unavailable once the provider reflects the new metadata; there is no second publication database to synchronize.
+
+## Public URLs
+
+V0 does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
+
+This permits a simple stable route such as:
+
+```text
+/media/<asset-id>/preview
+```
+
+without a publication database or reversible token scheme.
+
+Signed or opaque URLs may be added later only if they solve a demonstrated abuse, privacy or integration requirement. They must remain an additional control rather than replacing policy evaluation.
+
+Provider paths and NAS paths must never appear in public URLs.
+
+## Public HTTP surface
+
+The V0 public surface should be intentionally narrow:
+
+- `GET` and `HEAD` only for implemented media routes;
+- optional minimal health/readiness response if operationally required;
+- bounded headers, request sizes and upstream timeouts;
+- no public search;
+- no public provider metadata endpoint;
+- no configuration endpoint;
+- no arbitrary fetch/proxy endpoint;
+- no directory listing.
+
+Private/missing/invalid/unauthorized assets should normally be indistinguishable through a `404` response.
+
+## Consumer/control surface
+
+A later WordPress adapter needs a convenient way to discover eligible media while editing a post. That functionality may be supplied by localhost-only routes in the same process, for example conceptually:
+
+```text
+/internal/search
+/internal/assets/<id>
+```
+
+These routes are not part of the Internet-facing API. nginx must not publish them.
+
+The exact consumer API should be designed when the first consumer integration is implemented. It should return only publication-eligible assets rather than provide a generic view of the private Immich library.
+
+## Provider boundary
+
+Immich integration should live behind a small internal provider interface so HTTP/policy code is not coupled throughout the program to provider-specific JSON.
+
+The provider needs only capabilities required by current issues, initially:
+
+- fetch asset metadata by stable provider ID;
+- obtain media type;
+- obtain the indexed original path/folder metadata needed for policy evaluation;
+- obtain a suitable image preview/representation.
+
+Do not build provider discovery, dynamic plugins or a generic provider SDK before a second provider establishes real requirements.
+
+Exact Immich API endpoints must be verified against the supported Immich version at implementation time.
+
+## Image delivery
+
+V0 should first investigate use of provider-generated previews because Immich already owns thumbnail/preview generation and the motivating deployment keeps those derivatives on fast local storage.
+
+A representation may be used for public delivery only after tests prove:
+
+- acceptable visual quality for the intended web use;
+- no sensitive EXIF/GPS metadata is present in the delivered derivative;
+- content type is validated;
+- response size/streaming is bounded appropriately;
+- private originals are not accidentally exposed.
+
+If provider previews do not meet those requirements, an explicit image-transformation slice may add safe re-encoding/metadata stripping. Do not add ImageMagick/libvips/transcoding dependencies preemptively.
+
+Original-file delivery is off by default and is not a V0 requirement.
+
+## Video delivery
+
+Video is deliberately later work. Correct public video delivery may require range requests, content-length/range semantics, larger timeouts, codec/container behavior and different cache policy.
+
+Until that slice is implemented, video requests fail closed even if the configured path rule marks the asset eligible.
+
+## Configuration
+
+V0 uses TOML. Configuration describes policy and connectivity, not publication state.
+
+Representative shape:
+
+```toml
+[server]
+listen = "127.0.0.1:2290"
+public_base_url = "https://media.example.com"
+
+[provider]
+type = "immich"
+base_url = "http://127.0.0.1:2283"
+api_key_file = "/etc/media-gateway/immich.key"
+
+[policy]
+allowed_roots = ["/media/archive"]
+
+[[policy.rules]]
+segment = "public"
+media = ["image", "video"]
+
+[[policy.rules]]
+segment = "public-images"
+media = ["image"]
+
+[[policy.rules]]
+segment = "public-videos"
+media = ["video"]
+
+[delivery]
+allow_original = false
+```
+
+The committed example is illustrative. The implementation owns the final validated schema.
+
+Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
+
+## State
+
+Media Gateway has no application database in V0.
+
+Allowed state is limited to normal process/runtime state and, if later justified, disposable derived-media cache. A cache must never become publication authority; policy must still be checked before serving cached content unless an explicitly designed cache contract proves equivalent revocation semantics.
+
+## Dependencies
+
+Prefer Go's standard library. The expected V0 problem is small enough that a web framework, dependency injection container, ORM, message broker, scheduler or container runtime is unnecessary.
+
+A small TOML parser is an acceptable dependency if chosen deliberately. Additional dependencies require concrete value and should stay auditable.
+
+## Failure behavior
+
+- Provider unavailable: bounded `5xx`/unavailable behavior; never fall back to direct storage.
+- Provider metadata incomplete/ambiguous: deny.
+- Asset outside allowed root: deny.
+- No exact eligible segment: deny.
+- Unsupported media type/variant: deny.
+- Malformed asset ID: deny before provider access where possible.
+- Configuration invalid: service does not start.
+- Credential unavailable: service does not start or remains unready; never run in a broadened anonymous mode.
+
+## Future extensions
+
+Potential later capabilities include:
+
+- video/range delivery;
+- optional local derivative cache;
+- optional image re-encoding/format variants;
+- signed or opaque public URLs if evidence justifies them;
+- additional private consumer integrations;
+- another provider, once a real second provider exists.
+
+These are not V0 requirements and must not add complexity to the first secure image path without evidence.
