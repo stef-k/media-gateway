@@ -9,6 +9,7 @@ The initial provider is Immich. The first deployment is intended to publish sele
 - [Architecture](architecture.md) — components, trust boundaries, policy model and request flow.
 - [Security](security.md) — threats, non-negotiable invariants and fail-closed behavior.
 - [Toolchain](toolchain.md) — Go version, dependency policy and CI/build baseline.
+- [Logging](logging.md) — nginx access logging versus application/journald diagnostics.
 - [Deployment](deployment.md) — configuration, systemd, nginx and host integration.
 - [Roadmap](roadmap.md) — V0 capability boundaries and later work.
 
