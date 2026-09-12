@@ -67,7 +67,8 @@ quiet. Exceptional failures before headers emit one `provider request failed`
 warning with the adapter's fixed sanitized outcome. Failed body copies emit only
 `preview stream failed`; canceled public requests remain quiet. No request IDs,
 asset IDs, provider paths, header values or body text are logged.
-The consumer handler uses the same fixed provider failure outcomes and keeps
+The consumer handler emits `provider search failed` with fixed provider failure
+outcomes, mapping a search-endpoint HTTP 404 to unexpected provider status. It keeps
 successes, invalid pagination, private/missing denials and cancellation quiet.
 Consumer cursors and search results are never logged.
 The standard HTTP server's connection error logger is discarded because its free

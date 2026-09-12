@@ -74,7 +74,7 @@ func TestConsumerInputBoundary(t *testing.T) {
 
 // TestConsumerFailures proves provider values cannot escape generic error handling.
 func TestConsumerFailures(t *testing.T) {
-	for _, status := range []int{401, 403, 500, 200} {
+	for _, status := range []int{401, 403, 404, 500, 200} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
@@ -84,18 +84,31 @@ func TestConsumerFailures(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayFor(t, provider, &logs, time.Second)
-			resp, err := gateway.Client().Get(gateway.URL + "/internal/assets")
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if resp.StatusCode != 502 || string(body) != "media unavailable\n" {
-				t.Fatalf("%d %s", resp.StatusCode, body)
-			}
-			for _, marker := range []string{testKey, "private-body-marker", "/private/path", "provider-marker", provider.URL} {
-				if strings.Contains(logs.String()+string(body), marker) {
-					t.Errorf("leaked %s", marker)
+			for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
+				logs.Reset()
+				resp, err := gateway.Client().Get(gateway.URL + route)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if resp.StatusCode != 502 || string(body) != "media unavailable\n" {
+					t.Fatalf("%d %s", resp.StatusCode, body)
+				}
+				if status == 404 {
+					var record struct {
+						Level   string
+						Msg     string
+						Outcome string
+					}
+					if json.Unmarshal(logs.Bytes(), &record) != nil || record.Level != "WARN" || record.Msg != "provider search failed" || record.Outcome != "immich: unexpected provider status" {
+						t.Fatalf("missing fixed search failure diagnostic: %s", &logs)
+					}
+				}
+				for _, marker := range []string{testKey, "private-body-marker", "/private/path", "provider-marker", provider.URL} {
+					if strings.Contains(logs.String()+string(body), marker) {
+						t.Errorf("leaked %s", marker)
+					}
 				}
 			}
 		})
