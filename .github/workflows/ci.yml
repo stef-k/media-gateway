@@ -1,0 +1,27 @@
+# One Linux job checks the reviewed toolchain; release packaging is separate work.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read # Checkout needs read access; validation needs no write token.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # Bound a stalled build or test run.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1' # Deliberate reviewed patch, not a floating family.
+      - name: Check formatting
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+      - name: Race test
+        run: go test -race ./...
+      - name: Build
+        run: go build ./cmd/media-gateway
