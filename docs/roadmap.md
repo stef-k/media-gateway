@@ -4,20 +4,26 @@ Media Gateway deliberately uses a small roadmap. The phases describe capability 
 
 Execution tracker: [#1 — V0 tracking](https://github.com/stef-k/media-gateway/issues/1)
 
+Toolchain authority: [docs/toolchain.md](toolchain.md)
+
 ## V0 — secure image publication gateway
 
 Goal: prove one narrow end-to-end path from a private Immich asset to a public image response while keeping private media fail-closed.
 
 ### #2 — Go service foundation and configuration
 
+- Go 1.27 family with Go 1.27.1 as the initial reviewed stable toolchain;
 - Go module and executable foundation;
-- TOML configuration with strict startup validation;
+- standard-library `net/http`, `log/slog`, `flag`, `context`, `testing` baseline;
+- `github.com/pelletier/go-toml/v2` v2.4.3 as the expected single third-party runtime dependency;
+- TOML configuration with strict unknown-field rejection and startup validation;
+- deployment-specific roots, literal publication segment names, provider URL and public base URL remain configurable;
 - separate provider credential file;
 - loopback-only listener;
 - small logging/health behavior;
 - test/CI/build baseline.
 
-No provider policy or media delivery yet.
+No provider policy or media delivery yet. Do not add a web/router framework, DI container, logging framework, ORM or other runtime framework without a concrete issue-backed need.
 
 ### #3 — Immich provider and publication policy
 
@@ -25,7 +31,7 @@ No provider policy or media delivery yet.
 - bounded provider client;
 - current asset metadata/media type/path lookup;
 - allowed-root validation;
-- exact `public`, `public-images`, `public-videos` segment policy;
+- exact configured literal directory-segment policy (the motivating deployment uses `public`, `public-images`, `public-videos`);
 - fail-closed unit/fuzz coverage.
 
 This is the main authorization boundary.
@@ -46,6 +52,7 @@ Do not add originals, video, transcoding or cache unless the evidence requires i
 - Linux build/install path;
 - unprivileged systemd service;
 - separate secret/config installation;
+- fully comment-documented example TOML/nginx/systemd assets;
 - nginx public-route boundary;
 - HTTPS/tunnel integration guidance;
 - production smoke tests proving known-public success and known-private denial.
@@ -66,7 +73,7 @@ Actual WordPress theme integration remains a cross-repository change in `divi-ch
 
 ### Video delivery
 
-Add `public`/`public-videos` video support only after specifying and testing:
+Add configured video-policy support only after specifying and testing:
 
 - byte ranges;
 - seek/stream behavior;
