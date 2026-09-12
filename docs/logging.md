@@ -53,20 +53,25 @@ Do not routinely log:
 
 Known-private or malformed public requests are normal hostile/invalid Internet traffic and must not become an unbounded warning-log amplification path. Routine policy denials should normally remain quiet or low-verbosity; unexpected invariant/provider failures merit higher severity.
 
-## Service shell events
+## Service events
 
-The shell emits JSON `slog` records to stderr at INFO for `starting`,
+The service emits JSON `slog` records to stderr at INFO for `starting`,
 `configuration loaded`, `listening`, `stopping`, and `stopped`. Startup metadata is
 limited to build provenance and the validated loopback listener. It never dumps
 configuration, roots, provider URLs or credential paths. Configuration errors use
 the shared loader's sanitized field/operation messages; bind/serve/shutdown errors
 use fixed failure descriptions and cause a nonzero exit.
 
-Every route currently returns a fixed `404` without application request logging.
+The public handler keeps successes and routine malformed/private/missing denials
+quiet. Exceptional failures before headers emit one `provider request failed`
+warning with the adapter's fixed sanitized outcome. Failed body copies emit only
+`preview stream failed`; canceled public requests remain quiet. No request IDs,
+asset IDs, provider paths, header values or body text are logged.
 The standard HTTP server's connection error logger is discarded because its free
 text can include request-controlled data; lifecycle failures are reported separately
-through `slog`. Revisit this choice if later handlers introduce panic-prone work,
-while preserving privacy and bounded diagnostic volume.
+through `slog`. Streaming failures use `http.ErrAbortHandler` to terminate incomplete responses
+without free-text panic logging. Preserve privacy and bounded diagnostic volume
+when changing this behavior.
 
 ## Operational split
 

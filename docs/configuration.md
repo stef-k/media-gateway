@@ -53,8 +53,11 @@ are supported. This validation does not implement path matching or authorize ass
 
 `delivery.allow_original` must be false. `delivery.image_variant` must be `preview`.
 Accepting a video policy rule does not enable video delivery. Accepting `preview`
-does not establish its privacy or quality: representative Immich evidence and the
-actual delivery implementation remain later work.
+does not establish its privacy or quality: real-provider qualification in #18
+remains open. The implemented route accepts
+only JPEG/WebP previews with a positive known length of at most 16 MiB. The
+provider key needs `asset.read` and `asset.view`; per-call timeouts include
+streaming and are also capped by the 60-second public request context.
 
 ## Development validation
 

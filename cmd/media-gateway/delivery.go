@@ -15,8 +15,8 @@ import (
 	"github.com/stef-k/media-gateway/internal/publication"
 )
 
-// deliveryTimeout bounds metadata plus preview work and downstream writes together.
-// The configured provider timeout still applies independently to each upstream call.
+// deliveryTimeout caps combined metadata/preview work; the server write deadline
+// separately bounds blocked downstream writes. Each provider call also has a timeout.
 const deliveryTimeout = 60 * time.Second
 
 // deliveryHandler owns public authorization; the concrete client owns private HTTP.

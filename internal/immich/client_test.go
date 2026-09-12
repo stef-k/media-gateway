@@ -127,6 +127,9 @@ func TestInvalidIDs(t *testing.T) {
 		if got, err := client.Asset(context.Background(), id); got != (Metadata{}) || err != ErrInvalidID {
 			t.Fatal("invalid ID accepted")
 		}
+		if got, err := client.Preview(context.Background(), id); got != (Preview{}) || err != ErrInvalidID {
+			t.Fatal("invalid preview ID accepted")
+		}
 	}
 	if calls.Load() != 0 {
 		t.Fatal("invalid ID contacted provider")
@@ -197,5 +200,8 @@ func TestTransportFailure(t *testing.T) {
 	defer client.CloseIdleConnections()
 	if got, err := client.Asset(context.Background(), assetID); got != (Metadata{}) || err != ErrTransport {
 		t.Fatalf("unexpected transport outcome: %v", err)
+	}
+	if got, err := client.Preview(context.Background(), assetID); got != (Preview{}) || err != ErrTransport {
+		t.Fatalf("unexpected preview transport outcome: %v", err)
 	}
 }

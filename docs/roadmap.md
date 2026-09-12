@@ -66,6 +66,10 @@ This is the main authorization boundary. Harden/decompose it after #2 establishe
 - non-enumerating denial;
 - real representative proof that the selected public derivative does not expose sensitive EXIF/GPS.
 
+#17 implements the deterministic public preview path with fake-provider tests.
+#18 remains the real deployed-Immich privacy/quality gate; #4 closes only after
+both are accepted, and #5 depends on that completion.
+
 Do not add originals, video, transcoding or cache unless the evidence requires it.
 
 ### #5 — Linux deployment and ingress hardening

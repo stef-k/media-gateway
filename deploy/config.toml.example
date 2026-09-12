@@ -32,15 +32,17 @@ type = "immich"
 # or another operator-controlled private address.
 base_url = "http://127.0.0.1:2283"
 
-# File containing the dedicated least-privilege Immich API key. The service account
-# must be able to read it; other local users should not. Do not put the key itself in
-# this TOML file. Use an absolute normalized path to a regular file with owner-read
+# File containing the dedicated Immich API key, restricted to asset.read +
+# asset.view on a non-administrator account with access to the intended assets.
+# The host service account must be able to read it; other local users should not.
+# Do not put the key itself in this TOML file. Use an absolute normalized path to a regular file with owner-read
 # permission and no group/other permissions (for example 0600). The key is one ASCII
 # token, optionally followed by a newline, with a 4096-byte file limit.
 api_key_file = "/etc/media-gateway/immich.key"
 
 # Maximum duration for a normal provider HTTP request. Provider failure must remain
-# bounded; it must never cause an unbounded public request or storage fallback.
+# bounded through body streaming; the complete public request also has a fixed
+# 60-second context and 65-second write bound. There is no storage fallback.
 # Required positive Go duration; zero, negative, missing and overflowing values fail.
 request_timeout = "15s"
 

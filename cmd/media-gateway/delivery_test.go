@@ -46,7 +46,7 @@ func TestDeliveryRevalidation(t *testing.T) {
 	var private atomic.Bool
 	var assets, previews atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" || r.Header.Get("x-api-key") != testKey || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Caller") != "" || r.Header.Get("Range") != "" || r.Header.Get("If-None-Match") != "" {
+		if r.Host == "attacker.invalid" || r.Method != "GET" || r.Header.Get("x-api-key") != testKey || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Caller") != "" || r.Header.Get("Range") != "" || r.Header.Get("If-None-Match") != "" {
 			t.Error("unexpected upstream method or headers")
 		}
 		switch r.URL.RequestURI() {
@@ -77,6 +77,7 @@ func TestDeliveryRevalidation(t *testing.T) {
 	for i, method := range []string{"GET", "HEAD", "GET", "HEAD"} {
 		private.Store(i >= 2)
 		req, _ := http.NewRequest(method, gateway.URL+testRoute+"?size=original&url=http://attacker.invalid/&key=caller", nil)
+		req.Host = "attacker.invalid"
 		for _, name := range []string{"Authorization", "Cookie", "X-Caller", "x-api-key", "Range", "If-None-Match"} {
 			req.Header.Set(name, "caller-secret")
 		}
