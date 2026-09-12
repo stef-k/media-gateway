@@ -8,6 +8,7 @@ The initial provider is Immich. The first deployment is intended to publish sele
 
 - [Architecture](architecture.md) — components, trust boundaries, policy model and request flow.
 - [Security](security.md) — threats, non-negotiable invariants and fail-closed behavior.
+- [Toolchain](toolchain.md) — Go version, dependency policy and CI/build baseline.
 - [Deployment](deployment.md) — configuration, systemd, nginx and host integration.
 - [Roadmap](roadmap.md) — V0 capability boundaries and later work.
 
@@ -26,6 +27,8 @@ media.stefk.me
 ```
 
 The service is intentionally not a media-management UI or a generic proxy. The configured publication policy is re-evaluated for every delivered asset.
+
+V0 uses the Go 1.27 family (initial reviewed toolchain Go 1.27.1), the Go standard library for HTTP/logging/testing, and one expected external runtime dependency for strict TOML decoding. See [Toolchain](toolchain.md) for the exact policy.
 
 ## Source
 
