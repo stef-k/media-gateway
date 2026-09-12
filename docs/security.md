@@ -146,7 +146,13 @@ A compromised consumer may attempt to request arbitrary provider asset IDs. The 
 private asset ID -> gateway policy check -> 404
 ```
 
-Any localhost-only search/discovery API exposed to a consumer must itself return only publication-eligible assets and must not become a generic private-library browser.
+The [private consumer API](consumer-api.md) returns only currently eligible images
+from bounded candidate search or exact lookup. Every candidate passes the same
+publication evaluator before any fields are serialized. Only IDs, dimensions,
+capture/local times and relative preview paths leave this boundary. The service
+requires a loopback peer, ignores forwarded identity headers and gives no CORS
+permission. nginx must never publish `/internal/`: a local proxy is still a local
+peer, so application peer checks cannot establish public ingress isolation.
 
 ## Request hardening
 

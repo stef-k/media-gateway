@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -36,8 +38,16 @@ func TestConsumerBrowse(t *testing.T) {
 		if json.NewDecoder(r.Body).Decode(&query) != nil {
 			t.Error("invalid query")
 		}
-		if query["size"] != float64(25) || query["withExif"] != false {
-			t.Error("wrong search bounds")
+		expected := map[string]any{
+			"filter":  map[string]any{"type": map[string]any{"eq": "IMAGE"}},
+			"orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"},
+			"size":    float64(25), "withExif": false, "withPeople": false, "withStacked": false,
+		}
+		if query["cursor"] != nil {
+			expected["cursor"] = "next-page"
+		}
+		if !reflect.DeepEqual(query, expected) {
+			t.Errorf("unexpected search semantics: %v", query)
 		}
 		paths := []string{"/external/photos/website/photo.jpg", "/external/photos/private/private-marker", "/outside/website/outside-marker", "/external/photos/website-old/near-marker", "/external/photos/website/../malformed-marker"}
 		if query["cursor"] == "next-page" {
@@ -45,7 +55,7 @@ func TestConsumerBrowse(t *testing.T) {
 		}
 		items := make([]map[string]any, 0, len(paths))
 		for i, path := range paths {
-			items = append(items, candidateFixture(strings.Replace(testAsset, "12345678", "2234567"+string(rune('0'+i)), 1), path, "IMAGE"))
+			items = append(items, candidateFixture(fmt.Sprintf("%08x-1234-4234-8234-123456789abc", i), path, "IMAGE"))
 		}
 		candidateResponse(w, items, "next-page")
 	}))
