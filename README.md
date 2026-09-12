@@ -15,7 +15,7 @@ private archive -> Immich -> Media Gateway -> nginx/HTTPS -> Internet
                   private API only
 ```
 
-Publication is **deny by default**. For the initial deployment, filesystem organization indexed by Immich is the single publication-policy source of truth:
+Publication is **deny by default**. For the motivating deployment, filesystem organization indexed by Immich is the single publication-policy source of truth. The names below are examples configured through TOML, not hard-coded universal requirements:
 
 - exact `public` directory segment: image/video eligible;
 - exact `public-images` segment: image eligible;
@@ -29,6 +29,8 @@ Eligibility is checked by Media Gateway on every delivery request. Immich remain
 V0 is intentionally small:
 
 - one Go binary;
+- **Go 1.27.1** initial stable toolchain baseline;
+- one expected third-party runtime dependency: `github.com/pelletier/go-toml/v2` for strict TOML decoding;
 - one TOML configuration file plus a separately protected Immich credential;
 - loopback-only application listener;
 - Immich metadata and preview retrieval;
@@ -40,17 +42,20 @@ V0 is intentionally small:
 - no generic URL fetching;
 - no public Immich endpoint.
 
+Go has no separate LTS channel; the project follows supported stable Go releases deliberately, with patch updates reviewed and major upgrades tested rather than taken automatically.
+
 Image delivery is the first production target. Video delivery may follow once range/streaming behavior is specified and tested.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Security model](docs/security.md)
+- [Toolchain and dependency policy](docs/toolchain.md)
 - [Deployment](docs/deployment.md)
 - [Roadmap](docs/roadmap.md)
 - [GitHub Pages documentation](docs/index.md)
 
-Deployment templates live under [`deploy/`](deploy/). They are examples and must be reviewed for the target host before installation.
+Deployment templates live under [`deploy/`](deploy/). They are examples and must be reviewed for the target host before installation. The TOML, nginx and systemd examples are intentionally comment-documented so operators can understand which values are deployment-specific and which constraints are security invariants.
 
 ## Project boundaries
 
