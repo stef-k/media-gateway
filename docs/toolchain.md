@@ -17,7 +17,7 @@ Project policy:
 - major Go upgrades are deliberate changes with full tests and deployment validation;
 - Linux amd64 is the first production target, but application code should remain portable where that costs nothing.
 
-When issue #2 creates `go.mod`, prefer a minimum language line compatible with the selected family and an explicit toolchain directive for the reviewed patch release rather than silently depending on whatever Go happens to be installed on a developer machine.
+`go.mod` declares Go 1.27.0 as the language minimum and Go 1.27.1 as the reviewed toolchain. CI explicitly selects Go 1.27.1.
 
 Official release policy/history: <https://go.dev/doc/devel/release>
 
@@ -84,15 +84,19 @@ Security semantics are not configurable:
 
 ## Build and CI baseline
 
-Issue #2 should establish a single lightweight CI job on `ubuntu-latest` using the pinned Go family and run at minimum:
+The single Linux job in `.github/workflows/ci.yml` runs on pull requests and pushes to `main`. Run the same baseline locally with Go 1.27.1:
 
-```text
-gofmt check
+```sh
+test -z "$(gofmt -l $(git ls-files '*.go'))"
 go vet ./...
 go test ./...
 go test -race ./...
 go build ./cmd/media-gateway
 ```
+
+`-version` reports module version, embedded VCS revision/dirty state and Go version.
+Local builds normally show `(devel)`; builds without VCS metadata show `unknown`.
+No release packaging or custom version injection is introduced.
 
 Fuzz/property tests for the path-policy boundary belong in #3. Cross-compilation/release packaging belongs later when the service implementation is stable enough to justify it.
 

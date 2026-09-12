@@ -12,7 +12,7 @@ Description=Media Gateway publication service
 Documentation=https://github.com/stef-k/media-gateway
 
 # Ask systemd to bring the network-online target into the transaction. Provider
-# availability is still checked by the application; this is ordering, not trust.
+# availability is not checked by the shell; this is ordering, not readiness.
 Wants=network-online.target
 
 # Start only after the network-online target has been reached.

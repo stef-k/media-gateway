@@ -37,7 +37,7 @@ A typical credential file should be owned/readable only by root and the service 
 
 ## Configuration
 
-Start from the repository's [`deploy/config.toml.example`](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) once the implementation schema is finalized.
+Start from the repository's [`deploy/config.toml.example`](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and follow the [validated configuration contract](configuration.md).
 
 The reference shape keeps secrets separate:
 
@@ -59,7 +59,23 @@ The reference [`deploy/media-gateway.service`](https://github.com/stef-k/media-g
 - explicit configuration path;
 - restart on unexpected failure.
 
-The final implementation should provide a `-config` or equivalent explicit command-line option matching the service file.
+The executable requires `-config <file>`, matching the service template. `-version`
+prints build provenance without loading configuration; `-h` prints usage. Positional
+arguments and invalid flags are rejected without echoing their values. Exit codes
+are 0 for help/version or clean signal shutdown, 2 for CLI misuse, and 1 for
+configuration, bind, serve or shutdown failure.
+
+SIGINT/SIGTERM close the listener and drain active requests for up to 10 seconds;
+on timeout the process closes connections and exits with failure. This fits inside
+`TimeoutStopSec=30s`. Configuration changes require a process restart.
+
+The current shell denies every route with a fixed `404`, including `/health` and
+`/media/`. There is no readiness endpoint or provider availability check. A
+`listening` lifecycle log means the validated loopback listener was acquired, not
+that media can be delivered. HTTP limits are 5 seconds for headers, 10 seconds for
+request reads and response writes, 30 seconds for idle connections, and 16 KiB for
+headers (plus the standard library's parsing allowance). No handler reads request
+bodies. These shell bounds must be reconsidered in the later media-delivery issue.
 
 Before installation/reload:
 

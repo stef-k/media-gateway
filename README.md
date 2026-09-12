@@ -4,7 +4,7 @@ Media Gateway is a small, fail-closed publication gateway for serving explicitly
 
 The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through `https://media.stefk.me` for consumers such as WordPress.
 
-> **Status:** strict configuration foundation implemented; the service and media delivery are not implemented yet. There is no production release.
+> **Status:** configuration and loopback service shell implemented; provider integration and media delivery are not implemented yet. There is no production release.
 
 ## Core idea
 
@@ -47,6 +47,25 @@ Go has no separate LTS channel; the project follows supported stable Go releases
 Image delivery is the first production target. Video delivery may follow once range/streaming behavior is specified and tested.
 
 The foundation epic is intentionally decomposed before implementation: #9 owns the Go/configuration core and #10 owns the executable lifecycle, logging and CI shell. Coarse epics are not handed to coding agents when a bounded child issue exists.
+
+## Running the service shell
+
+Build with Go 1.27.1 and run with an explicit configuration path:
+
+```sh
+go build -o bin/media-gateway ./cmd/media-gateway
+bin/media-gateway -version
+bin/media-gateway -config /etc/media-gateway/config.toml
+```
+
+The configuration and separate credential must pass [`config.Load`](docs/configuration.md)
+validation before binding. The shell makes no provider requests and returns a fixed
+`404` for every HTTP route/method. It has no health/readiness endpoint: a running
+shell cannot establish provider or media readiness. SIGINT/SIGTERM stop accepting
+connections and allow up to 10 seconds for active requests to drain.
+
+See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
+[Toolchain](docs/toolchain.md) for the local/CI validation commands.
 
 ## Logging
 
