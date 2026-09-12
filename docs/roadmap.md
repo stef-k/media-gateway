@@ -6,35 +6,56 @@ Execution tracker: [#1 — V0 tracking](https://github.com/stef-k/media-gateway/
 
 Toolchain authority: [docs/toolchain.md](toolchain.md)
 
+Logging authority: [docs/logging.md](logging.md)
+
 ## V0 — secure image publication gateway
 
 Goal: prove one narrow end-to-end path from a private Immich asset to a public image response while keeping private media fail-closed.
 
 ### #2 — Go service foundation and configuration
 
-- Go 1.27 family with Go 1.27.1 as the initial reviewed stable toolchain;
-- Go module and executable foundation;
-- standard-library `net/http`, `log/slog`, `flag`, `context`, `testing` baseline;
-- `github.com/pelletier/go-toml/v2` v2.4.3 as the expected single third-party runtime dependency;
-- TOML configuration with strict unknown-field rejection and startup validation;
-- deployment-specific roots, literal publication segment names, provider URL and public base URL remain configurable;
-- separate provider credential file;
-- loopback-only listener;
-- small logging/health behavior;
-- test/CI/build baseline.
+This epic is executed through two deterministic implementation children:
 
-No provider policy or media delivery yet. Do not add a web/router framework, DI container, logging framework, ORM or other runtime framework without a concrete issue-backed need.
+#### #9 — Go module and strict configuration core
+
+- Go 1.27 family with Go 1.27.1 as the initial reviewed stable toolchain;
+- Go module foundation;
+- `github.com/pelletier/go-toml/v2` v2.4.3 as the expected single third-party runtime dependency;
+- typed TOML configuration with strict unknown-field rejection;
+- installation-specific provider URL, roots and literal publication segment names;
+- separate provider credential file;
+- fail-closed startup/configuration validation;
+- focused configuration tests.
+
+No HTTP service shell, provider API client or media delivery belongs in #9.
+
+#### #10 — service shell, lifecycle, logging and CI
+
+- `cmd/media-gateway` executable;
+- standard-library `net/http`, `log/slog`, `flag`, `context`, `testing` baseline;
+- loopback-only listener;
+- deterministic startup, signal handling and graceful shutdown;
+- sanitized application logging to stderr/stdout for journald capture;
+- nginx remains the later public access-log layer; the application does not duplicate a full access log;
+- minimal health/readiness only if operationally useful and privacy-safe;
+- version/build metadata;
+- lightweight CI running formatting, vet, tests, race tests and build.
+
+No provider policy or media delivery belongs in #10. Do not add a web/router framework, DI container, logging framework, ORM or other runtime framework without a concrete issue-backed need.
+
+Completion of #9 and #10 closes #2.
 
 ### #3 — Immich provider and publication policy
 
 - current Immich API/permission verification;
 - bounded provider client;
 - current asset metadata/media type/path lookup;
-- allowed-root validation;
-- exact configured literal directory-segment policy (the motivating deployment uses `public`, `public-images`, `public-videos`);
-- fail-closed unit/fuzz coverage.
+- normalized path-aware allowed-root validation;
+- exact configured literal directory-segment policy (the motivating deployment uses `public`, `public-images`, `public-videos` but those names are not universal requirements);
+- fail-closed unit/fuzz coverage;
+- private provider paths/metadata remain out of routine logs.
 
-This is the main authorization boundary.
+This is the main authorization boundary. Harden/decompose it after #2 establishes the final package seams; the expected implementation split is a pure publication-policy core plus a small Immich adapter.
 
 ### #4 — public image delivery
 
@@ -54,8 +75,11 @@ Do not add originals, video, transcoding or cache unless the evidence requires i
 - separate secret/config installation;
 - fully comment-documented example TOML/nginx/systemd assets;
 - nginx public-route boundary;
-- HTTPS/tunnel integration guidance;
-- production smoke tests proving known-public success and known-private denial.
+- nginx access/error logging plus application/journald diagnostic split;
+- generic HTTPS/tunnel integration guidance;
+- portable smoke tests proving known-public success and known-private denial.
+
+#5 owns the reusable deployment contract only. A concrete host/hostname integration belongs to that deployment's own repository; the motivating M6 deployment is tracked by `stef-k/server-migration#10`.
 
 Completion of #2–#5 establishes V0.
 
