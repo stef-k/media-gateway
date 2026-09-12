@@ -60,11 +60,20 @@ func validOrigin(value string) bool {
 		}
 	}
 	// Brackets are reserved for an IPv6 literal, not a malformed hostname.
-	if strings.ContainsAny(u.Hostname(), ":[]") {
+	if strings.HasPrefix(u.Host, "[") || strings.ContainsAny(u.Hostname(), ":[]") {
 		ip, err := netip.ParseAddr(u.Hostname())
-		return err == nil && ip.Zone() == ""
+		return err == nil && ip.Is6() && ip.Zone() == ""
 	}
-	for _, r := range u.Hostname() {
+	host := strings.TrimSuffix(u.Hostname(), ".")
+	if len(host) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+	}
+	for _, r := range host {
 		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '.') {
 			return false
 		}
