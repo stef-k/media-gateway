@@ -31,6 +31,12 @@ Group=media-gateway
 # be separately readable by this service account and not embedded in ExecStart.
 ExecStart=/usr/local/bin/media-gateway -config /etc/media-gateway/config.toml
 
+# Application logs are written by Go's log/slog to stdout/stderr. Keep ownership of
+# persistence/indexing/rotation with systemd/journald instead of creating application
+# log files. nginx separately owns the public HTTP access/error logs.
+StandardOutput=journal
+StandardError=journal
+
 # Restart unexpected failures, but do not loop on a deliberate clean shutdown.
 Restart=on-failure
 
