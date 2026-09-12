@@ -154,13 +154,54 @@ http://127.0.0.1:2283
 
 Other private-network layouts are valid, but the provider URL is operator configuration and cannot be supplied by public requests.
 
-The provider API key should use the minimum current Immich permissions required for:
+### Reviewed metadata contract
 
-- asset metadata lookup;
-- the selected preview/representation retrieval;
-- eligible-asset search only if/when a private consumer API is implemented.
+Verified on 2026-09-12 against official Immich OpenAPI version **3.2.0** at
+[upstream commit `0f901eea5ec2d3ebf85188b8c1dd193ae3619966`](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/open-api/immich-openapi-specs.json).
+The [Retrieve an asset operation](https://api.immich.app/endpoints/assets/getAssetInfo)
+(`getAssetInfo`) uses `GET /api/assets/{id}` and returns HTTP `200` with
+`application/json`. The API server prefix is `/api`; configured `base_url`
+remains an origin, not an API path.
 
-Re-check current Immich permissions/API behavior when implementing or upgrading provider support.
+Use a non-administrator account with access to the intended assets and an API key
+restricted to **`asset.read`**, sent only in the **`x-api-key`** header. This is the
+minimum permission for this metadata operation; it does not override Immich's
+asset-access checks. No preview, search or write permissions are needed by the
+current adapter. Review additional permissions only when those operations are
+implemented.
+
+The OpenAPI and [controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/asset.controller.ts)
+require UUIDv4 identifiers: hyphenated hexadecimal `8-4-4-4-12`, version nibble
+`4`, variant nibble `8`, `9`, `a` or `b` (either letter case). The adapter checks
+this before sending requests. Returned IDs must denote the same UUID; letter
+case alone is insignificant.
+
+Only `AssetResponseDto.id`, `originalPath` and `type` are retained. All are required
+and non-empty. `IMAGE` maps to `image`, `VIDEO` to `video`; documented `AUDIO` and
+`OTHER`, and any unknown type, fail closed. Paths pass unchanged to
+`publication.Eligible`; neither ID knowledge nor successful metadata retrieval
+grants publication. Video mapping does not enable video delivery.
+
+`internal/immich.New` consumes validated `config.Load` provider values and its
+separately returned credential. `Client.Asset` performs a fresh lookup each time.
+It uses no environment proxy, follows no redirects, and emits no logs. The
+configured request timeout covers connection through response-body reading;
+caller cancellation is honored. Connection and TLS handshakes additionally have
+a five-second maximum (or the shorter configured timeout). Response headers are
+limited to 16 KiB and the complete metadata body to 1 MiB before JSON decoding,
+including unrelated fields. Oversized or malformed responses fail closed.
+
+Errors expose only fixed outcome classes: invalid ID, missing (`404`), auth
+(`401`/`403`), unexpected provider status, transport failure, invalid metadata or
+unsupported media. Cancellation and deadline errors are standard context
+sentinels. No upstream URL, body, key or private path is embedded in errors.
+Later HTTP orchestration must preserve non-enumerating public denial and the
+existing logging rules. The service shell still makes no provider calls; no
+metadata endpoint or media-delivery route is added by this adapter.
+
+This verification is an upstream API/source review plus local HTTP contract tests,
+not qualification against a deployed Immich instance. Re-check API permissions
+and run provider/policy smoke tests when upgrading Immich.
 
 ## Host firewall
 

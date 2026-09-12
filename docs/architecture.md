@@ -178,7 +178,10 @@ The exact consumer API should be designed when the first consumer integration is
 
 ## Provider boundary
 
-Immich integration should live behind a small internal provider interface so HTTP/policy code is not coupled throughout the program to provider-specific JSON.
+`internal/immich` provides a concrete metadata client so provider-specific HTTP/JSON
+stays outside the pure publication evaluator. Its `Asset` method returns only ID,
+unchanged original path and normalized media type. It does not grant publication
+or connect to the service shell. See the [reviewed API contract](deployment.md#reviewed-metadata-contract).
 
 The provider needs only capabilities required by current issues, initially:
 
