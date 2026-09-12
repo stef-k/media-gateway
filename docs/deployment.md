@@ -91,6 +91,31 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+## Logging
+
+Logging is intentionally split between nginx and the Go service. See [`docs/logging.md`](logging.md) for the authoritative privacy/severity rules.
+
+### nginx
+
+nginx owns the public HTTP access/error record for the published media route. It is the right place to observe client/method/status/bytes/timing and reverse-proxy transport failures.
+
+Do not put provider credentials or authorization headers into access logs. If a future feature introduces signed/tokenized query parameters, review the nginx log format before enabling it so signatures/tokens are not persisted accidentally.
+
+### Media Gateway
+
+The Go process uses the standard library `log/slog` for lifecycle, sanitized startup/configuration state, provider/runtime failures and security-relevant diagnostics. It writes to stderr/stdout; under systemd, journald owns persistence and rotation.
+
+There is no V0 application-managed logfile or rotation subsystem and no second full access log duplicating nginx.
+
+Useful operator commands include:
+
+```bash
+journalctl -u media-gateway
+journalctl -u media-gateway -f
+```
+
+Routine denied/malformed Internet traffic must not become an unbounded high-severity application-log flood. Application logs must not contain provider API keys, authorization headers, private provider/NAS paths, GPS/EXIF metadata or provider error bodies.
+
 ## HTTPS / edge
 
 The motivating deployment uses a dedicated public hostname such as:
@@ -137,12 +162,15 @@ Before declaring a deployment usable:
 4. known eligible test image returns successfully;
 5. known private asset ID returns `404`;
 6. asset outside the allowed provider root returns `404`;
-7. `public-old`/similar near-miss path returns `404`;
+7. configured publication-segment near misses return `404`;
 8. public image response has the expected content type and no sensitive EXIF/GPS metadata;
 9. provider outage produces bounded failure and no storage fallback;
-10. secrets do not appear in logs or responses;
-11. service survives/restarts cleanly under systemd;
-12. unrelated host services remain healthy.
+10. secrets/private provider paths do not appear in nginx or journald logs or responses;
+11. nginx access logging records the intended public request facts without secret query/header material;
+12. gateway lifecycle/provider failures are visible through `journalctl -u media-gateway`;
+13. repeated denied requests do not create an obvious unbounded high-severity application-log flood;
+14. service survives/restarts cleanly under systemd;
+15. unrelated host services remain healthy.
 
 ## Upgrades
 
