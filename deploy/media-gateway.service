@@ -1,0 +1,36 @@
+[Unit]
+Description=Media Gateway publication service
+Documentation=https://github.com/stef-k/media-gateway
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=media-gateway
+Group=media-gateway
+ExecStart=/usr/local/bin/media-gateway -config /etc/media-gateway/config.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0077
+
+# Baseline hardening. Review against the final implementation and target distro.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
