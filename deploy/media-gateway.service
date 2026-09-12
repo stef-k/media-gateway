@@ -1,36 +1,103 @@
+# Reference systemd unit for Media Gateway.
+#
+# Review paths and hardening against the final binary and target distribution before
+# installation. The service is intentionally unprivileged, network-only and
+# filesystem-read-mostly. It should not need access to the NAS or Immich files.
+
 [Unit]
+# Human-readable service description shown by systemctl/status tooling.
 Description=Media Gateway publication service
+
+# Upstream documentation/source location for operators.
 Documentation=https://github.com/stef-k/media-gateway
+
+# Ask systemd to bring the network-online target into the transaction. Provider
+# availability is still checked by the application; this is ordering, not trust.
 Wants=network-online.target
+
+# Start only after the network-online target has been reached.
 After=network-online.target
 
 [Service]
+# The Go binary remains in the foreground and systemd supervises that process.
 Type=simple
+
+# Dedicated unprivileged account. Create it as a system user with no interactive
+# login and no membership in nginx/Immich/NAS administrative groups.
 User=media-gateway
 Group=media-gateway
+
+# Binary and protected configuration path. Secrets referenced by the TOML file must
+# be separately readable by this service account and not embedded in ExecStart.
 ExecStart=/usr/local/bin/media-gateway -config /etc/media-gateway/config.toml
+
+# Restart unexpected failures, but do not loop on a deliberate clean shutdown.
 Restart=on-failure
+
+# Back off briefly between restart attempts to avoid a tight failure loop.
 RestartSec=5s
+
+# Allow bounded graceful shutdown before systemd escalates termination.
 TimeoutStopSec=30s
+
+# Files created by the process, if any, default to owner-only permissions. V0 should
+# not create persistent application data, but restrictive defaults are safer.
 UMask=0077
 
-# Baseline hardening. Review against the final implementation and target distro.
+# --- Baseline sandbox/hardening ---
+# These directives assume the final service only needs network access plus read access
+# to its binary/config/credential. Revalidate them if implementation requirements
+# change rather than weakening them pre-emptively.
+
+# Prevent the process and its children from acquiring additional privileges.
 NoNewPrivileges=true
+
+# Give the service a private /tmp and /var/tmp namespace.
 PrivateTmp=true
+
+# Hide physical device nodes; the gateway has no device-access requirement.
 PrivateDevices=true
+
+# Mount the host filesystem read-only from the service's perspective except for
+# systemd-managed writable exceptions explicitly added later if genuinely needed.
 ProtectSystem=strict
+
+# Make user home directories inaccessible; credentials/config belong under /etc.
 ProtectHome=true
+
+# Block writes to kernel tunables and related /proc/sys interfaces.
 ProtectKernelTunables=true
+
+# Prevent loading/unloading kernel modules.
 ProtectKernelModules=true
+
+# Deny access to the kernel log buffer.
 ProtectKernelLogs=true
+
+# Protect cgroup configuration from the service.
 ProtectControlGroups=true
+
+# Prevent the service from changing the system/realtime clock.
 ProtectClock=true
+
+# Prevent creation/use of setuid/setgid privilege transitions.
 RestrictSUIDSGID=true
+
+# Prevent changing the process execution personality/domain.
 LockPersonality=true
+
+# Disallow mappings that are both writable and executable. Go V0 has no JIT/runtime
+# code-generation requirement, so this should be compatible with the selected build.
 MemoryDenyWriteExecute=true
+
+# Drop every Linux capability; binding to loopback on a high port requires none.
 CapabilityBoundingSet=
 AmbientCapabilities=
+
+# Permit only local Unix sockets and IPv4/IPv6 networking needed for nginx/provider
+# communication. Narrow further if the final implementation proves possible.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
+# Enable the service as part of normal multi-user boot.
 WantedBy=multi-user.target

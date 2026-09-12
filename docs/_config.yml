@@ -1,10 +1,21 @@
+# GitHub Pages/Jekyll configuration for the project documentation site.
+
+# Reuse the shared stef-k dark Primer presentation rather than duplicating theme
+# assets in this repository.
 remote_theme: stef-k/.github@main
 
+# Required by GitHub Pages to load the remote theme above.
 plugins:
   - jekyll-remote-theme
 
+# Project metadata displayed by the shared documentation theme.
 title: Media Gateway
 description: Fail-closed publication gateway for private media providers.
+
+# Canonical GitHub Pages host and project path. These values are documentation-site
+# settings only; they are unrelated to a deployed Media Gateway public_base_url.
 url: https://stef-k.github.io
 baseurl: /media-gateway
+
+# Repository metadata used by Jekyll/GitHub Pages integrations.
 repository: stef-k/media-gateway
