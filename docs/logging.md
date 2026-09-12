@@ -15,7 +15,7 @@ This layer is useful for:
 - request/proxy timing;
 - nginx/upstream transport failures.
 
-The nginx access log is the primary request/access record. Media Gateway should not duplicate a second full access log for every successful request.
+The nginx access log is the primary request/access record. Media Gateway should not duplicate a second full access log for every successful request. Log retention/rotation for these files belongs to the host's normal nginx/logrotate policy rather than Media Gateway.
 
 Public-edge logging must not record secrets. In particular:
 
