@@ -10,12 +10,13 @@ Before consequential implementation or issue hardening, read:
 2. `docs/architecture.md`
 3. `docs/security.md`
 4. `docs/toolchain.md`
-5. `docs/deployment.md` when work touches host integration
-6. `docs/roadmap.md`
-7. this file
-8. the owning GitHub issue
+5. `docs/logging.md`
+6. `docs/deployment.md` when work touches host integration
+7. `docs/roadmap.md`
+8. this file
+9. the owning epic and implementation issue
 
-If implementation and documentation disagree on a security boundary, public contract, selected toolchain or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
+If implementation and documentation disagree on a security boundary, public contract, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
 
 ## Product boundary
 
@@ -124,6 +125,17 @@ Do not expose original files by default. If originals or additional transcoding/
 
 Video/range delivery is separate work and must not be smuggled into the image slice.
 
+## Logging
+
+Follow `docs/logging.md`.
+
+- nginx owns public request/access and proxy-transport logging;
+- the Go service uses `log/slog` for lifecycle, sanitized startup state and exceptional provider/runtime/security diagnostics;
+- write application logs to stderr/stdout and let systemd/journald own persistence/rotation in the reference deployment;
+- do not add an application-managed logfile/rotation subsystem or duplicate a full nginx-style access log;
+- routine denied/malformed Internet traffic must not become an unbounded high-severity log-flood path;
+- never log credentials, authorization headers, full private provider/NAS paths, GPS/EXIF data or provider error bodies.
+
 ## Configuration and secrets
 
 Configuration must be human-readable and reviewable. TOML is the V0 format.
@@ -142,6 +154,8 @@ Deployment examples under `deploy/` are templates, not a license to weaken host-
 
 ## Scope and issue execution
 
-Use tracker #1 and explicit issue dependencies as execution authority. Prefer a few coarse epics and small implementation issues beneath them only when needed; this project does not need the engineering hierarchy of larger applications.
+Use tracker #1 and explicit issue dependencies as execution authority. When a coarse epic has bounded child implementation issues, hand the child issue to Codex rather than the epic.
 
-Documentation is part of completion when public routes, policy semantics, configuration, deployment, toolchain/dependencies, or security behavior changes.
+Current foundation execution is `#9 -> #10`; #2 closes only after both children are accepted. Harden/decompose later epics only when their prerequisites establish enough real seams to do so cleanly. Prefer a few coarse epics and small implementation issues beneath them only when needed; this project does not need the engineering hierarchy of larger applications.
+
+Documentation is part of completion when public routes, policy semantics, configuration, deployment, logging, toolchain/dependencies, or security behavior changes.
