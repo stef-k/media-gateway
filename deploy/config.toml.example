@@ -1,35 +1,81 @@
 # Media Gateway example configuration.
 #
-# This is a design/bootstrap example. Issue #2 owns the final validated schema.
-# Never place provider credentials directly in this file or in Git.
+# This file is documentation as well as a starting point for operators. Values shown
+# here are examples, not hard-coded product assumptions. Copy it to a protected host
+# path such as /etc/media-gateway/config.toml and adapt it for the deployment.
+#
+# Issue #2 owns the final validated schema. Unknown, malformed or ambiguous values
+# must fail startup rather than being silently ignored.
+#
+# Never place provider credentials directly in this file or in Git. Store secrets in
+# a separate restrictive file and reference that file by path.
 
 [server]
+# Local address used by the Go service. The recommended deployment binds only to
+# loopback and lets nginx own the external HTTP/HTTPS boundary.
 listen = "127.0.0.1:2290"
+
+# Public origin used when the application needs to construct absolute media URLs.
+# This is deployment-specific: e.g. https://media.example.com or
+# https://media.stefk.me. If V0 does not need to generate absolute URLs, the final
+# schema may make this optional rather than require an unused value.
 public_base_url = "https://media.example.com"
 
 [provider]
+# Provider adapter to use. V0 implements only Immich; this value is explicit so the
+# configuration does not imply that provider behavior is generic or auto-detected.
 type = "immich"
+
+# Trusted Immich API origin as seen by Media Gateway. This is configured at startup
+# and must never be overridden by a public request. It may be loopback, LAN-private,
+# or another operator-controlled private address.
 base_url = "http://127.0.0.1:2283"
+
+# File containing the dedicated least-privilege Immich API key. The service account
+# must be able to read it; other local users should not. Do not put the key itself in
+# this TOML file.
 api_key_file = "/etc/media-gateway/immich.key"
+
+# Maximum duration for a normal provider HTTP request. Provider failure must remain
+# bounded; it must never cause an unbounded public request or storage fallback.
 request_timeout = "15s"
 
 [policy]
+# Provider-visible absolute roots beneath which publication rules are allowed to
+# match. These are paths reported by the provider, not host/NAS mount paths.
+# Multiple installations may use completely different roots. Root containment must
+# be path-aware: /photos must never match /photos-private by string prefix alone.
 allowed_roots = ["/media/archive"]
 
-# Rules match exact normalized directory segments, never prefixes/globs.
+# Publication rules match ONE exact normalized directory segment. `segment` is a
+# configurable literal name, not a glob/regex/prefix. Operators may choose names such
+# as "public", "website", or "share"; the implementation must compare exact path
+# components only.
+#
+# `media` declares which provider media types are eligible under this rule. A type
+# can still be denied if the running gateway version does not implement delivery for
+# it. V0 is expected to deliver images first and fail closed for unsupported video.
 [[policy.rules]]
 segment = "public"
 media = ["image", "video"]
 
+# Example image-only publication directory.
 [[policy.rules]]
 segment = "public-images"
 media = ["image"]
 
+# Example video-only publication directory. The rule may classify video as eligible,
+# but V0 must still deny video until range/streaming delivery is implemented.
 [[policy.rules]]
 segment = "public-videos"
 media = ["video"]
 
 [delivery]
-# V0 must still deny media types/representations the implementation does not support.
+# Originals are not exposed by default. Keep this false for V0; changing original
+# delivery policy later requires explicit design around metadata/privacy and size.
 allow_original = false
+
+# Provider representation used for V0 image delivery. `preview` is provisional until
+# real Immich evidence proves adequate quality and confirms sensitive EXIF/GPS data
+# is absent from the bytes delivered to public clients.
 image_variant = "preview"
