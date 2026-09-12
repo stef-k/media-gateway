@@ -67,6 +67,9 @@ quiet. Exceptional failures before headers emit one `provider request failed`
 warning with the adapter's fixed sanitized outcome. Failed body copies emit only
 `preview stream failed`; canceled public requests remain quiet. No request IDs,
 asset IDs, provider paths, header values or body text are logged.
+The consumer handler uses the same fixed provider failure outcomes and keeps
+successes, invalid pagination, private/missing denials and cancellation quiet.
+Consumer cursors and search results are never logged.
 The standard HTTP server's connection error logger is discarded because its free
 text can include request-controlled data; lifecycle failures are reported separately
 through `slog`. Streaming failures use `http.ErrAbortHandler` to terminate incomplete responses

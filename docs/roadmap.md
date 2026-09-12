@@ -91,7 +91,9 @@ Completion of #2–#5 establishes V0.
 
 ### #6 — private consumer API and WordPress contract
 
-Expose only the minimal localhost-only discovery/metadata contract needed by trusted consumers such as `stef-k/divi-child`.
+The [localhost consumer contract](consumer-api.md) supplies bounded eligible-image
+browse and detail through #20 candidate search and #21 authorization/HTTP wiring
+for trusted consumers such as `stef-k/divi-child`.
 
 The gateway must return only publication-eligible assets and must never give WordPress the privileged Immich credential or allow consumer state to override publication policy.
 

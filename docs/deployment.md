@@ -70,7 +70,9 @@ on timeout the process closes connections and exits with failure. This fits insi
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
 Only `GET`/`HEAD /media/<asset-id>/preview` can deliver media. `/health`, search,
-metadata/control routes and unsupported methods remain fixed denials. There is
+public metadata/control routes and unsupported methods remain fixed denials.
+The [consumer API](consumer-api.md) adds only loopback `/internal/assets` browse
+and detail routes; nginx must never publish `/internal/`. There is
 no startup provider probe: `listening` means the loopback listener was acquired,
 not that previews are qualified or available. HTTP limits are 5 seconds for
 headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds

@@ -62,7 +62,7 @@ The configuration and separate credential must pass [`config.Load`](docs/configu
 validation before binding. `GET` and `HEAD /media/<asset-id>/preview` fetch current
 Immich metadata and authorize the image through `publication.Eligible` before
 requesting a preview. The key needs `asset.read` and `asset.view`. All other
-routes/methods are denied; there is no health/readiness endpoint. A running
+public routes/methods are denied; there is no health/readiness endpoint. A running
 listener does not establish provider or media readiness. SIGINT/SIGTERM stop accepting
 connections and allow up to 10 seconds for active requests to drain.
 
@@ -74,6 +74,12 @@ A failure after streaming begins aborts the response. Originals, video, range
 and conditional delivery are unavailable. Source review and synthetic tests do
 not establish EXIF/GPS privacy or visual quality; #18 must qualify representative
 real Immich previews before production use.
+
+Same-host consumers can use `GET /internal/assets` and
+`GET /internal/assets/<asset-id>` to browse or inspect eligible images. These
+loopback-only routes return a narrow JSON contract and must never be published
+by nginx. See the [private consumer API](docs/consumer-api.md). Every public
+preview request still reauthorizes independently.
 
 See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
 [Toolchain](docs/toolchain.md) for the local/CI validation commands.
@@ -93,6 +99,7 @@ See [Logging](docs/logging.md) for privacy and severity rules.
 
 - [Architecture](docs/architecture.md)
 - [Security model](docs/security.md)
+- [Private consumer API](docs/consumer-api.md)
 - [Configuration loading and validation](docs/configuration.md)
 - [Toolchain and dependency policy](docs/toolchain.md)
 - [Logging](docs/logging.md)

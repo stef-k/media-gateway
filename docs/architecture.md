@@ -165,16 +165,15 @@ Private/missing/invalid/unauthorized assets should normally be indistinguishable
 
 ## Consumer/control surface
 
-A later WordPress adapter needs a convenient way to discover eligible media while editing a post. That functionality may be supplied by localhost-only routes in the same process, for example conceptually:
+Trusted same-host consumers use `GET /internal/assets` for bounded eligible-image
+pages and `GET /internal/assets/<asset-id>` for exact eligible-image details.
+The listener and consumer peer must be loopback; forwarded headers are not
+identity. nginx must never publish `/internal/`, including through a local proxy.
 
-```text
-/internal/search
-/internal/assets/<id>
-```
-
-These routes are not part of the Internet-facing API. nginx must not publish them.
-
-The exact consumer API should be designed when the first consumer integration is implemented. It should return only publication-eligible assets rather than provide a generic view of the private Immich library.
+Every candidate passes `publication.Eligible` before projection into the six safe
+consumer fields. Consumer references do not authorize subsequent public delivery.
+See the [consumer contract](consumer-api.md) for JSON, pagination and bounds.
+There is no generic provider search, EXIF/GPS output or consumer write operation.
 
 ## Provider boundary
 
@@ -190,9 +189,9 @@ from validated configuration and the separately loaded key. See the
 UUIDv4 candidate lookup through the same private transport. Candidates retain
 private provider paths, nullable dimensions and capture/local times internally.
 They are **not publication-authorized**, including when a provider filter matched.
-Before any consumer receives a result, the next consumer layer must evaluate
-every candidate with `publication.Eligible` and omit provider paths. This adapter
-adds no HTTP routes, service wiring or public delivery behavior. See the
+The consumer handler evaluates every candidate with `publication.Eligible` and
+omits provider paths before any consumer receives a result. The adapter itself
+grants no publication authority and public delivery remains independent. See the
 [reviewed search contract](deployment.md#reviewed-candidate-search-contract).
 
 The provider needs only capabilities required by current issues, initially:
