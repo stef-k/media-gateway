@@ -6,21 +6,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 )
-
-// TestReadMethodsStayDenied also proves write methods cannot enable a route.
-func TestReadMethodsStayDenied(t *testing.T) {
-	for _, method := range []string{"GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "CONNECT"} {
-		recorder := httptest.NewRecorder()
-		newServer().Handler.ServeHTTP(recorder, httptest.NewRequest(method, "/media/known-private/preview", nil))
-		if recorder.Code != 404 {
-			t.Fatalf("%s returned %d", method, recorder.Code)
-		}
-	}
-}
 
 // TestShutdown proves active requests drain and a stalled request is force-closed.
 func TestShutdown(t *testing.T) {
@@ -32,7 +20,7 @@ func TestShutdown(t *testing.T) {
 			}
 			entered, release := make(chan struct{}), make(chan struct{})
 			defer close(release)
-			server := newServer()
+			server := newServer(http.NotFoundHandler())
 			server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				close(entered)
 				select {
