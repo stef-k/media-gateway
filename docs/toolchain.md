@@ -95,7 +95,8 @@ go build ./cmd/media-gateway
 ```
 
 `-version` reports module version, embedded VCS revision/dirty state and Go version.
-Local builds normally show `(devel)`; builds without VCS metadata show `unknown`.
+Local builds may show a generated module pseudo-version or `(devel)`; absent VCS
+revision/dirty metadata is reported as `unknown`.
 No release packaging or custom version injection is introduced.
 
 Fuzz/property tests for the path-policy boundary belong in #3. Cross-compilation/release packaging belongs later when the service implementation is stable enough to justify it.
