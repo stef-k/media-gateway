@@ -76,6 +76,18 @@ public-videos   -> videos eligible
 
 Anything else is private.
 
+`internal/publication.Eligible(policy, originalPath, media)` implements the pure
+policy decision using the `config.Policy` returned by `config.Load`. It accepts
+only canonical absolute POSIX asset paths and normalized `image` or `video` media
+values. It does not contact a provider, access storage, log metadata or deliver
+bytes. Callers must not mutate the policy concurrently with evaluation.
+
+Only exact directory components strictly beneath an allowed root and above the
+asset basename can grant eligibility. Any matching rule that permits the media
+type is sufficient. Roots share global rules, so nested roots form a union:
+any qualifying root can grant eligibility, independently of root order. Root `/`
+uses the same semantics, with the leading separator as the containment boundary.
+
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
 A production version may support only a subset of the media types declared by policy. For example, V0 targets images first; video remains denied until the video-delivery slice is implemented and validated.

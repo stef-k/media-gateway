@@ -51,7 +51,14 @@ Policy evaluation begins by requiring the provider-indexed path to be beneath an
 
 An Immich-managed upload under `/data/...` therefore cannot become public merely because one of its directory names is `public`.
 
-Root comparison must be segment-aware and normalized. String-prefix behavior such as treating `/media/archive-old` as beneath `/media/archive` is forbidden.
+Root comparison is component-aware. String-prefix behavior such as treating
+`/media/archive-old` as beneath `/media/archive` is forbidden. Provider asset paths
+must already be canonical absolute POSIX paths: empty/relative paths, dot
+components, repeated separators, trailing separators, backslashes, control
+characters, invalid UTF-8 and surrounding whitespace deny eligibility. `/` alone
+is not an asset path. Evaluation never cleans paths, decodes URL escapes, performs
+Unicode normalization or resolves filesystem links; provider paths are literal
+metadata, not local filesystem locations.
 
 ### Exact publication segments
 
@@ -72,9 +79,21 @@ publicity
 my-public
 ```
 
+A segment grants eligibility only when it is a directory strictly below a
+matched allowed root and above the asset basename. Matching text inside or above
+the root, or only in the filename, grants nothing. If multiple publication
+segments occur, at least one exact rule must permit the media type. All allowed
+roots share these rules: any qualifying root may grant eligibility, including
+when roots are nested; their order does not affect the result.
+
 ### Media type is independent of path
 
 A matching path does not override type rules. Provider metadata must establish the asset's media type and the implementation must support that type.
+
+The pure evaluator accepts only the exact normalized vocabulary `image` and
+`video`; MIME strings, differently cased values and unknown types deny. It does
+not infer type from the filename. Policy eligibility for video does not enable
+video delivery; delivery support remains a separate mandatory check.
 
 Sidecars, project files and unknown provider asset types are never delivered as public media.
 
