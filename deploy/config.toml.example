@@ -4,21 +4,22 @@
 # here are examples, not hard-coded product assumptions. Copy it to a protected host
 # path such as /etc/media-gateway/config.toml and adapt it for the deployment.
 #
-# Issue #2 owns the final validated schema. Unknown, malformed or ambiguous values
-# must fail startup rather than being silently ignored.
+# internal/config implements this schema. Unknown, malformed or ambiguous values
+# fail loading rather than being silently ignored. See docs/configuration.md.
 #
 # Never place provider credentials directly in this file or in Git. Store secrets in
 # a separate restrictive file and reference that file by path.
 
 [server]
 # Local address used by the Go service. The recommended deployment binds only to
-# loopback and lets nginx own the external HTTP/HTTPS boundary.
+# loopback and lets nginx own the external HTTP/HTTPS boundary. A numeric loopback
+# IP and explicit port 1..65535 are required; hostnames are rejected.
 listen = "127.0.0.1:2290"
 
 # Public origin used when the application needs to construct absolute media URLs.
 # This is deployment-specific: e.g. https://media.example.com or
-# https://media.stefk.me. If V0 does not need to generate absolute URLs, the final
-# schema may make this optional rather than require an unused value.
+# https://media.stefk.me. Optional: omit it when absolute URLs are not needed.
+# When supplied it must be an HTTP(S) origin without userinfo, query or fragment.
 public_base_url = "https://media.example.com"
 
 [provider]
@@ -33,16 +34,21 @@ base_url = "http://127.0.0.1:2283"
 
 # File containing the dedicated least-privilege Immich API key. The service account
 # must be able to read it; other local users should not. Do not put the key itself in
-# this TOML file.
+# this TOML file. Use an absolute normalized path to a regular file with owner-read
+# permission and no group/other permissions (for example 0600). The key is one ASCII
+# token, optionally followed by a newline, with a 4096-byte file limit.
 api_key_file = "/etc/media-gateway/immich.key"
 
 # Maximum duration for a normal provider HTTP request. Provider failure must remain
 # bounded; it must never cause an unbounded public request or storage fallback.
+# Required positive Go duration; zero, negative, missing and overflowing values fail.
 request_timeout = "15s"
 
 [policy]
 # Provider-visible absolute roots beneath which publication rules are allowed to
 # match. These are paths reported by the provider, not host/NAS mount paths.
+# At least one unique normalized root is required: no trailing slash except /,
+# dot components, repeated slashes, backslashes or control characters.
 # Multiple installations may use completely different roots. Root containment must
 # be path-aware: /photos must never match /photos-private by string prefix alone.
 allowed_roots = ["/media/archive"]
@@ -50,7 +56,8 @@ allowed_roots = ["/media/archive"]
 # Publication rules match ONE exact normalized directory segment. `segment` is a
 # configurable literal name, not a glob/regex/prefix. Operators may choose names such
 # as "public", "website", or "share"; the implementation must compare exact path
-# components only.
+# components only. Rules must have unique segments and non-empty, unique media
+# lists containing only image/video. Pattern punctuation and separators are rejected.
 #
 # `media` declares which provider media types are eligible under this rule. A type
 # can still be denied if the running gateway version does not implement delivery for

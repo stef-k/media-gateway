@@ -44,7 +44,7 @@ The service is intentionally smaller than the applications consuming it. It has 
 The exact deployment may differ for other installations. The architectural requirements are:
 
 - the provider is not directly Internet-exposed by Media Gateway;
-- the gateway binds to a private/loopback interface unless an operator deliberately supplies an equivalent protected network boundary;
+- the V0 gateway binds only to a numeric loopback address; other network boundaries require an explicit architecture revision;
 - the public reverse proxy exposes only public delivery routes;
 - provider credentials stay on the trusted host and are never sent to consumers.
 
@@ -236,7 +236,7 @@ media = ["video"]
 allow_original = false
 ```
 
-The committed example is illustrative. The implementation owns the final validated schema.
+The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout and preview image variant. `public_base_url` is optional.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
 
