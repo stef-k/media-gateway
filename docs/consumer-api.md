@@ -89,7 +89,9 @@ Successful responses are `application/json`, with a maximum encoded size of
 64 KiB and at most 100 assets. Oversized output fails before success headers.
 The existing adapter bounds provider JSON to 1 MiB and rejects malformed provider
 responses. Exceptional provider/validation failures produce fixed `502` text
-`media unavailable\n`, with no provider details. Routine denials and successful
+`media unavailable\n`, with no provider details. This includes HTTP 404 from
+the provider search endpoint; a genuinely missing exact candidate is a successful
+empty search page and remains a consumer 404. Routine denials and successful
 requests remain quiet; exceptional provider failures use the existing sanitized
 logging classes. Canceled requests do not generate warnings.
 

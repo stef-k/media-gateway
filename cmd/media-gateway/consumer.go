@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -66,12 +67,8 @@ func consumerHandler(client *immich.Client, policy config.Policy, logger *slog.L
 		ctx, cancel := context.WithTimeout(r.Context(), deliveryTimeout)
 		defer cancel()
 		page, err := client.SearchCandidates(ctx, query)
-		if err == immich.ErrSearchQuery {
-			publicError(w, r, http.StatusNotFound)
-			return
-		}
 		if err != nil {
-			deliveryError(w, r, logger, err)
+			consumerSearchError(w, r, logger, err)
 			return
 		}
 		result := consumerPage{Assets: make([]consumerAsset, 0, len(page.Items)), NextCursor: page.NextCursor}
@@ -147,4 +144,21 @@ func consumerJSON(w http.ResponseWriter, r *http.Request, value any) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// consumerSearchError distinguishes invalid/unsupported candidates from failure of
+// the search endpoint itself. A missing exact candidate is a successful empty page.
+func consumerSearchError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, err error) {
+	if errors.Is(err, immich.ErrSearchQuery) || errors.Is(err, immich.ErrInvalidID) || errors.Is(err, immich.ErrUnsupported) {
+		publicError(w, r, http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, immich.ErrMissing) {
+		// HTTP 404 here means the fixed provider search endpoint failed, not an asset denial.
+		err = immich.ErrProvider
+	}
+	if r.Context().Err() == nil {
+		logger.Warn("provider search failed", "outcome", err)
+	}
+	publicError(w, r, http.StatusBadGateway)
 }
