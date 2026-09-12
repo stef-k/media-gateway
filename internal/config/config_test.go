@@ -73,6 +73,8 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 		{"root control", `["/media/archive"]`, `["/media/\narchive"]`},
 		{"provider type", `type = "immich"`, `type = "other"`},
 		{"url scheme", `http://127.0.0.1:2283`, `file:///private`},
+		{"url bracket hostname", `http://127.0.0.1:2283`, `http://[host]`},
+		{"url empty label", `http://127.0.0.1:2283`, `http://bad..host`},
 		{"url missing host", `http://127.0.0.1:2283`, `http://`},
 		{"url credentials", `http://127.0.0.1:2283`, `http://sentinel-private@host`},
 		{"url query", `http://127.0.0.1:2283`, `http://host?secret=sentinel-private`},
@@ -121,7 +123,7 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 }
 
 func TestCredentialFailures(t *testing.T) {
-	for _, scenario := range []string{"missing", "directory", "unreadable", "public", "empty", "multiline", "oversized"} {
+	for _, scenario := range []string{"missing", "directory", "unreadable", "public", "empty", "multiline", "carriage return", "oversized"} {
 		t.Run(scenario, func(t *testing.T) {
 			text, keyPath := fixture(t)
 			var err error
@@ -138,6 +140,8 @@ func TestCredentialFailures(t *testing.T) {
 				err = os.WriteFile(keyPath, nil, 0600)
 			case "multiline":
 				err = os.WriteFile(keyPath, []byte("test-secret-token\nsecond"), 0600)
+			case "carriage return":
+				err = os.WriteFile(keyPath, []byte("test-secret-token\r"), 0600)
 			case "oversized":
 				err = os.WriteFile(keyPath, []byte(strings.Repeat("x", 4097)), 0600)
 			}
@@ -159,5 +163,16 @@ func TestMissingConfiguration(t *testing.T) {
 	_, _, err := Load(filepath.Join(t.TempDir(), "private-config"))
 	if err == nil || strings.Contains(err.Error(), "private-config") {
 		t.Fatal("missing config error must be sanitized")
+	}
+}
+
+// Missing rules must not silently produce an apparently usable policy.
+func TestMissingRules(t *testing.T) {
+	text, _ := fixture(t)
+	start := strings.Index(text, "[[policy.rules]]")
+	end := strings.Index(text, "[delivery]")
+	_, _, err := loadText(t, text[:start]+text[end:])
+	if err == nil {
+		t.Fatal("accepted policy without rules")
 	}
 }

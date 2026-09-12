@@ -28,7 +28,10 @@ func readCredential(filename string) (string, error) {
 	if err != nil || len(data) > maxKey {
 		return "", errors.New("config: cannot read credential within 4096 byte limit")
 	}
-	key := strings.TrimSuffix(strings.TrimSuffix(string(data), "\n"), "\r")
+	key := string(data)
+	if strings.HasSuffix(key, "\n") {
+		key = strings.TrimSuffix(strings.TrimSuffix(key, "\n"), "\r")
+	}
 	if key == "" {
 		return "", errors.New("config: credential must contain a non-empty ASCII token")
 	}
