@@ -81,6 +81,7 @@ type previewBody struct {
 	remaining int64
 }
 
+// Read never yields more than the validated length or exposes a raw upstream error.
 func (b *previewBody) Read(p []byte) (int, error) {
 	if b.remaining == 0 {
 		return 0, io.EOF

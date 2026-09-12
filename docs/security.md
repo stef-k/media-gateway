@@ -126,7 +126,13 @@ Provider credentials:
 
 ### Non-enumerating denial
 
-Private, unknown and policy-denied assets should normally return the same `404` class of response. Avoid errors that reveal whether a private asset exists or why it failed policy.
+Private, missing, invalid, unsupported and policy-denied assets, including a
+missing approved preview, return the same fixed `404` response. Provider auth,
+transport, malformed metadata and representation validation failures return fixed
+`502` responses. Neither class exposes provider details. HEAD emits no body.
+Every handler response has `Cache-Control: no-store` and
+`X-Content-Type-Options: nosniff`. Provider headers, cookies, filenames, cache
+directives and conditional validators are never copied to the public response.
 
 ## Consumer-compromise boundary
 
@@ -161,7 +167,19 @@ Do not add elaborate rate-limiting infrastructure before evidence. nginx/Cloudfl
 
 The public representation must be tested for metadata leakage before production use.
 
-At minimum verify representative GPS-tagged phone and camera images do not expose sensitive EXIF/GPS through the selected provider preview.
+Issue #17 implements streaming with synthetic HTTP contract tests. Issue #18
+remains the external evidence gate: verify representative GPS-tagged phone and
+camera images do not expose sensitive EXIF/GPS through the exact `size=preview`
+derivative. MIME/length validation and source review do not prove image privacy,
+content validity or visual quality. Production qualification remains blocked until
+that real-provider evidence is accepted.
+
+The adapter accepts only direct 200 JPEG/WebP responses of 1 byte through 16 MiB
+with explicit length, no content encoding and no partial/transfer-coded response.
+All redirects fail, including same-origin redirects to originals. No original or
+fullsize request is made. A truncated/failed stream is aborted rather than marked
+complete; bytes already streamed cannot be recalled. The gateway does not buffer
+or inspect complete image contents.
 
 If provider previews retain unsafe metadata, public image delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
 

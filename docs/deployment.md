@@ -69,13 +69,24 @@ SIGINT/SIGTERM close the listener and drain active requests for up to 10 seconds
 on timeout the process closes connections and exits with failure. This fits inside
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
-The current shell denies every route with a fixed `404`, including `/health` and
-`/media/`. There is no readiness endpoint or provider availability check. A
-`listening` lifecycle log means the validated loopback listener was acquired, not
-that media can be delivered. HTTP limits are 5 seconds for headers, 10 seconds for
-request reads and response writes, 30 seconds for idle connections, and 16 KiB for
-headers (plus the standard library's parsing allowance). No handler reads request
-bodies. These shell bounds must be reconsidered in the later media-delivery issue.
+Only `GET`/`HEAD /media/<asset-id>/preview` can deliver media. `/health`, search,
+metadata/control routes and unsupported methods remain fixed denials. There is
+no startup provider probe: `listening` means the loopback listener was acquired,
+not that previews are qualified or available. HTTP limits are 5 seconds for
+headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds
+for idle connections, and 16 KiB for headers (plus Go's parsing allowance). No
+handler reads request bodies. A 60-second handler context bounds combined
+metadata/preview work; each provider call also retains its configured timeout
+through body reading. The finite write deadline bounds slow public readers.
+Client disconnects cancel upstream work. Shutdown retains the 10-second drain.
+
+Preview bodies must have a known positive length of at most 16 MiB and an exact
+JPEG/WebP content type. Headers are validated before streaming; a short body or
+mid-stream failure aborts the response. HEAD checks current metadata/policy and
+preview headers, then closes the body. All responses use `no-store`; configure
+nginx/edge to honor it and never force-cache these routes. Private/missing/invalid
+assets get `404`; provider/auth/validation failures before headers get `502`.
+Do not enable production use until #18's real-Immich privacy/quality gate passes.
 
 Before installation/reload:
 
@@ -164,11 +175,10 @@ The [Retrieve an asset operation](https://api.immich.app/endpoints/assets/getAss
 remains an origin, not an API path.
 
 Use a non-administrator account with access to the intended assets and an API key
-restricted to **`asset.read`**, sent only in the **`x-api-key`** header. This is the
-minimum permission for this metadata operation; it does not override Immich's
-asset-access checks. No preview, search or write permissions are needed by the
-current adapter. Review additional permissions only when those operations are
-implemented.
+restricted to **`asset.read` + `asset.view`**, sent only in the **`x-api-key`** header. This is the
+union required by the implemented metadata (`asset.read`) and preview
+(`asset.view`) operations; it does not override Immich's asset-access checks.
+No administrator, original-download, search or write permission is required.
 
 The OpenAPI and [controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/asset.controller.ts)
 require UUIDv4 identifiers: hyphenated hexadecimal `8-4-4-4-12`, version nibble
@@ -195,13 +205,38 @@ Errors expose only fixed outcome classes: invalid ID, missing (`404`), auth
 (`401`/`403`), unexpected provider status, transport failure, invalid metadata or
 unsupported media. Cancellation and deadline errors are standard context
 sentinels. No upstream URL, body, key or private path is embedded in errors.
-Later HTTP orchestration must preserve non-enumerating public denial and the
-existing logging rules. The service shell still makes no provider calls; no
-metadata endpoint or media-delivery route is added by this adapter.
+The HTTP handler maps invalid/missing/unsupported outcomes to fixed 404 denials
+and other failures to fixed 502 responses. No public metadata endpoint exists.
 
 This verification is an upstream API/source review plus local HTTP contract tests,
 not qualification against a deployed Immich instance. Re-check API permissions
 and run provider/policy smoke tests when upgrading Immich.
+
+### Reviewed preview contract
+
+Re-verified on 2026-09-12 against the same current official upstream commit
+`0f901eea5ec2d3ebf85188b8c1dd193ae3619966`. The OpenAPI `viewAsset` operation is
+`GET /api/assets/{id}/thumbnail?size=preview`, with `asset.view` permission and
+`x-api-key` authentication. UUIDv4 validation and the configured origin remain
+identical to metadata lookup. The
+[controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/asset-media.controller.ts)
+and [service](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/services/asset-media.service.ts)
+show thumbnail redirects and original/fullsize fallback behavior. Media Gateway
+rejects every redirect and sends only the fixed `size=preview` query, never caller
+headers, queries or authorization. It requests identity encoding.
+
+OpenAPI describes the body generically as `application/octet-stream`; the service
+sets its actual type from the derivative path. Official
+[image settings](https://docs.immich.app/administration/system-settings/) describe
+JPEG/WebP previews. V0 therefore accepts only exact `image/jpeg` and `image/webp`,
+not the generic OpenAPI body type. The 16 MiB bound is a gateway V0 limit, not an
+Immich guarantee. Missing previews deny; redirects and invalid representation
+headers fail with 502. No retry, alternate representation or storage fallback exists.
+
+Issue #18 must record the deployed Immich version/settings and representative
+quality, metadata/privacy, direct-response and revocation evidence through this
+exact gateway route. Fake-provider CI and upstream source review do not supply
+that evidence. The service makes no claim that previews strip sensitive metadata.
 
 ## Host firewall
 

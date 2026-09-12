@@ -4,7 +4,7 @@ Media Gateway is a small, fail-closed publication gateway for serving explicitly
 
 The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through `https://media.stefk.me` for consumers such as WordPress.
 
-> **Status:** configuration, loopback service shell, pure publication policy and standalone Immich metadata adapter implemented; public wiring and media delivery are not implemented yet. There is no production release.
+> **Status:** fail-closed public image preview delivery implemented with fake-provider tests. Real-Immich privacy/quality qualification remains open in #18; there is no production release.
 
 ## Core idea
 
@@ -48,7 +48,7 @@ Image delivery is the first production target. Video delivery may follow once ra
 
 The foundation epic is intentionally decomposed before implementation: #9 owns the Go/configuration core and #10 owns the executable lifecycle, logging and CI shell. Coarse epics are not handed to coding agents when a bounded child issue exists.
 
-## Running the service shell
+## Running the service
 
 Build with Go 1.27.1 and run with an explicit configuration path:
 
@@ -59,10 +59,21 @@ bin/media-gateway -config /etc/media-gateway/config.toml
 ```
 
 The configuration and separate credential must pass [`config.Load`](docs/configuration.md)
-validation before binding. The shell makes no provider requests and returns a fixed
-`404` for every HTTP route/method. It has no health/readiness endpoint: a running
-shell cannot establish provider or media readiness. SIGINT/SIGTERM stop accepting
+validation before binding. `GET` and `HEAD /media/<asset-id>/preview` fetch current
+Immich metadata and authorize the image through `publication.Eligible` before
+requesting a preview. The key needs `asset.read` and `asset.view`. All other
+routes/methods are denied; there is no health/readiness endpoint. A running
+listener does not establish provider or media readiness. SIGINT/SIGTERM stop accepting
 connections and allow up to 10 seconds for active requests to drain.
+
+Previews must be direct HTTP 200 JPEG/WebP responses with a known positive length
+of at most 16 MiB. Delivery streams without whole-image buffering, rejects every
+provider redirect, and uses `Cache-Control: no-store`. Private/missing/invalid
+assets return fixed `404` denials; provider failures return fixed `502` responses.
+A failure after streaming begins aborts the response. Originals, video, range
+and conditional delivery are unavailable. Source review and synthetic tests do
+not establish EXIF/GPS privacy or visual quality; #18 must qualify representative
+real Immich previews before production use.
 
 See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
 [Toolchain](docs/toolchain.md) for the local/CI validation commands.

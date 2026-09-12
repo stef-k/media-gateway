@@ -100,10 +100,10 @@ A request for a consumer-referenced asset must still pass the gateway's current 
 
 ## V0 request flow
 
-A public image request is conceptually:
+The implemented public image request flow is:
 
 ```text
-GET /media/<provider-asset-id>/<variant>
+GET or HEAD /media/<asset-id>/preview
           |
           v
 validate route/method/identifier/variant
@@ -136,7 +136,7 @@ Every delivery request re-evaluates policy. A file moved out of an eligible path
 
 V0 does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
 
-This permits a simple stable route such as:
+The implemented stable route is:
 
 ```text
 /media/<asset-id>/preview
@@ -150,10 +150,10 @@ Provider paths and NAS paths must never appear in public URLs.
 
 ## Public HTTP surface
 
-The V0 public surface should be intentionally narrow:
+The V0 public surface is intentionally narrow:
 
 - `GET` and `HEAD` only for implemented media routes;
-- optional minimal health/readiness response if operationally required;
+- no health/readiness endpoint;
 - bounded headers, request sizes and upstream timeouts;
 - no public search;
 - no public provider metadata endpoint;
@@ -178,10 +178,13 @@ The exact consumer API should be designed when the first consumer integration is
 
 ## Provider boundary
 
-`internal/immich` provides a concrete metadata client so provider-specific HTTP/JSON
+`internal/immich` provides a concrete metadata/preview client so provider-specific HTTP/JSON
 stays outside the pure publication evaluator. Its `Asset` method returns only ID,
 unchanged original path and normalized media type. It does not grant publication
-or connect to the service shell. See the [reviewed API contract](deployment.md#reviewed-metadata-contract).
+itself. The public handler calls `Asset`, requires image media, evaluates
+`publication.Eligible`, and only then calls `Preview`. Startup constructs one client
+from validated configuration and the separately loaded key. See the
+[reviewed API contract](deployment.md#reviewed-preview-contract).
 
 The provider needs only capabilities required by current issues, initially:
 
@@ -196,9 +199,30 @@ Exact Immich API endpoints must be verified against the supported Immich version
 
 ## Image delivery
 
-V0 should first investigate use of provider-generated previews because Immich already owns thumbnail/preview generation and the motivating deployment keeps those derivatives on fast local storage.
+V0 implements provider-generated preview streaming. Immich owns generation;
+Media Gateway does no transcoding, original/fullsize fallback or image buffering.
+The sole upstream representation is `/api/assets/{id}/thumbnail?size=preview`.
+All redirects are rejected. Before public headers, require HTTP 200, exactly
+`image/jpeg` or `image/webp`, and a known positive `Content-Length` no larger than
+16 MiB. Encoded, chunked and partial representations are rejected.
 
-A representation may be used for public delivery only after tests prove:
+GET streams the validated representation. HEAD performs the same fresh metadata,
+policy and preview-header checks, then closes the provider body without draining
+it. Both construct only content type/length, `X-Content-Type-Options: nosniff` and
+`Cache-Control: no-store` (plus standard HTTP framing/date). Provider headers are
+never forwarded. Queries and caller headers do not select upstream behavior.
+Range and conditional headers are ignored; no 206, ETag or 304 support exists.
+
+Every request revalidates authorization; no-store prevents a gateway-supported
+cache from bypassing revocation once Immich reports the changed path. It cannot
+recall bytes already received or stop an already-authorized in-flight response.
+A short/failed stream aborts the public connection or HTTP stream; headers already
+sent cannot be replaced with a 502. No error text is appended to image bytes.
+
+#17 supplies deterministic software evidence. #18 remains the deployed-Immich
+privacy and quality gate before production use.
+
+A representation may be qualified for production public delivery only after tests prove:
 
 - acceptable visual quality for the intended web use;
 - no sensitive EXIF/GPS metadata is present in the delivered derivative;
@@ -269,7 +293,10 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 ## Failure behavior
 
-- Provider unavailable: bounded `5xx`/unavailable behavior; never fall back to direct storage.
+- Provider/auth/metadata/representation failure before headers: fixed `502` with
+  `media unavailable` body; no direct-storage fallback. Mid-stream errors abort.
+- Invalid/missing/private/unsupported assets or missing previews: fixed `404` with
+  `not found` body. HEAD has matching error headers but no body. All use no-store.
 - Provider metadata incomplete/ambiguous: deny.
 - Asset outside allowed root: deny.
 - No exact eligible segment: deny.
