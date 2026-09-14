@@ -9,13 +9,23 @@ import (
 // JSON decoding rejects nonnumbers and overflowing numbers without exposing values.
 func decodeCoordinates(raw json.RawMessage) (*float64, *float64, error) {
 	var exif struct {
-		Latitude  *float64 `json:"latitude"`
-		Longitude *float64 `json:"longitude"`
+		Latitude  json.RawMessage `json:"latitude"`
+		Longitude json.RawMessage `json:"longitude"`
 	}
 	if len(raw) != 0 && json.Unmarshal(raw, &exif) != nil {
 		return nil, nil, ErrMetadata
 	}
-	lat, lon := exif.Latitude, exif.Longitude
+	// RawMessage is nil only when absent; explicit null retains its JSON bytes.
+	if (exif.Latitude == nil) != (exif.Longitude == nil) {
+		return nil, nil, ErrMetadata
+	}
+	if exif.Latitude == nil {
+		return nil, nil, nil
+	}
+	var lat, lon *float64
+	if json.Unmarshal(exif.Latitude, &lat) != nil || json.Unmarshal(exif.Longitude, &lon) != nil {
+		return nil, nil, ErrMetadata
+	}
 	if (lat == nil) != (lon == nil) {
 		return nil, nil, ErrMetadata
 	}

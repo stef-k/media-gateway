@@ -114,10 +114,11 @@ Enabled detail example (browse wraps the same object in `assets`):
 }
 ```
 
-Both coordinates absent/null (including absent/null `exifInfo`) produce
-`"latitude":null,"longitude":null` on an otherwise eligible object. Exactly one
-absent/null, a nonnumeric/non-finite value, latitude outside `[-90,90]`, or longitude
-outside `[-180,180]` rejects the provider page through the fixed sanitized 502
+Both coordinate fields absent (including absent/null `exifInfo`), or both fields
+present and `null`, produce `"latitude":null,"longitude":null` on an otherwise
+eligible object. Exactly one field present, even if `null`, or a numeric value
+paired with null is invalid. A nonnumeric/non-finite value, latitude outside
+`[-90,90]`, or longitude outside `[-180,180]` rejects the provider page through the fixed sanitized 502
 path, with no partial results. Zero and the inclusive boundary values are valid.
 No altitude, accuracy, camera details, people/albums or other EXIF is exposed.
 Coordinates and unrelated EXIF never enter application logs.
