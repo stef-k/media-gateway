@@ -133,7 +133,7 @@ func assertPublicHeaders(t *testing.T, resp *http.Response) {
 func TestDeliveryDenials(t *testing.T) {
 	for _, tc := range []struct {
 		name, path, media, route, method string
-		missing                          bool
+		metadataStatus                   int
 	}{
 		{name: "private", path: "/external/photos/private/photo.jpg"},
 		{name: "outside", path: "/outside/website/photo.jpg"},
@@ -141,7 +141,8 @@ func TestDeliveryDenials(t *testing.T) {
 		{name: "malformed", path: "/external/photos/website/../photo.jpg"},
 		{name: "video", path: "/external/photos/website/photo.jpg", media: "VIDEO"},
 		{name: "unknown type", path: "/external/photos/website/photo.jpg", media: "OTHER"},
-		{name: "missing", missing: true},
+		{name: "missing", metadataStatus: 404},
+		{name: "missing or inaccessible v3", metadataStatus: 400},
 		{name: "invalid UUID", route: "/media/known-private/preview"},
 		{name: "escaped ID", route: "/media/%31" + testAsset[1:] + "/preview"},
 		{name: "encoded slash", route: "/media/" + testAsset + "%2fpreview"},
@@ -162,8 +163,9 @@ func TestDeliveryDenials(t *testing.T) {
 				if r.URL.Path != "/api/assets/"+testAsset {
 					t.Error("denial fetched preview")
 				}
-				if tc.missing {
-					http.NotFound(w, r)
+				if tc.metadataStatus != 0 {
+					w.WriteHeader(tc.metadataStatus)
+					_, _ = io.WriteString(w, testKey+" /private/path provider-body-marker")
 					return
 				}
 				media := tc.media
@@ -209,7 +211,7 @@ func TestPreviewFailures(t *testing.T) {
 		name, kind, length, location string
 		status, want                 int
 	}{
-		{name: "missing", status: 404, want: 404}, {name: "auth", status: 401}, {name: "forbidden", status: 403}, {name: "provider", status: 500},
+		{name: "bad request", status: 400}, {name: "missing", status: 404, want: 404}, {name: "auth", status: 401}, {name: "forbidden", status: 403}, {name: "provider", status: 500},
 		{name: "same origin redirect", status: 302, location: "/api/assets/" + testAsset + "/original"},
 		{name: "cross origin redirect", status: 307, location: "cross"},
 		{name: "html", kind: "text/html"}, {name: "svg", kind: "image/svg+xml"}, {name: "png", kind: "image/png"},

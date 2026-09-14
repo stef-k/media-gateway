@@ -204,12 +204,20 @@ a five-second maximum (or the shorter configured timeout). Response headers are
 limited to 16 KiB and the complete metadata body to 1 MiB before JSON decoding,
 including unrelated fields. Oversized or malformed responses fail closed.
 
-Errors expose only fixed outcome classes: invalid ID, missing (`404`), auth
+Errors expose only fixed outcome classes: invalid ID, missing (`400`/`404` in `Asset()`), auth
 (`401`/`403`), unexpected provider status, transport failure, invalid metadata or
 unsupported media. Cancellation and deadline errors are standard context
 sentinels. No upstream URL, body, key or private path is embedded in errors.
 The HTTP handler maps invalid/missing/unsupported outcomes to fixed 404 denials
 and other failures to fixed 502 responses. No public metadata endpoint exists.
+
+Immich v3.2.0 metadata lookup deliberately returns HTTP 400 for missing assets
+or absent `asset.read` access: see [the access gate](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/access.ts)
+and [asset retrieval](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/asset.service.ts).
+For this fixed UUIDv4-prevalidated endpoint only, `Asset()` maps 400 alongside 404
+to `ErrMissing` without reading provider error bodies. Preview and candidate-search
+status handling are unchanged. #18 still requires the post-merge real-provider
+missing-UUID probe before qualification can complete.
 
 This verification is an upstream API/source review plus local HTTP contract tests,
 not qualification against a deployed Immich instance. Re-check API permissions

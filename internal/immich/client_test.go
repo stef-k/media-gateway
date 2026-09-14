@@ -78,6 +78,7 @@ func TestAssetFailures(t *testing.T) {
 		contentType, body string
 		want              error
 	}{
+		{"missing or inaccessible v3", 400, "text/plain", testKey + privatePath + "body-marker", ErrMissing},
 		{"missing", 404, "application/json", good, ErrMissing},
 		{"unauthorized", 401, "application/json", good, ErrAuth},
 		{"forbidden", 403, "application/json", good, ErrAuth},
