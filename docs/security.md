@@ -262,6 +262,15 @@ Fuzzing path-policy parsing is encouraged because this code is small and securit
 
 The reference systemd service should run unprivileged with no required Linux capabilities and with standard hardening options where compatible.
 
-The reference nginx configuration publishes only the delivery prefix and returns `404` for the rest of the hostname.
+The reference nginx configuration proxies only canonical GET/HEAD
+`/media/<UUIDv4>/preview` requests to fixed numeric loopback. An original-target
+allowlist rejects encoded/normalized aliases; `/media` has an explicit denial
+instead of nginx's automatic slash redirect. All private/unknown paths and
+unknown Hosts fail closed without upstream access. This matters because nginx's
+loopback peer would otherwise satisfy the private consumer API's peer check.
+Caller headers/bodies are not forwarded, except for explicitly constructed
+transport context, which never authorizes publication. No cache, direct-storage
+fallback, upload or WebSocket surface exists. Review inherited host configuration
+and qualify the [ingress route matrix](deployment.md#nginx) before publishing.
 
 Host-specific deployment still requires operator review; examples are not a substitute for verifying actual firewall, tunnel and reverse-proxy configuration.

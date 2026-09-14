@@ -213,24 +213,85 @@ checks must not be represented as installed-host execution.
 
 ## nginx
 
-nginx is the public HTTP boundary; Media Gateway itself remains loopback-only.
+nginx is the only public HTTP boundary. The gateway stays on numeric loopback,
+conventionally `127.0.0.1:2290`; neither the edge nor nginx may target Immich/storage.
+The [template](../deploy/nginx.conf) is included **once inside `http {}`**, with
+its map/log format and two servers intact. Choose a free dedicated loopback origin
+port (example `8089`), replace `media.example.com` and adapt log paths. The local
+edge must send that Host. Unknown/missing Host selects the explicit default deny
+server. Do not reuse an unrelated site's default listener or merge in its locations.
 
-The reference [`deploy/nginx.conf`](https://github.com/stef-k/media-gateway/blob/main/deploy/nginx.conf) demonstrates a dedicated origin vhost that:
+Only canonical `/media/<UUIDv4>/preview` GET/HEAD requests reach the gateway.
+The raw request-target allowlist supplements nginx's normalized location matching;
+publication/lifecycle authorization still belongs exclusively to the application.
+Queries are ignored by the application and cannot select upstream behavior.
 
-- proxies only `/media/` to the gateway;
-- accepts only `GET`/`HEAD` for the public media path;
-- returns `404` everywhere else;
-- does not expose internal search/control routes;
-- uses bounded proxy timeouts.
+| Request to the configured Host | Expected ingress behavior |
+| --- | --- |
+| GET/HEAD `/media/<UUIDv4>/preview` | Fixed loopback gateway; current policy decides 200/404/502 |
+| `/media`, `/media/`, extra segments or other representations | 404; no automatic slash redirect |
+| `/internal/assets` or any `/internal/...` | 404 without upstream access |
+| `/api`, `/api/...`, `/`, search/config/control/diagnostic/provider-looking or unknown paths | 404 without upstream access |
+| Encoded path characters, dot segments, repeated slashes, traversal into/out of `/media/` | Denied before proxying; malformed HTTP may get nginx 400 |
+| POST/PUT/PATCH/DELETE/OPTIONS on a preview route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
+| Unknown Host, even with a valid preview route | Default server denial without upstream access |
 
-The example listens on loopback for compatibility with a tunnel/reverse-proxy edge. Direct Internet deployments may instead terminate TLS in nginx, but they must preserve the same route boundary.
+An exact `/media` location prevents nginx's implicit prefix slash redirect.
+`^~ /media/` prevents regex-location takeover; the raw allowlist denies normalization
+aliases. There is one fixed `proxy_pass` with no URI replacement or caller-selected
+authority. Do not add rewrites, extra locations, inherited error-page redirects,
+`alias`, `root`, `try_files`, storage fallback or forced cache behavior. Review the
+**effective** `nginx -T` configuration for inherited directives from shared `http`
+configuration, especially `error_page`, headers, authentication, cache and logging.
+The template is not isolation from administrator-supplied nginx configuration.
+See nginx's [location rules](https://nginx.org/en/docs/http/ngx_http_core_module.html#location)
+and [proxy URI rules](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass).
 
-Validate before reload:
+The proxy connect/send limits are 5/10 seconds. Read inactivity is 70 seconds,
+replacing the old 30 seconds so valid work can finish within the gateway's
+60-second combined handler context and 65-second write deadline. nginx read/send
+limits are **between I/O operations**, not total response deadlines; application
+bounds still cap provider work. Client header/body inactivity is 5/10 seconds,
+client send inactivity 65 seconds and keepalive 30 seconds. The edge must accommodate
+these bounds rather than imposing a shorter unexplained origin deadline.
 
-```bash
+Responses stream with buffering/cache disabled and no temporary response files.
+Application `Cache-Control: no-store` passes unchanged; the edge must honor it.
+No retry, error interception, redirect rewriting or alternative upstream/storage
+response is configured. nginx does not follow upstream redirects; the gateway
+already rejects provider redirects. Connect/read failures normally yield 502/504;
+a failure after headers truncates/closes the stream rather than replacing bytes.
+Request bodies are unused, limited to 1 KiB and never forwarded. Caller headers
+are replaced with a small transport-context allowlist, excluding credentials,
+cookies and WebSocket upgrade. Forwarded fields never grant authorization; behind
+a tunnel the recorded peer may be the tunnel unless separately reviewed trusted
+real-IP handling is configured. No upload or WebSocket surface exists.
+
+### Install and qualify ingress
+
+Preserve existing host configuration before installing the adapted file in the
+host's `http` include directory. Inspect `sudo nginx -T` locally (it may contain
+unrelated sensitive configuration); validate before reload and preserve unrelated
+services. Do not publish the configuration dump as evidence without review.
+
+```sh
+# Check the complete installed configuration before applying it.
 sudo nginx -t
 sudo systemctl reload nginx
+# Inspect response headers through nginx with the configured Host and a known ID.
+# Replace the placeholder; curl --path-as-is is essential for crafted-path checks.
+curl --path-as-is -i -H 'Host: media.example.com' \
+  http://127.0.0.1:8089/media/KNOWN-ELIGIBLE-UUID/preview
 ```
+
+After PR source review, qualify the exact template revision on M6 against the
+already-installed #31 service. Record nginx version, `nginx -t`, numeric loopback
+sockets, eligible GET/HEAD, private/outside-root/near-match denial, every route/method
+class above, no-store, access/error log operation and bounded upstream failure.
+Confirm nginx targets Media Gateway only and responses/logs contain no actual
+provider credentials or private metadata. Local nginx tests with a synthetic
+upstream prove routing/transport only, not M6, real-provider policy or preview privacy.
+The portable release/smoke bundle remains #33 work.
 
 ## Logging
 

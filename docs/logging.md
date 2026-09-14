@@ -25,6 +25,22 @@ Public-edge logging must not record secrets. In particular:
 - review any custom nginx log format before enabling it on an Internet-facing deployment.
 
 The V0 public route is intentionally path-based and requires no secret query parameter.
+The reference `media_gateway` access format records the peer, method, classified
+route (`preview` or `denied`), status, bytes and request/upstream timings. It omits
+raw paths, asset IDs, query strings, Host, Referer, User-Agent and all credential
+headers. Both the default-deny and media servers use this format and dedicated
+access/error files. Behind an edge the peer may be the local tunnel; do not trust
+caller-supplied forwarded chains as identity.
+
+nginx error logging at `warn` retains proxy transport diagnostics and can include
+caller-supplied request lines/queries. It is not a configurable access-log format:
+query-safe access logging alone does **not** qualify future signed/query-token URLs.
+Review error logs and every edge layer before introducing secrets in URLs; never
+put provider credentials there. The only configured upstream is the gateway, so
+actual provider/NAS paths and provider credentials are unavailable to nginx.
+Attacker-supplied text in an error request line is not trusted provider metadata.
+Do not enable debug/header logging. Check installed log permissions and host
+rotation/retention, including inherited logging destinations, during qualification.
 
 ## Media Gateway application logging
 
