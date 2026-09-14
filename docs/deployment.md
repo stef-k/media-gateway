@@ -292,8 +292,25 @@ Dimensions use the schema's nullable nonnegative integer range through
 9007199254740991: `null` means unknown, and zero is preserved. Times must parse
 as RFC3339 with optional fractional seconds and are preserved as strings.
 `fileCreatedAt` represents capture time; `localDateTime` retains the provider's
-local wall-clock semantics and is not converted into another timezone. No EXIF,
-GPS, people or unrelated provider metadata enters the candidate result.
+local wall-clock semantics and is not converted into another timezone. By default
+no EXIF/GPS enters the candidate result; people and unrelated metadata never do.
+
+Coordinate support was re-verified on **2026-09-14** against the exact v3.2.0 tag,
+[commit `1b6098c9dbfffe978bec2d414606ed7a4c8e019a`](https://github.com/immich-app/immich/tree/1b6098c9dbfffe978bec2d414606ed7a4c8e019a).
+The [search DTO](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/search.dto.ts)
+and [service](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/services/search.service.ts)
+pass the fixed `withExif` boolean to structured search.
+The [query builder](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/utils/database.ts)
+selects left-joined EXIF when enabled; there is no coordinate-only response selector.
+The [asset mapper](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/asset-response.dto.ts)
+omits `exifInfo` when unavailable, and the
+[EXIF schema/mapper](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/exif.dto.ts)
+provides nullable numeric `latitude` and `longitude`. This confirms #26's expected
+request change: only `withExif=true` when configured. Full upstream EXIF still
+counts toward the unchanged 1 MiB body bound, but the adapter decodes only the
+coordinate pair and validates completeness, finiteness and geographic ranges.
+Disabled mode keeps `withExif=false` and never decodes EXIF. Coordinates grant no
+publication authority and never affect public preview retrieval.
 
 The existing fixed origin, credential-safe transport, redirect rejection,
 timeouts and cancellation apply. The entire JSON body, including ignored fields,

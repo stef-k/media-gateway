@@ -101,7 +101,16 @@ for trusted consumers such as `stef-k/divi-child`.
 
 The gateway must return only publication-eligible assets and must never give WordPress the privileged Immich credential or allow consumer state to override publication policy.
 
-Actual WordPress theme integration remains a cross-repository change in `divi-child` once this contract is stable.
+#26 adds the opt-in `consumer.expose_coordinates` capability, default false.
+Disabled mode preserves #20/#21 search and the six-field JSON contract; enabled
+mode exposes only validated nullable latitude/longitude after current eligibility.
+This supports divi-child gallery Maps/Wikipedia features and Wayfarer map and
+trip/timeline features after downstream privacy decisions. Raw EXIF remains
+excluded, public preview bytes remain metadata-minimal, and no public metadata
+route is added. #26 is independent from #5 deployment acceptance.
+
+Actual WordPress and Wayfarer integration remains in their own repositories.
+No geocoding, per-asset overrides, publication database or cache is introduced.
 
 ## V1 candidates — only with evidence
 

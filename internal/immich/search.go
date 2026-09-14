@@ -163,7 +163,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	return page, nil
 }
 
-// decodeCandidate retains only policy facts, nullable dimensions and required times.
+// decodeCandidate retains policy facts, dimensions/times and opt-in coordinates.
 func decodeCandidate(raw []byte, requested string, exposeCoordinates bool) (Candidate, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {

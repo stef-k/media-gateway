@@ -49,6 +49,13 @@ func metadata(w http.ResponseWriter, path, media string) {
 // TestDeliveryRevalidation proves exact bytes, HEAD parity, fixed upstream targets,
 // credential isolation, ignored caller selectors and immediate metadata revocation.
 func TestDeliveryRevalidation(t *testing.T) {
+	t.Run("coordinates disabled", func(t *testing.T) { testDeliveryRevalidation(t, false) })
+	t.Run("coordinates enabled", func(t *testing.T) { testDeliveryRevalidation(t, true) })
+}
+
+// testDeliveryRevalidation proves the same public contract under either setting.
+func testDeliveryRevalidation(t *testing.T, enabled bool) {
+	t.Helper()
 	var private atomic.Bool
 	var assets, previews atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +85,7 @@ func TestDeliveryRevalidation(t *testing.T) {
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayFor(t, provider, &logs, time.Second)
+	gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, enabled)
 	var getHeaders http.Header
 	for i, method := range []string{"GET", "HEAD", "GET", "HEAD"} {
 		private.Store(i >= 2)

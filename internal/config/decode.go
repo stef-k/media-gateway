@@ -32,7 +32,8 @@ func decode(data []byte, c *Config) error {
 	*c = Config{
 		Server:   raw.Server,
 		Provider: Provider{Type: raw.Provider.Type, BaseURL: raw.Provider.BaseURL, APIKeyFile: raw.Provider.APIKeyFile, RequestTimeout: timeout},
-		Policy:   raw.Policy, Delivery: raw.Delivery, Consumer: raw.Consumer,
+		Policy:   raw.Policy, Delivery: raw.Delivery,
+		Consumer: raw.Consumer,
 	}
 	return nil
 }
