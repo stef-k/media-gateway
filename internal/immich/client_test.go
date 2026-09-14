@@ -23,7 +23,7 @@ const privatePath = "/external/photos/private/secret.jpg"
 
 // response includes unrelated metadata to exercise the deliberately narrow result.
 func response(id, path, media string) string {
-	b, _ := json.Marshal(map[string]any{"id": id, "originalPath": path, "type": media, "exifInfo": map[string]string{"description": "body-marker"}})
+	b, _ := json.Marshal(map[string]any{"id": id, "originalPath": path, "type": media, "isTrashed": false, "isOffline": false, "exifInfo": map[string]string{"description": "body-marker"}})
 	return string(b)
 }
 

@@ -37,7 +37,7 @@ func gatewayFor(t *testing.T, provider *httptest.Server, logs io.Writer, timeout
 // metadata writes only fake policy inputs; real Immich qualification belongs to #18.
 func metadata(w http.ResponseWriter, path, media string) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": testAsset, "originalPath": path, "type": media})
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": testAsset, "originalPath": path, "type": media, "isTrashed": false, "isOffline": false})
 }
 
 // TestDeliveryRevalidation proves exact bytes, HEAD parity, fixed upstream targets,

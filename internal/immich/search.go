@@ -145,6 +145,11 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	page := CandidatePage{Items: make([]Candidate, 0, len(assets.Items)), NextCursor: cursor}
 	for _, raw := range assets.Items {
 		item, err := decodeCandidate(raw, query.ID)
+		// Structured Immich search can return lifecycle-unavailable records.
+		// Omit them without losing the provider cursor or failing active siblings.
+		if errors.Is(err, ErrMissing) {
+			continue
+		}
 		if err != nil {
 			return CandidatePage{}, err
 		}

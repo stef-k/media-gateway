@@ -15,7 +15,7 @@ import (
 
 // candidateFixture includes forbidden provider fields to detect accidental passthrough.
 func candidateFixture(id, path, media string) map[string]any {
-	return map[string]any{"id": id, "originalPath": path, "type": media,
+	return map[string]any{"id": id, "originalPath": path, "type": media, "isTrashed": false, "isOffline": false,
 		"width": 640, "height": nil, "fileCreatedAt": "2026-09-13T10:00:00Z", "localDateTime": "2026-09-13T12:00:00Z",
 		"originalFileName": "filename-marker", "exifInfo": map[string]any{"GPS": "gps-marker"}, "url": "http://provider-marker", "apiKey": testKey}
 }

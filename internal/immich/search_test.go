@@ -16,7 +16,7 @@ import (
 )
 
 // candidateJSON uses top-level dimensions/times; unrelated private EXIF is ignored.
-const candidateJSON = `{"id":"a1234567-abcd-4abc-8abc-123456789abc","type":"IMAGE","originalPath":"/outside/private/../photo.jpg","width":1200,"height":null,"fileCreatedAt":"2026-09-12T12:34:56.123Z","localDateTime":"2026-09-12T15:34:56.123Z","exifInfo":{"gps":"body-marker"}}`
+const candidateJSON = `{"id":"a1234567-abcd-4abc-8abc-123456789abc","type":"IMAGE","isTrashed":false,"isOffline":false,"originalPath":"/outside/private/../photo.jpg","width":1200,"height":null,"fileCreatedAt":"2026-09-12T12:34:56.123Z","localDateTime":"2026-09-12T15:34:56.123Z","exifInfo":{"gps":"body-marker"}}`
 
 // candidateResponse wraps synthetic assets in the reviewed search envelope.
 func candidateResponse(items, cursor string, count int) string {
