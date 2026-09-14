@@ -57,7 +57,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	logger.Info("configuration loaded", "listen", cfg.Server.Listen)
 	client := immich.New(cfg.Provider, key)
 	defer client.CloseIdleConnections()
-	if err := serve(ctx, cfg.Server.Listen, gatewayHandler(client, cfg.Policy, logger), logger); err != nil {
+	if err := serve(ctx, cfg.Server.Listen, gatewayHandler(client, cfg.Policy, cfg.Consumer, logger), logger); err != nil {
 		logger.Error("service failed", "error", err)
 		return 1
 	}

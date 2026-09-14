@@ -31,6 +31,9 @@ type consumerAsset struct {
 	FileCreatedAt string `json:"file_created_at"`
 	LocalDateTime string `json:"local_date_time"`
 	PreviewPath   string `json:"preview_path"`
+	// Outer nil omits disabled fields; inner nil emits enabled unknowns as null.
+	Latitude  **float64 `json:"latitude,omitempty"`
+	Longitude **float64 `json:"longitude,omitempty"`
 }
 
 // consumerPage may be empty with continuation because eligibility follows search.
@@ -41,9 +44,9 @@ type consumerPage struct {
 
 // gatewayHandler dispatches without path cleaning or redirects. The public handler
 // remains independent; nginx must never proxy /internal/, even from loopback.
-func gatewayHandler(client *immich.Client, policy config.Policy, logger *slog.Logger) http.Handler {
+func gatewayHandler(client *immich.Client, policy config.Policy, settings config.Consumer, logger *slog.Logger) http.Handler {
 	public := deliveryHandler(client, policy, logger)
-	consumer := consumerHandler(client, policy, logger)
+	consumer := consumerHandler(client, policy, settings, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/internal/") {
 			consumer.ServeHTTP(w, r)
@@ -55,7 +58,7 @@ func gatewayHandler(client *immich.Client, policy config.Policy, logger *slog.Lo
 
 // consumerHandler authorizes unchanged policy facts before projecting safe fields.
 // A loopback peer is required; forwarded headers never establish local identity.
-func consumerHandler(client *immich.Client, policy config.Policy, logger *slog.Logger) http.Handler {
+func consumerHandler(client *immich.Client, policy config.Policy, settings config.Consumer, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -66,6 +69,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, logger *slog.L
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), deliveryTimeout)
 		defer cancel()
+		query.ExposeCoordinates = settings.ExposeCoordinates
 		page, err := client.SearchCandidates(ctx, query)
 		if err != nil {
 			consumerSearchError(w, r, logger, err)
@@ -76,11 +80,15 @@ func consumerHandler(client *immich.Client, policy config.Policy, logger *slog.L
 			if item.Media != "image" || !publication.Eligible(policy, item.OriginalPath, item.Media) {
 				continue
 			}
-			result.Assets = append(result.Assets, consumerAsset{
+			asset := consumerAsset{
 				ID: item.ID, Width: item.Width, Height: item.Height,
 				FileCreatedAt: item.FileCreatedAt, LocalDateTime: item.LocalDateTime,
 				PreviewPath: "/media/" + item.ID + "/preview",
-			})
+			}
+			if settings.ExposeCoordinates {
+				asset.Latitude, asset.Longitude = &item.Latitude, &item.Longitude
+			}
+			result.Assets = append(result.Assets, asset)
 		}
 		if query.ID != "" {
 			if len(result.Assets) != 1 {
