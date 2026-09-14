@@ -4,49 +4,104 @@ This document describes the reference deployment shape. The files under `deploy/
 
 ## Filesystem layout
 
-A simple Linux installation can use:
+The portable Linux service uses these regular files and directory, without extra ACL
+grants. Root installs/administers them; the running process is unprivileged.
 
-```text
-/usr/local/bin/media-gateway
-/etc/media-gateway/config.toml
-/etc/media-gateway/immich.key
-/etc/systemd/system/media-gateway.service
-/etc/nginx/sites-available/media-gateway
+| Path | Owner:group | Mode | Purpose |
+| --- | --- | --- | --- |
+| `/usr/local/bin/media-gateway` | `root:root` | `0755` | Static executable; no setuid or file capabilities |
+| `/etc/media-gateway` | `root:media-gateway` | `0750` | Service may traverse/read, never replace entries |
+| `/etc/media-gateway/config.toml` | `root:media-gateway` | `0640` | Administrator-controlled startup policy |
+| `/etc/media-gateway/immich.key` | `media-gateway:media-gateway` | `0400` | Separate owner-readable provider credential |
+| `/etc/systemd/system/media-gateway.service` | `root:root` | `0644` | Administrator-controlled unit |
+
+No runtime, data, cache, home or application log directory is required. The static
+binary also uses ordinary OS resolver and CA trust files for DNS/HTTPS; those must
+remain readable. Do not supply secrets or provider URLs through environment variables.
+The application selects them only through the explicit TOML and key paths.
+
+## Service account and installation
+
+These are first-install commands from a reviewed checkout on a systemd Linux host
+with `sudo`, shadow-utils (`groupadd`/`useradd`), coreutils and the reviewed
+[Go toolchain](toolchain.md). Stop on any failure. Inspect existing names/paths first;
+do not reuse an unrelated account, overwrite an existing installation, or alter
+other services. Existing deployments should retain recoverable files before changes.
+
+```sh
+# Inspect first: absent entries are expected on a fresh host.
+getent passwd media-gateway
+getent group media-gateway
+
+# Create once, with a dedicated primary group, locked password and no home/login.
+# Use the distribution's installed nologin executable (commonly /usr/sbin/nologin).
+command -v nologin
+sudo groupadd --system media-gateway
+sudo useradd --system --gid media-gateway --no-create-home \
+  --home-dir /nonexistent --shell "$(command -v nologin)" media-gateway
+sudo passwd --lock media-gateway
+id media-gateway
+
+# Build the static Linux amd64 application; no custom version injection.
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/media-gateway ./cmd/media-gateway
+sudo install -o root -g root -m 0755 bin/media-gateway /usr/local/bin/media-gateway
+sudo install -d -o root -g media-gateway -m 0750 /etc/media-gateway
+sudo install -o root -g media-gateway -m 0640 \
+  deploy/config.toml.example /etc/media-gateway/config.toml
+sudoedit /etc/media-gateway/config.toml
+
+# Provision the real key separately into a protected root-only source file outside
+# the checkout. Replace this placeholder source path; never put the token in a
+# command argument, environment variable, TOML or Git. Do not print its contents.
+sudo install -o media-gateway -g media-gateway -m 0400 \
+  /root/private-secrets/immich.key /etc/media-gateway/immich.key
+sudo install -o root -g root -m 0644 \
+  deploy/media-gateway.service /etc/systemd/system/media-gateway.service
+
+# Inspect metadata only. Parent directories must also be administrator-controlled.
+stat -c '%U:%G %a %n' /usr/local/bin/media-gateway /etc/media-gateway \
+  /etc/media-gateway/config.toml /etc/media-gateway/immich.key \
+  /etc/systemd/system/media-gateway.service
+sudo -u media-gateway test -r /etc/media-gateway/config.toml
+sudo -u media-gateway test ! -w /etc/media-gateway/config.toml
+sudo -u media-gateway test ! -w /etc/media-gateway
+sudo -u media-gateway test -r /etc/media-gateway/immich.key
 ```
 
-Runtime/cache directories should be added only when a feature actually needs them.
+The account must have only its dedicated group, with no NAS, Immich, nginx or
+administrative group memberships. Do not grant it file capabilities, ACL access to
+archives, or storage mounts. Provider-visible `policy.allowed_roots` are metadata,
+not local directories to create or mount.
 
-## Service account
+`ProtectSystem=strict` prevents writes, **not reads** of otherwise accessible
+storage. On a host that already mounts an archive, verify its permissions/ACLs deny
+this identity traversal/read access. If storage is globally readable, the host
+operator must isolate it (for example a reviewed host-specific `InaccessiblePaths=`
+drop-in) before acceptance. The portable unit cannot name every host's storage path.
+Do not change unrelated storage permissions blindly.
 
-Run the gateway as a dedicated unprivileged account, for example:
-
-```text
-media-gateway
-```
-
-The service requires:
-
-- execute access to the binary;
-- read access to the non-secret TOML configuration;
-- read access to the provider credential;
-- network access to the configured private provider and loopback listener.
-
-It does **not** require access to the NAS/archive filesystem in V0.
-
-A typical credential file should be owned/readable only by root and the service identity as appropriate for the host. Never place the credential in Git or in an nginx configuration.
+The key loader rejects any group/other permission, so `root:media-gateway 0640`
+is not usable for the key. Service ownership with `0400` supplies owner-read;
+the root-owned parent prevents replacement and the unit's read-only mount prevents
+chmod/write by the owner while running. Root can rotate the file using the same
+install command. Keep the protected provisioning source under the host's secret
+management policy; never broaden permissions to troubleshoot startup.
 
 ## Configuration
 
-Start from the repository's [`deploy/config.toml.example`](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and follow the [validated configuration contract](configuration.md).
+Start from [`deploy/config.toml.example`](../deploy/config.toml.example) and follow
+[the configuration contract](configuration.md). Adapt the numeric loopback listener,
+private provider origin, provider-visible roots and literal publication segments.
+Use an unprivileged port such as `2290`; the unit supplies no capability to bind
+privileged ports on hosts that require one.
 
-The reference shape keeps secrets separate:
-
-```toml
-[provider]
-api_key_file = "/etc/media-gateway/immich.key"
-```
-
-Changing the publication policy is security-sensitive configuration work. Validate configuration before/restart and test at least one known-private and one known-public asset afterward.
+**TOML and key changes require service restart.** There is no hot reload or
+validation-only command. Startup validates both before acquiring the listener;
+invalid configuration/key or a bind failure exits nonzero and serves nothing.
+`systemctl daemon-reload` rereads unit definitions only. A running process keeps
+its previously loaded configuration/key until stopped, even if files change.
+After policy changes and restart, check known-public success and known-private
+denial. A configuration change is not proof of publication revocation until applied.
 
 ## systemd
 
@@ -90,14 +145,71 @@ nginx/edge to honor it and never force-cache these routes. Private/missing/inval
 assets get `404`; provider/auth/validation failures before headers get `502`.
 Do not enable production use until #18's real-Immich privacy/quality gate passes.
 
-Before installation/reload:
+### Start, restart and stop
 
-```bash
+After installing the binary, configuration, key and unit, validate on the actual
+host. A missing executable or an unsupported directive is a failure to resolve,
+not a reason to remove hardening without review.
+
+```sh
 sudo systemd-analyze verify /etc/systemd/system/media-gateway.service
 sudo systemctl daemon-reload
+sudo systemctl enable --now media-gateway.service
+sudo systemctl status --no-pager media-gateway.service
+sudo journalctl -u media-gateway.service -n 30 --no-pager
+
+# Apply TOML/key changes; unit edits additionally need verify + daemon-reload first.
+sudo systemctl restart media-gateway.service
+sudo systemctl status --no-pager media-gateway.service
+
+# Deliberate stop sends SIGTERM and does not trigger Restart=on-failure.
+sudo systemctl stop media-gateway.service
+sudo systemctl show media-gateway.service -p ActiveState -p Result -p ExecMainStatus
 ```
 
-Start the service only after the provider credential and validated configuration exist.
+`Type=simple` supervises the foreground process; a successful start command is not
+application readiness. Confirm the `listening` journal event and actual loopback
+socket. No provider probe or public health endpoint exists.
+
+`Restart=on-failure` retries nonzero failures after five seconds; a clean signal
+exit does not restart. Explicit `StartLimitIntervalSec=300s` and `StartLimitBurst=5`
+stop repeated invalid-start retries independently of distribution defaults. After
+fixing the cause, run `sudo systemctl reset-failed media-gateway.service` then
+`sudo systemctl start media-gateway.service`. Do not reset repeatedly without
+addressing the sanitized journal failure. The default SIGTERM/kill-control-group
+behavior and final SIGKILL bound stop to 30 seconds around the 10-second Go drain.
+
+### Sandbox and real-host qualification
+
+Every directive is explained in the [unit](../deploy/media-gateway.service).
+The static Go process has no JIT, child-process, device, clock, kernel administration
+or filesystem-write requirement. Retain `MemoryDenyWriteExecute`, empty bounding
+and ambient capabilities, `NoNewPrivileges`, SUID/SGID and personality restrictions,
+and all existing home/kernel/cgroup protections. Private temporary directories
+remain writable systemd exceptions but the application does not use them. Standard
+resolver/CA reads remain available. IPv4/IPv6 and Unix sockets support provider,
+DNS and same-host peers; address-family restrictions do not restrict destinations.
+No private network namespace is used because host loopback/provider access is needed.
+
+On a supported systemd host after PR review, record:
+
+- exact binary revision, distribution/kernel/systemd version, successful unit verify,
+  and no ignored/unsupported sandbox directives;
+- process UID/GID and supplementary groups, zero effective/permitted/bounding/ambient
+  capabilities, expected numeric loopback socket, and config/key metadata;
+- successful startup and provider delivery with only documented file/network access,
+  no writable data/cache directory, and denied access to actual archive mounts;
+- journald lifecycle/failure visibility without secrets, clean SIGTERM/stop within
+  30 seconds and no restart after clean stop;
+- controlled failure/restart and persistent-invalid-start rate limiting, followed by
+  correction/reset/start. Exercise destructive failure cases only in an isolated
+  qualification instance, never against an unrelated production service.
+
+Existing Go tests cover startup rejection, real process signals and bounded drain;
+these do not prove systemd sandbox, service identity or host permission enforcement.
+If privileges or a suitable host are unavailable, retain these exact evidence items
+for M6 qualification (`stef-k/server-migration#10`) before #31 acceptance. Static
+checks must not be represented as installed-host execution.
 
 ## nginx
 

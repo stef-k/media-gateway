@@ -36,6 +36,25 @@ log the credential or whole configuration: configuration includes private topolo
 The loader itself emits no logs. Operators must keep configuration and credential
 locations under trusted host control; this is not a hostile-filesystem sandbox.
 
+## Installed ownership and startup state
+
+Follow the [Linux installation procedure](deployment.md#service-account-and-installation):
+root owns `/etc/media-gateway` (`0750`, group `media-gateway`) and `config.toml`
+(`0640`, same group). The service can read TOML but cannot edit or replace it.
+The key is owned by `media-gateway:media-gateway`, mode `0400`; root can administer
+it. A root-owned group-readable `0640` key fails the loader's permission check.
+Use regular files without extra ACL grants. The root-owned directory prevents
+service-side replacement; the unit's read-only filesystem also blocks key changes.
+The loader checks key mode, not all host ownership/ACL boundaries: operators must
+maintain these permissions.
+
+TOML and the key are loaded once before binding. **Changes require service restart**;
+there is no hot reload, reload signal or `ExecReload`. `daemon-reload` only rereads
+systemd units and does not apply TOML/key changes. Invalid configuration, unreadable
+or invalid keys, and listener setup failures exit nonzero without serving requests.
+There is no separate validation-only CLI: startup performs validation. A changed
+file does not affect the still-running process until restart.
+
 ## Policy and delivery
 
 `policy.allowed_roots` requires at least one unique, absolute normalized POSIX path.
