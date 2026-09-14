@@ -141,7 +141,10 @@ Do not copy raw logs/configuration into routine qualification output.
 
 Only `--gateway-outage` authorizes stopping/starting the supplied gateway unit.
 It requires host checks and an active service, expects bounded nginx 502/504, always
-attempts start in cleanup, then verifies eligible recovery. Use only in a maintenance
+attempts start in cleanup, then polls eligible GET/HEAD delivery immediately and
+every 250 ms within a hard 30-second recovery deadline (including HTTP work).
+Transient failures are silent; failure to recover fails the smoke. Active systemd
+state alone is not readiness. Normal checks are not retried. Use only in a maintenance
 window; interruption normally restores the service, but SIGKILL/power loss cannot
 run cleanup. If interrupted, check/start that unit and repeat the normal smoke.
 Provider outage/credential-failure evidence is separately obtained by the operator

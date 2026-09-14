@@ -10,6 +10,7 @@ import re
 import signal
 import subprocess
 import sys
+import time
 import urllib.parse
 
 
@@ -26,11 +27,13 @@ def command(*args):
     return result.stdout.strip()
 
 
-def request(args, path, method="GET", host=None):
+def request(args, path, method="GET", host=None, deadline=None):
     """Use numeric local HTTP only, no proxies, redirects, DNS or saved image files."""
     origin = urllib.parse.urlsplit(args.origin)
     connection = http.client.HTTPConnection(origin.hostname, origin.port, timeout=75)
-    signal.alarm(80)
+    budget = 80 if deadline is None else min(80, deadline - time.monotonic())
+    require(budget > 0, "eligible recovery deadline exceeded")
+    signal.setitimer(signal.ITIMER_REAL, budget)
     try:
         connection.request(method, path, headers={"Host": host or args.host})
         response = connection.getresponse()
@@ -45,14 +48,14 @@ def request(args, path, method="GET", host=None):
         return response.status, headers, body
     finally:
         connection.close()
-        signal.alarm(0)
+        signal.setitimer(signal.ITIMER_REAL, 0)
 
 
-def image_check(args):
+def image_check(args, deadline=None):
     """Check GET bytes and independently authorized HEAD framing/privacy headers."""
     path = f"/media/{args.eligible_id}/preview"
     for method in ("GET", "HEAD"):
-        status, headers, body = request(args, path, method)
+        status, headers, body = request(args, path, method, deadline=deadline)
         require(status == 200, "eligible image failed")
         require(headers.get("content-type") in ("image/jpeg", "image/webp"), "image type failed")
         length = headers.get("content-length", "")
@@ -61,6 +64,7 @@ def image_check(args):
         require(headers.get("x-content-type-options") == "nosniff", "nosniff failed")
         require(not set(headers) & {"location", "set-cookie", "etag", "content-encoding", "content-range", "content-disposition"}, "unexpected image headers")
         require(len(body) == (int(length) if method == "GET" else 0), "image body length failed")
+    require(deadline is None or time.monotonic() < deadline, "eligible recovery deadline exceeded")
     print("PASS eligible GET/HEAD headers and byte length")
 
 
@@ -109,6 +113,22 @@ def host_checks(args):
     print("REVIEW effective nginx upstream/inheritance and log ownership/privacy locally; see README")
 
 
+def wait_for_recovery(args):
+    """Poll eligible GET/HEAD immediately, then every 250 ms, for at most 30 seconds."""
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            image_check(args, deadline=deadline)
+            return
+        except (RuntimeError, OSError, http.client.HTTPException):
+            # Transient responses and transport errors may contain private values.
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(0.25, remaining))
+    raise RuntimeError("eligible delivery did not recover within 30 seconds")
+
+
 def outage_check(args):
     """Explicit gateway stop only; always attempt restoration, including on interrupt."""
     require(args.host_checks, "gateway outage requires host checks")
@@ -118,7 +138,7 @@ def outage_check(args):
         require(request(args, f"/media/{args.eligible_id}/preview")[0] in (502, 504), "outage did not fail closed")
     finally:
         command("systemctl", "start", args.unit)
-    image_check(args)
+    wait_for_recovery(args)
     print("PASS bounded gateway outage and restored eligible delivery")
 
 
