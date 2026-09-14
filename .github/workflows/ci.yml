@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 10 # Bound a stalled build or test run.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Bundle provenance and validation use the exact PR source head.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1' # Deliberate reviewed patch, not a floating family.
