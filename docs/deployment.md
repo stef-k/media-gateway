@@ -59,7 +59,7 @@ sudo install -o root -g root -m 0644 \
   deploy/media-gateway.service /etc/systemd/system/media-gateway.service
 
 # Inspect metadata only. Parent directories must also be administrator-controlled.
-stat -c '%U:%G %a %n' /usr/local/bin/media-gateway /etc/media-gateway \
+sudo stat -c '%U:%G %a %n' /usr/local/bin/media-gateway /etc/media-gateway \
   /etc/media-gateway/config.toml /etc/media-gateway/immich.key \
   /etc/systemd/system/media-gateway.service
 sudo -u media-gateway test -r /etc/media-gateway/config.toml
