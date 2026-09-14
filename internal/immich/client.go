@@ -94,7 +94,8 @@ func (c *Client) Asset(ctx context.Context, id string) (Metadata, error) {
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK:
-	case http.StatusNotFound:
+	// Immich v3.2.0 uses 400 for missing or inaccessible UUID-prevalidated assets.
+	case http.StatusBadRequest, http.StatusNotFound:
 		return Metadata{}, ErrMissing
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return Metadata{}, ErrAuth
