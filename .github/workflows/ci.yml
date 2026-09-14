@@ -30,3 +30,16 @@ jobs:
         run: |
           python3 scripts/test_smoke.py
           bash -n scripts/build-bundle.sh
+      - name: Verify Linux bundle
+        # Reuse this checkout/toolchain; no release publishing or additional job.
+        run: |
+          bundle_dir=$(mktemp -d)
+          scripts/build-bundle.sh "$bundle_dir"
+          mkdir "$bundle_dir/extracted"
+          tar -xzf "$bundle_dir/media-gateway-linux-amd64-$(git rev-parse HEAD).tar.gz" -C "$bundle_dir/extracted"
+          (cd "$bundle_dir/extracted" && sha256sum --check --strict SHA256SUMS)
+          "$bundle_dir/extracted/media-gateway" -version | tee "$bundle_dir/version"
+          grep -F "revision=$(git rev-parse HEAD) modified=false go=go1.27.1" "$bundle_dir/version"
+          for template in config.toml.example media-gateway.service nginx.conf; do
+            cmp "deploy/$template" "$bundle_dir/extracted/$template"
+          done
