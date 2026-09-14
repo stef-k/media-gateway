@@ -177,9 +177,13 @@ The listener and consumer peer must be loopback; forwarded headers are not
 identity. nginx must never publish `/internal/`, including through a local proxy.
 
 Every candidate passes `publication.Eligible` before projection into the six safe
-consumer fields. Consumer references do not authorize subsequent public delivery.
+consumer fields and, only with `consumer.expose_coordinates=true`, a validated
+nullable latitude/longitude pair. The default false preserves the six-field shape.
+Consumer references do not authorize subsequent public delivery.
 See the [consumer contract](consumer-api.md) for JSON, pagination and bounds.
-There is no generic provider search, EXIF/GPS output or consumer write operation.
+Coordinates are deliberately exposed eligible-consumer metadata; raw EXIF, public
+metadata routes and consumer writes remain excluded. Public preview bytes stay
+metadata-minimal and independent of this opt-in.
 
 ## Provider boundary
 
@@ -198,6 +202,9 @@ from validated configuration and the separately loaded key. See the
 `Client.SearchCandidates` adds one bounded image-candidate page or an exact
 UUIDv4 candidate lookup through the same private transport. Candidates retain
 private provider paths, nullable dimensions and capture/local times internally.
+Only the configured coordinate opt-in changes the fixed search to `withExif=true`;
+otherwise `withExif=false` remains unchanged. The adapter retains only validated
+latitude/longitude from EXIF, discarding unrelated fields.
 The same metadata decoder checks lifecycle availability. Unavailable candidates
 are omitted while preserving the provider cursor; malformed lifecycle fields
 reject the page. They are **not publication-authorized**, including when a provider filter matched.
@@ -293,6 +300,10 @@ media = ["video"]
 
 [delivery]
 allow_original = false
+
+[consumer]
+# Eligible trusted-consumer coordinates only; never embedded in public previews.
+expose_coordinates = false
 ```
 
 The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout and preview image variant. `public_base_url` is optional.

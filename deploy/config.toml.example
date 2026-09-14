@@ -88,3 +88,10 @@ allow_original = false
 # real Immich evidence proves adequate quality and confirms sensitive EXIF/GPS data
 # is absent from the bytes delivered to public clients.
 image_variant = "preview"
+
+[consumer]
+# Deliberately expose latitude/longitude only for currently eligible images on the
+# trusted loopback /internal/assets API. Omission defaults to false; raw EXIF is
+# never returned. nginx must never publish /internal/. This does not change public
+# /media/<id>/preview bytes or embed GPS in images. Restart after changing this.
+expose_coordinates = false

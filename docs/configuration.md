@@ -7,8 +7,9 @@ Any failure returns zero configuration and an empty credential. No environment,
 working-directory or home-directory configuration discovery occurs.
 
 Use the commented [operator example](../deploy/config.toml.example). All fields are
-required except `server.public_base_url` and `delivery.allow_original` (which defaults
-to false). Unknown fields/tables, incorrect types and malformed TOML are rejected.
+required except `server.public_base_url`, `delivery.allow_original`, and
+`consumer.expose_coordinates` (both booleans default to false; `[consumer]` may be
+omitted). Unknown fields/tables, incorrect types and malformed TOML are rejected.
 Configuration input is limited to 1 MiB. Parser errors are deliberately replaced with
 a schema/syntax diagnostic because raw parser messages can quote private input.
 Validation errors identify the offending field or operation without its value.
@@ -58,6 +59,27 @@ remains open. The implemented route accepts
 only JPEG/WebP previews with a positive known length of at most 16 MiB. The
 provider key needs `asset.read` and `asset.view`; per-call timeouts include
 streaming and are also capped by the 60-second public request context.
+
+## Trusted consumer coordinates
+
+```toml
+[consumer]
+# Opt-in for eligible loopback consumer metadata only; no change to preview bytes.
+expose_coordinates = false
+```
+
+`consumer.expose_coordinates` must be a boolean. An omitted section or flag is
+false: search retains `withExif=false` and the six-field consumer JSON shape.
+True changes only fixed consumer search to `withExif=true` and projects validated
+latitude/longitude after current publication eligibility. Both keys are then
+numbers or both `null`; a partial, nonnumeric, non-finite or out-of-range pair
+fails through the sanitized provider-failure path. See [consumer API](consumer-api.md).
+
+This is deliberate coordinate disclosure to trusted same-host consumers, which
+may publish those coordinates through their own UX. It does not expose raw EXIF,
+add public metadata routes or change `/media/<id>/preview` bytes. nginx must never
+publish `/internal/`. Changes require restart; startup logs contain no coordinates
+or provider metadata. There are no per-asset overrides, geocoding or caches.
 
 ## Development validation
 

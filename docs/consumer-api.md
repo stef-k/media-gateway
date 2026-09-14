@@ -43,7 +43,7 @@ whole page with the existing sanitized 502. Every returned candidate must then
 pass `publication.Eligible` using its unchanged provider path and media type.
 Private, outside-root, near-miss and malformed paths are silently omitted.
 
-Example response:
+Default/disabled response (`consumer.expose_coordinates=false`):
 
 ```json
 {
@@ -70,7 +70,8 @@ snapshot of a changing provider library.
 
 `GET /internal/assets/<asset-id>` accepts no query parameters. It performs a fresh
 exact candidate lookup, requires image media and current publication eligibility,
-and returns one object with the same six fields shown above. Missing, private,
+and returns one object with the same fields as browse (six when coordinates are
+disabled). Missing, private,
 malformed-path, unsupported, trashed/offline and invalid-ID results share `404` with body
 `not found\n`; knowledge of a private ID grants no information.
 
@@ -81,9 +82,56 @@ wall-clock meaning without timezone conversion. The relative `preview_path` is
 constructed only from a validated ID and the fixed public preview route.
 
 No provider/NAS paths, URLs, credentials, filenames, checksums, owner/library IDs,
-EXIF/GPS or raw provider JSON are serialized. GPS/EXIF and richer search filters
-are deferred until a concrete WordPress requirement establishes a minimum safe
-contract. WordPress implementation belongs in its own repository.
+raw EXIF or raw provider JSON are serialized. Richer search filters remain outside
+this contract.
+
+## Opt-in coordinates
+
+`[consumer].expose_coordinates` defaults to false when the section or flag is
+omitted. Disabled mode requests `withExif=false`, ignores EXIF even if supplied
+by the provider, and omits latitude/longitude keys entirely. The six-field JSON
+contract above is unchanged.
+
+When true, the same fixed structured search requests `withExif=true`. Only
+`exifInfo.latitude` and `exifInfo.longitude` are decoded from EXIF. Every active
+candidate is validated, then authorized with current `publication.Eligible`,
+then projected into the consumer allowlist. Private/outside-root/near-match and
+malformed paths expose nothing. Lifecycle-unavailable candidates are omitted
+before coordinate decoding, preserving pagination and exact-detail 404 behavior.
+
+Enabled detail example (browse wraps the same object in `assets`):
+
+```json
+{
+  "id": "12345678-1234-4234-8234-123456789abc",
+  "width": 640,
+  "height": null,
+  "file_created_at": "2026-09-13T10:00:00Z",
+  "local_date_time": "2026-09-13T12:00:00Z",
+  "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
+  "latitude": 25.0584,
+  "longitude": 121.635
+}
+```
+
+Both coordinates absent/null (including absent/null `exifInfo`) produce
+`"latitude":null,"longitude":null` on an otherwise eligible object. Exactly one
+absent/null, a nonnumeric/non-finite value, latitude outside `[-90,90]`, or longitude
+outside `[-180,180]` rejects the provider page through the fixed sanitized 502
+path, with no partial results. Zero and the inclusive boundary values are valid.
+No altitude, accuracy, camera details, people/albums or other EXIF is exposed.
+Coordinates and unrelated EXIF never enter application logs.
+
+This deliberately supports concrete consumer features: `stef-k/divi-child` stores
+attachment coordinates for public gallery Maps links and Wikipedia geosearch;
+`stef-k/Wayfarer` uses coordinates for maps, Maps links and Wikipedia geosearch
+after its own trip/timeline publication and privacy checks. Those applications
+own their public UX and integration code; this gateway has no coupling to either.
+There is no per-asset override, geocoding, database or coordinate cache.
+
+Public `/media/<id>/preview` GET/HEAD routes, headers and bytes are unchanged.
+GPS is deliberately available only on the trusted eligible-consumer metadata
+plane; preview bytes remain metadata-minimal and no public metadata route exists.
 
 ## Bounds, failures and authorization lifetime
 

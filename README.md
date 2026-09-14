@@ -80,7 +80,10 @@ Same-host consumers can use `GET /internal/assets` and
 `GET /internal/assets/<asset-id>` to browse or inspect eligible images. These
 loopback-only routes return a narrow JSON contract and must never be published
 by nginx. See the [private consumer API](docs/consumer-api.md). Every public
-preview request still reauthorizes independently.
+preview request still reauthorizes independently. Optional
+`[consumer].expose_coordinates = true` adds only validated latitude/longitude for
+currently eligible images to this trusted metadata plane. It defaults to false,
+never exposes raw EXIF and does not change public preview bytes.
 
 See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
 [Toolchain](docs/toolchain.md) for the local/CI validation commands.

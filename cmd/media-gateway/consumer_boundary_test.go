@@ -20,7 +20,7 @@ func TestConsumerInputBoundary(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayFor(t, provider, &logs, time.Second)
+	gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, true)
 	for _, route := range []string{
 		"/internal/assets/", "/internal/assets/not-a-uuid", "/internal/assets/" + testAsset + "/preview",
 		"/internal/assets/" + testAsset + "?limit=1", "/internal/assets/" + testAsset + "?",
@@ -32,6 +32,7 @@ func TestConsumerInputBoundary(t *testing.T) {
 		"/internal/assets?cursor=%00", "/internal/assets?cursor=%C2%85", "/internal/assets?cursor=%FF", "/internal/assets?cursor=%zz",
 		"/internal/assets?cursor=" + strings.Repeat("a", 1025), "/internal/assets?cursor=" + strings.Repeat("a", 4097),
 		"/internal/assets?filter=%7B%7D", "/internal/assets?path=/private", "/internal/assets?url=http://attacker.invalid",
+		"/internal/assets?withExif=true", "/internal/assets?expose_coordinates=true",
 		"/internal/assets?type=VIDEO", "/internal/assets?sort=originalPath", "/internal/assets?limit=1;cursor=a",
 	} {
 		resp, err := gateway.Client().Get(gateway.URL + route)
@@ -83,7 +84,7 @@ func TestConsumerFailures(t *testing.T) {
 			}))
 			defer provider.Close()
 			var logs bytes.Buffer
-			gateway := gatewayFor(t, provider, &logs, time.Second)
+			gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, true)
 			for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
 				logs.Reset()
 				resp, err := gateway.Client().Get(gateway.URL + route)
@@ -131,7 +132,7 @@ func TestConsumerCancellation(t *testing.T) {
 			if cancelCaller {
 				timeout = 3 * time.Second
 			}
-			gateway := gatewayFor(t, provider, io.Discard, timeout)
+			gateway := gatewayWithCoordinates(t, provider, io.Discard, timeout, true)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			done := make(chan error, 1)
@@ -188,7 +189,7 @@ func TestConsumerResponseBound(t *testing.T) {
 		candidateResponse(w, items, nil)
 	}))
 	defer provider.Close()
-	gateway := gatewayFor(t, provider, io.Discard, time.Second)
+	gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
 	for _, large := range []bool{false, true} {
 		oversized.Store(large)
 		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?limit=100")
