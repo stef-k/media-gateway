@@ -1,4 +1,4 @@
-# One Linux job checks the reviewed toolchain; release packaging is separate work.
+# One Linux job validates the reviewed toolchain and retains a qualification bundle.
 name: CI
 on:
   push:
@@ -34,6 +34,7 @@ jobs:
           python3 scripts/test_smoke.py
           bash -n scripts/build-bundle.sh
       - name: Verify Linux bundle
+        id: bundle
         # Reuse this checkout/toolchain; no release publishing or additional job.
         run: |
           bundle_dir=$(mktemp -d)
@@ -46,3 +47,11 @@ jobs:
           for template in config.toml.example media-gateway.service nginx.conf; do
             cmp "deploy/$template" "$bundle_dir/extracted/$template"
           done
+          # Expose only the tarball after all exact-head verification succeeds.
+          echo "path=$bundle_dir/media-gateway-linux-amd64-$(git rev-parse HEAD).tar.gz" >> "$GITHUB_OUTPUT"
+      - name: Retain verified Linux bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-gateway-linux-amd64
+          path: ${{ steps.bundle.outputs.path }}
+          if-no-files-found: error # Missing qualification bytes must fail CI.

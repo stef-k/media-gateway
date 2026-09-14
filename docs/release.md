@@ -4,6 +4,11 @@
 before #33/#5 close. #31/#32 templates are accepted. No GitHub Release or production
 hostname/Cloudflare cutover is performed by this procedure.
 
+PR CI may retain the verified Linux amd64 bundle as the
+`media-gateway-linux-amd64` CI artifact for qualification without Go on the target.
+It contains only the verified `.tar.gz`. CI artifacts are not signed releases and
+are not the production distribution mechanism.
+
 ## Build and verify
 
 On Linux with Git, Bash, GNU coreutils/find/tar/gzip and the reviewed Go toolchain,
