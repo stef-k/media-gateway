@@ -29,7 +29,7 @@ repository. It is not a signature from a trusted publisher.
 
 The explicit bundle contents are `media-gateway`, `config.toml.example`,
 `media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `LICENSE`, this `README.md`,
-`smoke-deployment.py`, and offline `docs/` deployment/configuration/logging/toolchain/
+`smoke-deployment.py`, and offline `docs/` release/deployment/configuration/logging/toolchain/
 consumer-API guidance. Templates contain public example values only; never package
 an installed TOML/key or an operator's adapted nginx file. The static Linux amd64
 build uses `CGO_ENABLED=0`, `GOAMD64=v1`, normal Go VCS metadata and no custom version
@@ -38,7 +38,8 @@ is repeatable; byte-for-byte build reproducibility is not claimed.
 
 ## First installation
 
-Use [deployment](deployment.md) in the repository, or `docs/deployment.md` in the
+Use [deployment](https://github.com/stef-k/media-gateway/blob/main/docs/deployment.md)
+in the repository, or `docs/deployment.md` in the
 bundle, for the accepted identity, permissions, secret provisioning and systemd
 commands. From an extracted bundle, substitute `./media-gateway` for the build
 output and the top-level template names for `deploy/...`; no Go toolchain is needed
