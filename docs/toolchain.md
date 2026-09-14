@@ -97,9 +97,11 @@ go build ./cmd/media-gateway
 `-version` reports module version, embedded VCS revision/dirty state and Go version.
 Local builds may show a generated module pseudo-version or `(devel)`; absent VCS
 revision/dirty metadata is reported as `unknown`.
-No release packaging or custom version injection is introduced.
-
-Fuzz/property tests for the path-policy boundary belong in #3. Cross-compilation/release packaging belongs later when the service implementation is stable enough to justify it.
+No custom version injection is used. `scripts/build-bundle.sh` builds Linux amd64
+with CGO disabled from a clean checkout and packages an explicit file allowlist.
+See [release validation](release.md); the procedure is repeatable, without claiming
+byte-for-byte reproducibility. Python 3 and Linux host tools are operator smoke
+tooling only, not application runtime dependencies.
 
 ## Version-update policy
 

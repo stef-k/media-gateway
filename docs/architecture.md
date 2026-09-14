@@ -246,8 +246,10 @@ recall bytes already received or stop an already-authorized in-flight response.
 A short/failed stream aborts the public connection or HTTP stream; headers already
 sent cannot be replaced with a 502. No error text is appended to image bytes.
 
-#17 supplies deterministic software evidence. #18 remains the deployed-Immich
-privacy and quality gate before production use.
+#17 supplies deterministic software evidence. Accepted #18 supplies real Immich
+3.2.0 representative preview privacy/quality and live lifecycle-revocation evidence.
+`/preview` is the first accepted representation, not a permanent quality ceiling;
+#30 tracks post-V0 fixed safe representation profiles.
 
 A representation may be qualified for production public delivery only after tests prove:
 

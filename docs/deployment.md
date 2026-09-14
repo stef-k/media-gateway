@@ -143,7 +143,8 @@ mid-stream failure aborts the response. HEAD checks current metadata/policy and
 preview headers, then closes the body. All responses use `no-store`; configure
 nginx/edge to honor it and never force-cache these routes. Private/missing/invalid
 assets get `404`; provider/auth/validation failures before headers get `502`.
-Do not enable production use until #18's real-Immich privacy/quality gate passes.
+#18 accepted real Immich 3.2.0 preview privacy/quality and lifecycle revocation;
+provider/settings upgrades require renewed representative checks.
 
 ### Start, restart and stop
 
@@ -208,7 +209,7 @@ On a supported systemd host after PR review, record:
 Existing Go tests cover startup rejection, real process signals and bounded drain;
 these do not prove systemd sandbox, service identity or host permission enforcement.
 If privileges or a suitable host are unavailable, retain these exact evidence items
-for M6 qualification (`stef-k/server-migration#10`) before #31 acceptance. Static
+for qualification on the target host. #31 is already accepted and M6-qualified. Static
 checks must not be represented as installed-host execution.
 
 ## nginx
@@ -284,14 +285,15 @@ curl --path-as-is -i -H 'Host: media.example.com' \
   http://127.0.0.1:8089/media/KNOWN-ELIGIBLE-UUID/preview
 ```
 
-After PR source review, qualify the exact template revision on M6 against the
-already-installed #31 service. Record nginx version, `nginx -t`, numeric loopback
+The exact #32 template is accepted and M6-qualified against the #31 service.
+For another host or changed integration, record nginx version, `nginx -t`, numeric loopback
 sockets, eligible GET/HEAD, private/outside-root/near-match denial, every route/method
 class above, no-store, access/error log operation and bounded upstream failure.
 Confirm nginx targets Media Gateway only and responses/logs contain no actual
 provider credentials or private metadata. Local nginx tests with a synthetic
 upstream prove routing/transport only, not M6, real-provider policy or preview privacy.
-The portable release/smoke bundle remains #33 work.
+Use the [release and portable smoke procedure](release.md) for #33 bundle
+validation; exact-bundle M6 acceptance remains separate from production cutover.
 
 ## Logging
 
@@ -398,9 +400,9 @@ and [asset retrieval](https://github.com/immich-app/immich/blob/v3.2.0/server/sr
 For this fixed UUIDv4-prevalidated endpoint only, `Asset()` maps 400 alongside 404
 to `ErrMissing` without reading provider error bodies. Preview and candidate-search
 status handling are unchanged. #18 recorded successful missing/private
-requalification on accepted #24. After #27 merges, repeat the external-library
-move/rescan test from its exact accepted head: without restarting the gateway,
-the old trashed/offline ID must return fixed 404, as must a new ineligible ID.
+requalification on accepted #24. Accepted #27/#18 also proved external-library
+move/rescan revocation without restarting the gateway: the old trashed/offline ID
+and new ineligible ID returned fixed 404.
 
 This verification is an upstream API/source review plus local HTTP contract tests,
 not qualification against a deployed Immich instance. Re-check API permissions
@@ -495,9 +497,9 @@ no logs and exposes no provider values through errors.
 **Candidate discovery is not authorization.** Private, outside-root and crafted
 paths can be returned unchanged for later `publication.Eligible` evaluation.
 Every item must pass that evaluation before a consumer receives it; provider
-search filters and consumer references never grant permission. #20 adds no
-localhost or public consumer HTTP API. Source review and fake-provider tests do
-not change #18/#4 qualification state or establish production preview safety.
+search filters and consumer references never grant permission. Accepted #21 wires
+the private consumer API; #26 adds default-off eligible coordinates. Source review
+and fake-provider tests remain distinct from accepted #18 real-provider evidence.
 
 ### Reviewed preview contract
 
@@ -520,10 +522,11 @@ not the generic OpenAPI body type. The 16 MiB bound is a gateway V0 limit, not a
 Immich guarantee. Missing previews deny; redirects and invalid representation
 headers fail with 502. No retry, alternate representation or storage fallback exists.
 
-Issue #18 must record the deployed Immich version/settings and representative
-quality, metadata/privacy, direct-response and revocation evidence through this
-exact gateway route. Fake-provider CI and upstream source review do not supply
-that evidence. The service makes no claim that previews strip sensitive metadata.
+Accepted #18 records real Immich 3.2.0 representative phone/camera/RAW quality,
+metadata/privacy, direct-response and live revocation evidence through this route.
+This qualifies `/preview` as the first accepted representation, not all future
+provider versions/settings. The gateway itself does not strip image metadata.
+#30 tracks post-V0 fixed safe profiles; it does not block V0 deployment.
 
 ## Host firewall
 
@@ -553,12 +556,7 @@ Before declaring a deployment usable:
 
 ## Upgrades
 
-Keep upgrades deliberate:
-
-1. review release notes and security-impacting changes;
-2. build/install the new binary;
-3. validate configuration against the new version;
-4. restart the service;
-5. repeat known-public/known-private policy smoke tests.
-
-Provider upgrades should likewise trigger at least provider-contract and publication-policy smoke tests before assuming compatibility.
+Follow the [bundle install/upgrade/rollback procedure](release.md). Preserve the
+previous binary, protected configuration/key and adapted templates before replacing
+anything. TOML/key changes require restart; there is no hot reload. Provider
+upgrades also require representative provider-contract, policy and privacy checks.

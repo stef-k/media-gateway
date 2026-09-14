@@ -20,7 +20,7 @@ listen = "127.0.0.1:2290"
 
 # Public origin used when the application needs to construct absolute media URLs.
 # This is deployment-specific: e.g. https://media.example.com or
-# https://media.stefk.me. Optional: omit it when absolute URLs are not needed.
+# another operator-controlled origin. Optional: omit when absolute URLs are not needed.
 # When supplied it must be an HTTP(S) origin without userinfo, query or fragment.
 public_base_url = "https://media.example.com"
 
@@ -88,9 +88,9 @@ media = ["video"]
 # delivery policy later requires explicit design around metadata/privacy and size.
 allow_original = false
 
-# Provider representation used for V0 image delivery. `preview` is provisional until
-# real Immich evidence proves adequate quality and confirms sensitive EXIF/GPS data
-# is absent from the bytes delivered to public clients.
+# First accepted public representation, qualified on real Immich 3.2.0 in #18.
+# Repeat privacy/quality checks after provider/settings changes. Future fixed safe
+# profiles belong to #30; originals and arbitrary resizing remain unavailable.
 image_variant = "preview"
 
 [consumer]

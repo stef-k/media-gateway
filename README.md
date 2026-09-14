@@ -4,7 +4,7 @@ Media Gateway is a small, fail-closed publication gateway for serving explicitly
 
 The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through `https://media.stefk.me` for consumers such as WordPress.
 
-> **Status:** fail-closed public image preview delivery implemented with fake-provider tests. Real-Immich privacy/quality qualification remains open in #18; there is no production release.
+> **Status:** public image delivery (#4/#18) and the trusted consumer lane (#6/#26) are accepted. Real Immich 3.2.0 phone/RAW preview privacy, visual quality and live lifecycle revocation are qualified. Linux systemd/nginx contracts (#31/#32) are real-host-qualified; #33 bundle/smoke acceptance remains the final #5 deployment gate. Production hostname/edge cutover is separate.
 
 ## Core idea
 
@@ -72,9 +72,11 @@ of at most 16 MiB. Delivery streams without whole-image buffering, rejects every
 provider redirect, and uses `Cache-Control: no-store`. Private/missing/invalid
 assets return fixed `404` denials; provider failures return fixed `502` responses.
 A failure after streaming begins aborts the response. Originals, video, range
-and conditional delivery are unavailable. Source review and synthetic tests do
-not establish EXIF/GPS privacy or visual quality; #18 must qualify representative
-real Immich previews before production use.
+and conditional delivery are unavailable. The first accepted representation is `/preview`: #18 qualified representative
+real Immich previews, including privacy, human visual quality and same-ID live
+revocation after #27. Repeat relevant qualification when changing provider versions
+or preview settings. #30 is the post-V0 fixed safe representation-profile candidate,
+not a requirement for arbitrary gateway resizing or a permanent quality ceiling.
 
 Same-host consumers can use `GET /internal/assets` and
 `GET /internal/assets/<asset-id>` to browse or inspect eligible images. These
@@ -85,6 +87,7 @@ preview request still reauthorizes independently. Optional
 currently eligible images to this trusted metadata plane. It defaults to false,
 never exposes raw EXIF and does not change public preview bytes.
 
+See [Release and smoke procedure](docs/release.md) for bundles and rollback.
 See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
 [Toolchain](docs/toolchain.md) for the local/CI validation commands.
 
