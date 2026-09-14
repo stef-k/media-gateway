@@ -16,6 +16,7 @@ type Config struct {
 	Provider Provider `toml:"provider"`
 	Policy   Policy   `toml:"policy"`
 	Delivery Delivery `toml:"delivery"`
+	Consumer Consumer `toml:"consumer"`
 }
 
 // Server restricts the future service to a numeric loopback listener.
@@ -48,6 +49,11 @@ type Rule struct {
 type Delivery struct {
 	AllowOriginal bool   `toml:"allow_original"`
 	ImageVariant  string `toml:"image_variant"`
+}
+
+// Consumer controls only trusted eligible-consumer coordinates; zero means disabled.
+type Consumer struct {
+	ExposeCoordinates bool `toml:"expose_coordinates"`
 }
 
 // Load reads an explicit TOML file, validates it, and loads the credential.

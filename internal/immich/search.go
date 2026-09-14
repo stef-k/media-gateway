@@ -30,6 +30,8 @@ type CandidateQuery struct {
 	Limit  int
 	Cursor string
 	ID     string
+	// ExposeCoordinates is set only from trusted consumer configuration.
+	ExposeCoordinates bool
 }
 
 // Candidate is untrusted for publication. OriginalPath is unchanged private
@@ -42,6 +44,9 @@ type Candidate struct {
 	Height        *int64
 	FileCreatedAt string
 	LocalDateTime string
+	// Coordinates are a validated nullable pair, never publication authority.
+	Latitude  *float64
+	Longitude *float64
 }
 
 // CandidatePage contains at most the requested limit; empty NextCursor means done.
@@ -69,7 +74,7 @@ func (c *Client) SearchCandidates(ctx context.Context, query CandidateQuery) (Ca
 	}
 	payload := map[string]any{
 		"filter": filter, "orderBy": map[string]string{"field": "fileCreatedAt", "direction": "desc"},
-		"size": query.Limit, "withExif": false, "withPeople": false, "withStacked": false,
+		"size": query.Limit, "withExif": query.ExposeCoordinates, "withPeople": false, "withStacked": false,
 	}
 	if query.Cursor != "" {
 		payload["cursor"] = query.Cursor
@@ -144,7 +149,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	}
 	page := CandidatePage{Items: make([]Candidate, 0, len(assets.Items)), NextCursor: cursor}
 	for _, raw := range assets.Items {
-		item, err := decodeCandidate(raw, query.ID)
+		item, err := decodeCandidate(raw, query.ID, query.ExposeCoordinates)
 		// Structured Immich search can return lifecycle-unavailable records.
 		// Omit them without losing the provider cursor or failing active siblings.
 		if errors.Is(err, ErrMissing) {
@@ -159,7 +164,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 }
 
 // decodeCandidate retains only policy facts, nullable dimensions and required times.
-func decodeCandidate(raw []byte, requested string) (Candidate, error) {
+func decodeCandidate(raw []byte, requested string, exposeCoordinates bool) (Candidate, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
 		return Candidate{}, ErrMetadata
@@ -190,6 +195,12 @@ func decodeCandidate(raw []byte, requested string) (Candidate, error) {
 		}
 		if _, err := time.Parse(time.RFC3339Nano, *target); err != nil {
 			return Candidate{}, ErrMetadata
+		}
+	}
+	if exposeCoordinates {
+		item.Latitude, item.Longitude, err = decodeCoordinates(fields["exifInfo"])
+		if err != nil {
+			return Candidate{}, err
 		}
 	}
 	return item, nil

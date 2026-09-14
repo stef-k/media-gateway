@@ -24,11 +24,17 @@ const testKey = "provider-secret-marker"
 // gatewayFor uses the real client, policy evaluator, handler and server bounds.
 func gatewayFor(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration) *httptest.Server {
 	t.Helper()
+	return gatewayWithCoordinates(t, provider, logs, timeout, false)
+}
+
+// gatewayWithCoordinates exercises the same startup wiring with an explicit capability.
+func gatewayWithCoordinates(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration, enabled bool) *httptest.Server {
+	t.Helper()
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: timeout}, testKey)
 	t.Cleanup(client.CloseIdleConnections)
 	policy := config.Policy{AllowedRoots: []string{"/external/photos"}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
-	server.Config = newServer(gatewayHandler(client, policy, slog.New(slog.NewJSONHandler(logs, nil))))
+	server.Config = newServer(gatewayHandler(client, policy, config.Consumer{ExposeCoordinates: enabled}, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()
 	t.Cleanup(server.Close)
 	return server

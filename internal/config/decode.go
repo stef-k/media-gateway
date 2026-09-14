@@ -20,6 +20,7 @@ func decode(data []byte, c *Config) error {
 		} `toml:"provider"`
 		Policy   Policy   `toml:"policy"`
 		Delivery Delivery `toml:"delivery"`
+		Consumer Consumer `toml:"consumer"`
 	}
 	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&raw); err != nil {
 		return errors.New("config: invalid TOML schema or syntax (check field names and types)")
@@ -31,7 +32,7 @@ func decode(data []byte, c *Config) error {
 	*c = Config{
 		Server:   raw.Server,
 		Provider: Provider{Type: raw.Provider.Type, BaseURL: raw.Provider.BaseURL, APIKeyFile: raw.Provider.APIKeyFile, RequestTimeout: timeout},
-		Policy:   raw.Policy, Delivery: raw.Delivery,
+		Policy:   raw.Policy, Delivery: raw.Delivery, Consumer: raw.Consumer,
 	}
 	return nil
 }
