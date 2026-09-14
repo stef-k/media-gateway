@@ -112,6 +112,9 @@ validate route/method/identifier/variant
 query Immich for current asset metadata
           |
           v
+explicit isTrashed=false and isOffline=false?
+          | unavailable -> 404; missing/invalid fields -> 502
+          v active
 asset path under configured allowed root?
           | no -> 404
           v yes
@@ -130,7 +133,10 @@ validate bounded upstream response
 stream public response
 ```
 
-Every delivery request re-evaluates policy. A file moved out of an eligible path therefore becomes unavailable once the provider reflects the new metadata; there is no second publication database to synchronize.
+Every delivery request checks current provider lifecycle availability before evaluating
+policy. Immich external-library moves can retain an old eligible path on a
+trashed/offline record; that record now denies delivery. An active record at a
+new ineligible path also denies. There is no second publication database to synchronize.
 
 ## Public URLs
 
@@ -180,7 +186,11 @@ There is no generic provider search, EXIF/GPS output or consumer write operation
 `internal/immich` provides a concrete metadata/preview/candidate client so provider-specific HTTP/JSON
 stays outside the pure publication evaluator. Its `Asset` method returns only ID,
 unchanged original path and normalized media type. It does not grant publication
-itself. The public handler calls `Asset`, requires image media, evaluates
+itself. The adapter requires explicit boolean `isTrashed=false` and
+`isOffline=false` before returning metadata. Either true returns `ErrMissing`;
+missing, null or wrongly typed lifecycle fields return `ErrMetadata`. Lifecycle
+state stays within the provider boundary; `publication.Eligible` remains pure.
+The public handler calls `Asset`, requires image media, evaluates
 `publication.Eligible`, and only then calls `Preview`. Startup constructs one client
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
@@ -188,7 +198,9 @@ from validated configuration and the separately loaded key. See the
 `Client.SearchCandidates` adds one bounded image-candidate page or an exact
 UUIDv4 candidate lookup through the same private transport. Candidates retain
 private provider paths, nullable dimensions and capture/local times internally.
-They are **not publication-authorized**, including when a provider filter matched.
+The same metadata decoder checks lifecycle availability. Unavailable candidates
+are omitted while preserving the provider cursor; malformed lifecycle fields
+reject the page. They are **not publication-authorized**, including when a provider filter matched.
 The consumer handler evaluates every candidate with `publication.Eligible` and
 omits provider paths before any consumer receives a result. The adapter itself
 grants no publication authority and public delivery remains independent. See the
@@ -222,7 +234,7 @@ never forwarded. Queries and caller headers do not select upstream behavior.
 Range and conditional headers are ignored; no 206, ETag or 304 support exists.
 
 Every request revalidates authorization; no-store prevents a gateway-supported
-cache from bypassing revocation once Immich reports the changed path. It cannot
+cache from bypassing revocation once Immich reports an ineligible path or trashed/offline state. It cannot
 recall bytes already received or stop an already-authorized in-flight response.
 A short/failed stream aborts the public connection or HTTP stream; headers already
 sent cannot be replaced with a 502. No error text is appended to image bytes.
@@ -303,7 +315,7 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 - Provider/auth/metadata/representation failure before headers: fixed `502` with
   `media unavailable` body; no direct-storage fallback. Mid-stream errors abort.
-- Invalid/missing/private/unsupported assets or missing previews: fixed `404` with
+- Invalid/missing/private/unsupported/trashed/offline assets or missing previews: fixed `404` with
   `not found` body. HEAD has matching error headers but no body. All use no-store.
 - Provider metadata incomplete/ambiguous: deny.
 - Asset outside allowed root: deny.

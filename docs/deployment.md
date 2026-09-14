@@ -189,6 +189,14 @@ require UUIDv4 identifiers: hyphenated hexadecimal `8-4-4-4-12`, version nibble
 this before sending requests. Returned IDs must denote the same UUID; letter
 case alone is insignificant.
 
+Lifecycle fields were re-verified on **2026-09-14** against the official
+[Immich v3.2.0 response schema and mapper](https://github.com/immich-app/immich/blob/v3.2.0/server/src/dtos/asset-response.dto.ts).
+`isTrashed` and `isOffline` are required booleans; the mapper derives trash state
+from `deletedAt` and copies `isOffline`. The adapter requires both explicitly
+false before returning metadata. Either true returns `ErrMissing`, even with an
+old eligible path. Missing, null or non-boolean flags return `ErrMetadata`.
+No lifecycle values are returned or logged.
+
 Only `AssetResponseDto.id`, `originalPath` and `type` are retained. All are required
 and non-empty. `IMAGE` maps to `image`, `VIDEO` to `video`; documented `AUDIO` and
 `OTHER`, and any unknown type, fail closed. Paths pass unchanged to
@@ -216,8 +224,10 @@ or absent `asset.read` access: see [the access gate](https://github.com/immich-a
 and [asset retrieval](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/asset.service.ts).
 For this fixed UUIDv4-prevalidated endpoint only, `Asset()` maps 400 alongside 404
 to `ErrMissing` without reading provider error bodies. Preview and candidate-search
-status handling are unchanged. #18 still requires the post-merge real-provider
-missing-UUID probe before qualification can complete.
+status handling are unchanged. #18 recorded successful missing/private
+requalification on accepted #24. After #27 merges, repeat the external-library
+move/rescan test from its exact accepted head: without restarting the gateway,
+the old trashed/offline ID must return fixed 404, as must a new ineligible ID.
 
 This verification is an upstream API/source review plus local HTTP contract tests,
 not qualification against a deployed Immich instance. Re-check API permissions
@@ -264,7 +274,19 @@ requires `assets.items`, matching `assets.count`, and `assets.nextCursor` (a
 nonempty bounded string or explicit `null` for completion). It returns
 `CandidatePage.Items` and `NextCursor`; terminal `null` maps to an empty string.
 
-Every item requires a UUIDv4 ID, nonempty unchanged `originalPath`, exact `IMAGE`
+Lifecycle/search behavior was re-verified on **2026-09-14** against the v3.2.0
+[search service](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/search.service.ts),
+[repository](https://github.com/immich-app/immich/blob/v3.2.0/server/src/repositories/search.repository.ts)
+and [structured query builder](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/database.ts).
+The structured search used here does **not** automatically exclude trashed/offline
+records. Its response uses the same asset mapper, so the adapter applies the
+same required lifecycle booleans and omits unavailable items locally. The fixed
+request remains unchanged; no extra lookups or page scans are added. Provider
+count validation precedes filtering and the cursor is preserved, including on
+empty pages. Exact unavailable lookups therefore return an empty page and a
+consumer 404; a search-endpoint HTTP 404 remains an operational failure.
+
+Every active item requires a UUIDv4 ID, nonempty unchanged `originalPath`, exact `IMAGE`
 type (mapped to `image`), `width`, `height`, `fileCreatedAt` and `localDateTime`.
 Dimensions use the schema's nullable nonnegative integer range through
 9007199254740991: `null` means unknown, and zero is preserved. Times must parse
@@ -276,7 +298,7 @@ GPS, people or unrelated provider metadata enters the candidate result.
 The existing fixed origin, credential-safe transport, redirect rejection,
 timeouts and cancellation apply. The entire JSON body, including ignored fields,
 is capped at 1 MiB before decoding; excess candidates, invalid shapes, unsupported
-media and malformed fields reject the whole page. Search uses the existing fixed
+media and malformed fields (including lifecycle flags) reject the whole page. Search uses the existing fixed
 error classes plus `ErrSearchQuery` for invalid pagination/query inputs. It emits
 no logs and exposes no provider values through errors.
 

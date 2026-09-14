@@ -99,7 +99,12 @@ Sidecars, project files and unknown provider asset types are never delivered as 
 
 ### Revalidate on delivery
 
-A consumer reference is not an authorization record. Each delivery resolves current provider metadata and evaluates policy again.
+A consumer reference is not an authorization record. Each delivery resolves current
+provider metadata and requires explicit boolean `isTrashed=false` and
+`isOffline=false` before evaluating path/media policy. Either true denies even
+when Immich retains an old eligible path. Missing, null or non-boolean lifecycle
+fields are invalid metadata and fail closed. Lifecycle availability belongs to
+the provider adapter, not the pure `publication.Eligible` evaluator.
 
 This is required for revocation by reorganizing the archive. Cached derivatives must not bypass this property unless a later explicit cache design provides equivalent bounded revocation behavior.
 
@@ -126,7 +131,7 @@ Provider credentials:
 
 ### Non-enumerating denial
 
-Private, missing, invalid, unsupported and policy-denied assets, including a
+Private, missing, invalid, unsupported, trashed, offline and policy-denied assets, including a
 missing approved preview, return the same fixed `404` response. Provider auth,
 transport, malformed metadata and representation validation failures return fixed
 `502` responses. Neither class exposes provider details. HEAD emits no body.
@@ -148,7 +153,9 @@ private asset ID -> gateway policy check -> 404
 
 The [private consumer API](consumer-api.md) returns only currently eligible images
 from bounded candidate search or exact lookup. Every candidate passes the same
-publication evaluator before any fields are serialized. Only IDs, dimensions,
+publication evaluator before any fields are serialized. The adapter omits
+trashed/offline candidates before projection and rejects malformed lifecycle
+metadata; an unavailable exact candidate receives the same fixed 404. Only IDs, dimensions,
 capture/local times and relative preview paths leave this boundary. The service
 requires a loopback peer, ignores forwarded identity headers and gives no CORS
 permission. nginx must never publish `/internal/`: a local proxy is still a local
@@ -233,6 +240,8 @@ At minimum automate cases for:
 - malformed provider path -> denied;
 - unknown/unsupported type -> denied;
 - arbitrary private asset ID supplied by caller -> denied;
+- trashed/offline metadata with an otherwise eligible path -> 404, no preview fetch;
+- missing/non-boolean lifecycle metadata -> bounded sanitized failure, no preview fetch;
 - provider timeout/failure -> bounded failure, no fallback;
 - public request cannot select arbitrary URL/path/upstream;
 - credential/config values do not appear in responses or logs under tested failures.
