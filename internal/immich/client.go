@@ -134,14 +134,12 @@ func decodeMetadata(body []byte, requested string) (Metadata, error) {
 	if json.Unmarshal(body, &fields) != nil {
 		return Metadata{}, ErrMetadata
 	}
-	var lifecycle struct {
-		IsTrashed *bool `json:"isTrashed"`
-		IsOffline *bool `json:"isOffline"`
-	}
-	if json.Unmarshal(body, &lifecycle) != nil || lifecycle.IsTrashed == nil || lifecycle.IsOffline == nil {
+	var isTrashed, isOffline *bool
+	if json.Unmarshal(fields["isTrashed"], &isTrashed) != nil || isTrashed == nil ||
+		json.Unmarshal(fields["isOffline"], &isOffline) != nil || isOffline == nil {
 		return Metadata{}, ErrMetadata
 	}
-	if *lifecycle.IsTrashed || *lifecycle.IsOffline {
+	if *isTrashed || *isOffline {
 		return Metadata{}, ErrMissing
 	}
 	var id, originalPath, media string

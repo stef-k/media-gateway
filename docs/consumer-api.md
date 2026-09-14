@@ -36,7 +36,10 @@ types or ordering controls. A cursor is passed only in the fixed search body's
 cursor field; it cannot change gateway-owned filters or the configured origin.
 
 One request performs one `SearchCandidates` call, with the adapter's fixed
-image-only, newest-capture-first ordering. Every returned candidate must then
+image-only, newest-capture-first ordering. The adapter requires explicit active
+lifecycle booleans and omits trashed/offline records before returning candidates,
+while preserving the provider cursor. Malformed lifecycle fields reject the
+whole page with the existing sanitized 502. Every returned candidate must then
 pass `publication.Eligible` using its unchanged provider path and media type.
 Private, outside-root, near-miss and malformed paths are silently omitted.
 
@@ -68,7 +71,7 @@ snapshot of a changing provider library.
 `GET /internal/assets/<asset-id>` accepts no query parameters. It performs a fresh
 exact candidate lookup, requires image media and current publication eligibility,
 and returns one object with the same six fields shown above. Missing, private,
-malformed-path, unsupported and invalid-ID results share `404` with body
+malformed-path, unsupported, trashed/offline and invalid-ID results share `404` with body
 `not found\n`; knowledge of a private ID grants no information.
 
 Dimensions are nonnegative integers or `null` when unknown. Times retain the
@@ -102,7 +105,7 @@ scans, retries or caches.
 
 Results establish eligibility only at browse/detail time. Consumer references
 never grant publication: `/media/<id>/preview` independently fetches current
-metadata and reauthorizes on every GET/HEAD. Its behavior is unchanged.
+metadata, requires current lifecycle availability and reauthorizes on every GET/HEAD.
 
 Issue #21 supplies software evidence only. Real-Immich preview privacy/quality
 qualification in #18/#4 and host/nginx qualification in #5 remain independent.

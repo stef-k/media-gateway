@@ -67,8 +67,12 @@ This is the main authorization boundary. Harden/decompose it after #2 establishe
 - real representative proof that the selected public derivative does not expose sensitive EXIF/GPS.
 
 #17 implements the deterministic public preview path with fake-provider tests.
-#18 remains the real deployed-Immich privacy/quality gate; #4 closes only after
-both are accepted, and #5 depends on that completion.
+#24 corrects Immich v3 missing/inaccessible metadata classification. #27 adds
+the provider lifecycle prerequisite after #18 discovered stale eligible paths
+on trashed/offline external-library records. #18 remains the real deployed-Immich
+privacy/quality and revocation gate; after #27 is accepted it must repeat the
+move/rescan test without restarting the gateway. #4 closes only after that
+evidence is accepted, and #5 depends on that completion.
 
 Do not add originals, video, transcoding or cache unless the evidence requires it.
 

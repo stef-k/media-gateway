@@ -60,7 +60,8 @@ bin/media-gateway -config /etc/media-gateway/config.toml
 
 The configuration and separate credential must pass [`config.Load`](docs/configuration.md)
 validation before binding. `GET` and `HEAD /media/<asset-id>/preview` fetch current
-Immich metadata and authorize the image through `publication.Eligible` before
+Immich metadata, require explicit active lifecycle state (neither trashed nor
+offline), and authorize the image through `publication.Eligible` before
 requesting a preview. The key needs `asset.read` and `asset.view`. All other
 public routes/methods are denied; there is no health/readiness endpoint. A running
 listener does not establish provider or media readiness. SIGINT/SIGTERM stop accepting
