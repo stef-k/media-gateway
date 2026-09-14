@@ -75,7 +75,7 @@ var uuidV4 = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-
 // maxMetadata bounds the entire JSON document, including ignored provider fields.
 const maxMetadata = 1 << 20
 
-// Asset retrieves current metadata with no cache or policy decision. Every error
+// Asset retrieves currently available metadata with no cache or policy decision. Every error
 // returns zero metadata. Context errors are safe sentinels, never wrapped URL errors.
 func (c *Client) Asset(ctx context.Context, id string) (Metadata, error) {
 	if !uuidV4.MatchString(id) {
@@ -127,11 +127,22 @@ func transportError(ctx context.Context, err error) error {
 	return ErrTransport
 }
 
-// decodeMetadata ignores unrelated metadata and preserves path text for Eligible.
+// decodeMetadata requires current lifecycle availability before returning policy inputs.
+// Lifecycle flags stay private to decoding; missing/null flags must not default to active.
 func decodeMetadata(body []byte, requested string) (Metadata, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(body, &fields) != nil {
 		return Metadata{}, ErrMetadata
+	}
+	var lifecycle struct {
+		IsTrashed *bool `json:"isTrashed"`
+		IsOffline *bool `json:"isOffline"`
+	}
+	if json.Unmarshal(body, &lifecycle) != nil || lifecycle.IsTrashed == nil || lifecycle.IsOffline == nil {
+		return Metadata{}, ErrMetadata
+	}
+	if *lifecycle.IsTrashed || *lifecycle.IsOffline {
+		return Metadata{}, ErrMissing
 	}
 	var id, originalPath, media string
 	for name, target := range map[string]*string{"id": &id, "originalPath": &originalPath, "type": &media} {
