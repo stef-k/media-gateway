@@ -156,6 +156,9 @@ Deployment examples under `deploy/` are templates, not a license to weaken host-
 
 Use tracker #1 and explicit issue dependencies as execution authority. When a coarse epic has bounded child implementation issues, hand the child issue to Codex rather than the epic.
 
-Current foundation execution is `#9 -> #10`; #2 closes only after both children are accepted. Harden/decompose later epics only when their prerequisites establish enough real seams to do so cleanly. Prefer a few coarse epics and small implementation issues beneath them only when needed; this project does not need the engineering hierarchy of larger applications.
+Foundation #2, authorization #3, public delivery #4 and consumer lane #6 are accepted.
+Deployment children #31/#32 are accepted; #33 acceptance is the remaining #5 gate.
+Consult live tracker state before selecting subsequent work. #30 is post-V0 and
+must not be folded into deployment. Keep implementation issues bounded.
 
 Documentation is part of completion when public routes, policy semantics, configuration, deployment, logging, toolchain/dependencies, or security behavior changes.

@@ -186,12 +186,12 @@ Do not add elaborate rate-limiting infrastructure before evidence. nginx/Cloudfl
 
 The public representation must be tested for metadata leakage before production use.
 
-Issue #17 implements streaming with synthetic HTTP contract tests. Issue #18
-remains the external evidence gate: verify representative GPS-tagged phone and
-camera images do not expose sensitive EXIF/GPS through the exact `size=preview`
-derivative. MIME/length validation and source review do not prove image privacy,
-content validity or visual quality. Production qualification remains blocked until
-that real-provider evidence is accepted.
+Issue #17 supplies synthetic HTTP contract tests. Accepted #18 adds real Immich
+3.2.0 representative phone/camera/RAW preview privacy and human visual-quality
+evidence, including live revocation after #27. `/preview` is the first accepted
+representation. MIME/length checks alone do not prove privacy or visual quality;
+repeat representative qualification after provider/settings changes. #30 tracks
+post-V0 fixed safe profiles without implicit original exposure.
 
 The adapter accepts only direct 200 JPEG/WebP responses of 1 byte through 16 MiB
 with explicit length, no content encoding and no partial/transfer-coded response.

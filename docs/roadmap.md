@@ -12,9 +12,9 @@ Logging authority: [docs/logging.md](logging.md)
 
 Goal: prove one narrow end-to-end path from a private Immich asset to a public image response while keeping private media fail-closed.
 
-### #2 — Go service foundation and configuration
+### #2 (accepted) — Go service foundation and configuration
 
-This epic is executed through two deterministic implementation children:
+Both implementation children are accepted:
 
 #### #9 — Go module and strict configuration core
 
@@ -37,15 +37,15 @@ No HTTP service shell, provider API client or media delivery belongs in #9.
 - deterministic startup, signal handling and graceful shutdown;
 - sanitized application logging to stderr/stdout for journald capture;
 - nginx remains the later public access-log layer; the application does not duplicate a full access log;
-- minimal health/readiness only if operationally useful and privacy-safe;
+- no health/readiness endpoint;
 - version/build metadata;
 - lightweight CI running formatting, vet, tests, race tests and build.
 
 No provider policy or media delivery belongs in #10. Do not add a web/router framework, DI container, logging framework, ORM or other runtime framework without a concrete issue-backed need.
 
-Completion of #9 and #10 closes #2.
+#9 and #10 completed #2.
 
-### #3 — Immich provider and publication policy
+### #3 (accepted) — Immich provider and publication policy
 
 - current Immich API/permission verification;
 - bounded provider client;
@@ -55,9 +55,9 @@ Completion of #9 and #10 closes #2.
 - fail-closed unit/fuzz coverage;
 - private provider paths/metadata remain out of routine logs.
 
-This is the main authorization boundary. Harden/decompose it after #2 establishes the final package seams; the expected implementation split is a pure publication-policy core plus a small Immich adapter.
+Accepted #13/#14 supply the pure publication-policy core and bounded Immich adapter.
 
-### #4 — public image delivery
+### #4 (accepted) — public image delivery
 
 - explicit `GET`/`HEAD` image route;
 - policy re-evaluated on every request;
@@ -66,13 +66,10 @@ This is the main authorization boundary. Harden/decompose it after #2 establishe
 - non-enumerating denial;
 - real representative proof that the selected public derivative does not expose sensitive EXIF/GPS.
 
-#17 implements the deterministic public preview path with fake-provider tests.
-#24 corrects Immich v3 missing/inaccessible metadata classification. #27 adds
-the provider lifecycle prerequisite after #18 discovered stale eligible paths
-on trashed/offline external-library records. #18 remains the real deployed-Immich
-privacy/quality and revocation gate; after #27 is accepted it must repeat the
-move/rescan test without restarting the gateway. #4 closes only after that
-evidence is accepted, and #5 depends on that completion.
+#17/#24/#27 and real Immich 3.2.0 qualification #18 are accepted. Representative
+phone/camera/RAW previews passed privacy and human visual quality checks; same-ID
+move/rescan lifecycle revocation passed without restarting the gateway. `/preview`
+is the first accepted representation, not the permanent maximum public quality.
 
 Do not add originals, video, transcoding or cache unless the evidence requires it.
 
@@ -89,11 +86,14 @@ Do not add originals, video, transcoding or cache unless the evidence requires i
 
 #5 owns the reusable deployment contract only. A concrete host/hostname integration belongs to that deployment's own repository; the motivating M6 deployment is tracked by `stef-k/server-migration#10`.
 
-Completion of #2–#5 establishes V0.
+#31 systemd and #32 nginx contracts are accepted and real-host-qualified.
+#33 supplies the bundle, upgrade/rollback and portable smoke tooling; its acceptance
+remains the final deterministic V0 gate before #5 closes. Production hostname/edge
+cutover belongs to the host project and is not claimed here.
 
 ## V0.1 — consumer/editor integration
 
-### #6 — private consumer API and WordPress contract
+### #6 (accepted) — private consumer API and WordPress contract
 
 The [localhost consumer contract](consumer-api.md) supplies bounded eligible-image
 browse and detail through #20 candidate search and #21 authorization/HTTP wiring
@@ -125,9 +125,12 @@ Add configured video-policy support only after specifying and testing:
 - edge/cache behavior;
 - large-file resource limits.
 
-### Derived image variants/cache
+### #30 — fixed safe image representation profiles (post-V0)
 
-Consider gateway-side resizing/re-encoding/cache only if provider previews do not meet required quality/privacy/performance or if production traffic demonstrates a need.
+Evaluate explicit safe thumbnail/normal/large profiles beyond the first accepted
+`/preview` representation. This does not block #5 and does not imply arbitrary
+gateway resizing/transcoding or original exposure. Cache changes require separate
+evidence and revocation semantics.
 
 A cache must never become independent publication authority.
 
