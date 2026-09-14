@@ -25,3 +25,8 @@ jobs:
         run: go test -race ./...
       - name: Build
         run: go build ./cmd/media-gateway
+      - name: Check portable smoke tooling
+        # Standard-library CLI regressions only; installed-host qualification is separate.
+        run: |
+          python3 scripts/test_smoke.py
+          bash -n scripts/build-bundle.sh

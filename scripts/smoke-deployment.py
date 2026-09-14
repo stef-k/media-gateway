@@ -164,6 +164,9 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, interrupted)
     try:
         main()
+    except RuntimeError as error:
+        print("FAIL " + str(error), file=sys.stderr)
+        sys.exit(1)
     except (Exception, KeyboardInterrupt):
         # Do not print exceptions: OS/network errors may contain operator input.
         print("FAIL smoke check; inspect installed state privately (no response/log dump)", file=sys.stderr)

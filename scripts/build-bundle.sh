@@ -17,7 +17,7 @@ mkdir -p -- "$out"
 archive="$out/media-gateway-linux-amd64-$revision.tar.gz"
 [[ ! -e "$archive" ]] || { echo 'Archive already exists' >&2; exit 1; }
 stage=$(mktemp -d)
-trap 'rm -rf -- "$stage"' EXIT
+trap 'rm -rf -- "$stage"; rm -f -- "$stage.tar.gz"' EXIT
 # Explicit flags retain normal VCS metadata and avoid ambient build flag injection.
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOFLAGS= go build \
     -buildvcs=true -o "$stage/media-gateway" ./cmd/media-gateway
@@ -34,6 +34,17 @@ install -m 0644 docs/{deployment,configuration,logging,toolchain,consumer-api}.m
     sha256sum --check --strict SHA256SUMS
     # Stable archive metadata/order; this is not a byte-reproducible-build claim.
     tar --sort=name --mtime="@$(git -C "$root" show -s --format=%ct HEAD)" \
-        --owner=0 --group=0 --numeric-owner -cf - . | gzip -n > "$archive"
+        --owner=0 --group=0 --numeric-owner -cf - . | gzip -n > "$stage.tar.gz"
 )
+# Refuse publication if source changed during the build.
+[[ $(git rev-parse HEAD) == "$revision" && -z $(git status --porcelain --untracked-files=all) ]] || {
+    echo 'Checkout changed during build' >&2; exit 1;
+}
+# No-replace publication avoids overwriting an earlier artifact.
+# Use a copy into the destination filesystem, then an atomic hard link.
+pending=$(mktemp "$out/.bundle-XXXXXXXX")
+trap 'rm -rf -- "$stage"; rm -f -- "$stage.tar.gz" "$pending"' EXIT
+cp -- "$stage.tar.gz" "$pending"
+chmod 0644 "$pending"
+ln -- "$pending" "$archive"
 echo "$archive"
