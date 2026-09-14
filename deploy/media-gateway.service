@@ -1,8 +1,8 @@
 # Reference systemd unit for Media Gateway.
 #
-# Review paths and hardening against the final binary and target distribution before
-# installation. The service is intentionally unprivileged, network-only and
-# filesystem-read-mostly. It should not need access to the NAS or Immich files.
+# Install using docs/deployment.md; qualify the sandbox on the target distribution.
+# The static Go service uses network delivery and reads config/key and OS resolver/CA
+# files. It needs no NAS mount, device, persistent data or cache directory.
 
 [Unit]
 # Human-readable service description shown by systemctl/status tooling.
@@ -17,6 +17,11 @@ Wants=network-online.target
 
 # Start only after the network-online target has been reached.
 After=network-online.target
+
+# Stop retrying persistent startup failures after five starts within five minutes.
+# After correcting configuration/permissions, use systemctl reset-failed then start.
+StartLimitIntervalSec=300s
+StartLimitBurst=5
 
 [Service]
 # The Go binary remains in the foreground and systemd supervises that process.
@@ -43,29 +48,31 @@ Restart=on-failure
 # Back off briefly between restart attempts to avoid a tight failure loop.
 RestartSec=5s
 
-# Allow bounded graceful shutdown before systemd escalates termination.
+# systemd sends SIGTERM by default. The application drains for at most 10 seconds;
+# allow scheduling/cleanup margin before the default final SIGKILL at 30 seconds.
 TimeoutStopSec=30s
 
-# Files created by the process, if any, default to owner-only permissions. V0 should
-# not create persistent application data, but restrictive defaults are safer.
+# Restrictive defaults for incidental file creation; the application requires no
+# RuntimeDirectory, StateDirectory, CacheDirectory or LogsDirectory.
 UMask=0077
 
 # --- Baseline sandbox/hardening ---
-# These directives assume the final service only needs network access plus read access
-# to its binary/config/credential. Revalidate them if implementation requirements
-# change rather than weakening them pre-emptively.
+# Compatible with the static, non-JIT Go application. Revalidate on the target
+# kernel/systemd and after runtime changes; do not weaken protections to hide errors.
 
 # Prevent the process and its children from acquiring additional privileges.
 NoNewPrivileges=true
 
-# Give the service a private /tmp and /var/tmp namespace.
+# Isolate /tmp and /var/tmp from other services. These remain writable private
+# exceptions to ProtectSystem=strict; the application does not require temp files.
 PrivateTmp=true
 
 # Hide physical device nodes; the gateway has no device-access requirement.
 PrivateDevices=true
 
-# Mount the host filesystem read-only from the service's perspective except for
-# systemd-managed writable exceptions explicitly added later if genuinely needed.
+# Make the host filesystem read-only (apart from private temporary/API filesystems).
+# Config/key remain readable; no ReadWritePaths exception is required. This does not
+# hide readable NAS mounts: host permissions must deny archive access (see docs).
 ProtectSystem=strict
 
 # Make user home directories inaccessible; credentials/config belong under /etc.
@@ -86,22 +93,24 @@ ProtectControlGroups=true
 # Prevent the service from changing the system/realtime clock.
 ProtectClock=true
 
-# Prevent creation/use of setuid/setgid privilege transitions.
+# Prevent setting SUID/SGID bits on files; NoNewPrivileges blocks privilege gains
+# when executing an existing SUID/SGID binary.
 RestrictSUIDSGID=true
 
 # Prevent changing the process execution personality/domain.
 LockPersonality=true
 
-# Disallow mappings that are both writable and executable. Go V0 has no JIT/runtime
-# code-generation requirement, so this should be compatible with the selected build.
+# Deny writable/executable mappings and executable transitions. The static Go
+# application has no JIT, plugins or runtime code-generation requirement.
 MemoryDenyWriteExecute=true
 
 # Drop every Linux capability; binding to loopback on a high port requires none.
 CapabilityBoundingSet=
 AmbientCapabilities=
 
-# Permit only local Unix sockets and IPv4/IPv6 networking needed for nginx/provider
-# communication. Narrow further if the final implementation proves possible.
+# Allow IPv4/IPv6 for numeric loopback listeners, DNS and private provider HTTP(S),
+# and Unix sockets for local OS facilities. This is not a destination allowlist.
+# Do not use PrivateNetwork: the provider and host loopback peers must remain reachable.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

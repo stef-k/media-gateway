@@ -8,10 +8,12 @@
 # fail loading rather than being silently ignored. See docs/configuration.md.
 #
 # Never place provider credentials directly in this file or in Git. Store secrets in
-# a separate restrictive file and reference that file by path.
+# a separate restrictive file and reference that file by path. Install ownership
+# and modes as documented in docs/deployment.md. TOML and key are loaded once:
+# changes require a service restart; there is no hot reload.
 
 [server]
-# Local address used by the Go service. The recommended deployment binds only to
+# Local address used by the Go service. The application requires binding only to
 # loopback and lets nginx own the external HTTP/HTTPS boundary. A numeric loopback
 # IP and explicit port 1..65535 are required; hostnames are rejected.
 listen = "127.0.0.1:2290"
@@ -36,7 +38,9 @@ base_url = "http://127.0.0.1:2283"
 # asset.view on a non-administrator account with access to the intended assets.
 # The host service account must be able to read it; other local users should not.
 # Do not put the key itself in this TOML file. Use an absolute normalized path to a regular file with owner-read
-# permission and no group/other permissions (for example 0600). The key is one ASCII
+# permission and no group/other permissions. Install as media-gateway:media-gateway
+# mode 0400 inside root-owned /etc/media-gateway (0750, group media-gateway).
+# A root-owned 0640 key is rejected; group-read is forbidden. The key is one ASCII
 # token, optionally followed by a newline, with a 4096-byte file limit.
 api_key_file = "/etc/media-gateway/immich.key"
 
