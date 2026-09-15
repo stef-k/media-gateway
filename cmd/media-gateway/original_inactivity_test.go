@@ -16,8 +16,16 @@ import (
 // TestOriginalWriteLifetime exercises actual socket writes beyond the server's
 // short default and verifies finite failure when the downstream stops reading.
 func TestOriginalWriteLifetime(t *testing.T) {
-	for _, active := range []bool{true, false} {
-		t.Run(map[bool]string{true: "active", false: "stalled"}[active], func(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		active     bool
+		firstDelay time.Duration
+	}{
+		{name: "active", active: true},
+		{name: "slow first byte", active: true, firstDelay: 100 * time.Millisecond},
+		{name: "stalled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			done := make(chan struct{})
 			server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				defer close(done)
@@ -25,9 +33,10 @@ func TestOriginalWriteLifetime(t *testing.T) {
 				defer reader.Close()
 				go func() {
 					defer writer.Close()
+					time.Sleep(tc.firstDelay)
 					chunk := strings.Repeat("x", 32<<10)
 					for i := 0; i < 4096; i++ {
-						if active {
+						if tc.active {
 							time.Sleep(30 * time.Millisecond)
 							chunk = "x"
 							if i == 8 {
@@ -39,19 +48,28 @@ func TestOriginalWriteLifetime(t *testing.T) {
 						}
 					}
 				}()
-				streamOriginal(w, r, reader, slog.New(slog.NewTextHandler(io.Discard, nil)), 150*time.Millisecond)
+				streamOriginal(w, r, reader, slog.New(slog.NewTextHandler(io.Discard, nil)), 300*time.Millisecond)
 			}))
 			server.Config = newServer(server.Config.Handler)
 			server.Config.WriteTimeout = 50 * time.Millisecond
-			server.Start()
+			if tc.firstDelay > 0 {
+				// HTTP/2 enforces an expired response deadline even before a write.
+				server.EnableHTTP2 = true
+				server.StartTLS()
+			} else {
+				server.Start()
+			}
 			defer server.Close()
-			if active {
+			if tc.active {
 				response, err := server.Client().Get(server.URL)
 				if err != nil {
 					t.Fatal(err)
 				}
 				body, err := io.ReadAll(response.Body)
 				response.Body.Close()
+				if tc.firstDelay > 0 && response.ProtoMajor != 2 {
+					t.Fatal("slow first byte regression requires HTTP/2")
+				}
 				if err != nil || string(body) != "xxxxxxxx" {
 					t.Fatalf("active stream failed: %q %v", body, err)
 				}

@@ -7,10 +7,14 @@ import (
 	"time"
 )
 
-// streamOriginal refreshes a finite downstream deadline for each write and flush.
+// streamOriginal installs a finite downstream deadline before reading the body,
+// then refreshes it for each write and flush.
 // Explicit writes avoid io.Copy fast paths bypassing the inactivity boundary.
 func streamOriginal(w http.ResponseWriter, r *http.Request, body io.Reader, logger *slog.Logger, inactivity time.Duration) {
 	controller := http.NewResponseController(w)
+	if err := controller.SetWriteDeadline(time.Now().Add(inactivity)); err != nil {
+		abortStream(r, logger)
+	}
 	buffer := make([]byte, 32<<10)
 	for {
 		n, readErr := body.Read(buffer)
