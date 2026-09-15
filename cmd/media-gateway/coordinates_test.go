@@ -110,7 +110,7 @@ func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon a
 			if route == "/internal/assets?root=images&collection=website" {
 				asset = asset["assets"].([]any)[0].(map[string]any)
 			}
-			want := map[string]any{"id": testAsset, "media_type": "image", "root": "images", "collection_path": "website", "filename": "a.jpg", "duration_ms": nil, "original_path": nil, "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
+			want := map[string]any{"id": testAsset, "media_type": "image", "root": "images", "collection_path": "website", "filename": "a.jpg", "duration_ms": nil, "original_path": "/media/" + testAsset + "/original", "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
 			want["latitude"], want["longitude"] = lat, lon
 			if !reflect.DeepEqual(asset, want) {
 				t.Fatalf("allowlist mismatch: %v", asset)

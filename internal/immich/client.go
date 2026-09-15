@@ -1,4 +1,4 @@
-// Package immich retrieves private metadata and previews; it never grants publication.
+// Package immich retrieves private metadata and image representations; it never grants publication.
 package immich
 
 import (
@@ -42,6 +42,7 @@ type Client struct {
 	searchEndpoint string
 	key            string
 	http           *http.Client
+	streaming      *http.Client
 }
 
 // New consumes the provider configuration and separate key returned by config.Load.
@@ -51,6 +52,7 @@ func New(provider config.Provider, key string) *Client {
 		endpoint:       strings.TrimSuffix(provider.BaseURL, "/") + "/api/assets/",
 		searchEndpoint: strings.TrimSuffix(provider.BaseURL, "/") + "/api/search/metadata",
 		key:            key,
+		streaming:      originalHTTP(provider.RequestTimeout),
 		http: &http.Client{
 			Timeout:       provider.RequestTimeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -67,7 +69,10 @@ func New(provider config.Provider, key string) *Client {
 }
 
 // CloseIdleConnections releases idle pooled connections without interrupting requests.
-func (c *Client) CloseIdleConnections() { c.http.CloseIdleConnections() }
+func (c *Client) CloseIdleConnections() {
+	c.http.CloseIdleConnections()
+	c.streaming.CloseIdleConnections()
+}
 
 // uuidV4 follows the reviewed Immich OpenAPI pattern, including version and variant.
 var uuidV4 = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)

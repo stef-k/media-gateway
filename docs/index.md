@@ -36,9 +36,9 @@ The service is intentionally not a media-management UI, NAS browser or generic p
 
 ## Current versus target
 
-The current service publicly delivers image `/preview` and provides paginated trusted image/video collections and assets. Original/video delivery remains in the #37 lane:
+The current service publicly delivers image `/preview` and `/original` (M6 original qualification pending) and provides paginated trusted image/video collections and assets. Video/range/long-stream delivery remains in the #37 lane:
 
-- policy-checked provider-original image/video delivery;
+- policy-checked provider-original video delivery;
 - range-capable video and long-media streaming semantics.
 
 Do not treat target routes/schema as implemented until their owning issues are accepted.

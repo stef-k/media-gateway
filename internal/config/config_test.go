@@ -39,7 +39,7 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "test-secret-token" || c.Provider.APIKeyFile != keyPath || c.Provider.RequestTimeout != 15*time.Second || len(c.Policy.Rules) != 3 || c.Delivery.ImageVariant != "preview" {
+	if key != "test-secret-token" || c.Provider.APIKeyFile != keyPath || c.Provider.RequestTimeout != 15*time.Second || len(c.Policy.Rules) != 3 {
 		t.Fatalf("unexpected loaded fields")
 	}
 	again, againKey, err := loadText(t, text)
@@ -93,9 +93,6 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 		{"external listener", `127.0.0.1:2290`, `0.0.0.0:2290`},
 		{"hostname listener", `127.0.0.1:2290`, `localhost:2290`},
 		{"zero port", `127.0.0.1:2290`, `127.0.0.1:0`},
-		{"originals", `allow_original = false`, `allow_original = true`},
-		{"variant", `image_variant = "preview"`, `image_variant = "original"`},
-		{"missing variant", `image_variant = "preview"`, ``},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -162,8 +159,7 @@ func TestMissingConfiguration(t *testing.T) {
 func TestMissingRules(t *testing.T) {
 	text, _ := fixture(t)
 	start := strings.Index(text, "[[policy.rules]]")
-	end := strings.Index(text, "[delivery]")
-	_, _, err := loadText(t, text[:start]+text[end:])
+	_, _, err := loadText(t, text[:start])
 	if err == nil {
 		t.Fatal("accepted policy without rules")
 	}

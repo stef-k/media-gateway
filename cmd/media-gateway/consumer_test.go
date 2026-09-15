@@ -73,6 +73,12 @@ func TestConsumerDetail(t *testing.T) {
 				if json.Unmarshal(body, &asset) != nil || len(asset) != 14 || asset["id"] != testAsset {
 					t.Fatalf("detail %s", body)
 				}
+				if tc.media == "IMAGE" && asset["original_path"] != "/media/"+testAsset+"/original" {
+					t.Fatal("image original capability missing")
+				}
+				if tc.media == "VIDEO" && (asset["original_path"] != nil || asset["preview_path"] != nil) {
+					t.Fatal("video capability exposed early")
+				}
 			}
 		})
 	}

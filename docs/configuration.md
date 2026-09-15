@@ -1,6 +1,6 @@
 # Configuration foundation
 
-> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery remains image-preview only and trusted browsing supports paginated image/video collections; #40–#42 own further product completion.
+> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery supports image preview and original and trusted browsing supports paginated image/video collections; #40 still requires M6 qualification; #41–#42 own remaining product completion.
 
 `internal/config.Load(filename)` reads an explicitly supplied TOML file and returns validated typed configuration, a separate credential string, and an error. It does not start a listener, contact Immich, evaluate asset authorization or deliver media. Any failure returns zero configuration and an empty credential. No environment, working-directory or home-directory configuration discovery occurs.
 
@@ -27,15 +27,7 @@ TOML and the key are loaded once before binding. **Changes require service resta
 
 ## Current delivery and consumer configuration
 
-The current service requires:
-
-```toml
-[delivery]
-allow_original = false
-image_variant = "preview"
-```
-
-The public handler delivers image preview only. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
+Image `preview` and `original` are fixed product representations. There is no `[delivery]` section or operator-selectable delivery mode. Remove the entire obsolete section, including `allow_original` and `image_variant`, before restart. Any stale section fails with sanitized targeted migration guidance; failure returns zero configuration and an empty credential. No compatibility alias exists. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
 
 ## Current Policy v2 (#38)
 
@@ -126,15 +118,13 @@ error that identifies the field without echoing private values. All other unknow
 fields remain strictly rejected. Failure returns no partial configuration or
 credential. Review the new configuration and restart; there is no hot reload.
 
-## Target delivery/consumer configuration cleanup
+## Representation and lifetime boundaries
 
-The final #37 product requires fixed gateway `preview` and `original` representations. Publication policy decides whether media may be public; the current `[delivery] allow_original=false/image_variant=preview` gate is therefore expected to be removed or replaced by a smaller actual requirement during #40/#42 rather than carried as a permanent contradictory switch.
-
-The consumer coordinate migration is implemented in #39. Raw EXIF remains private. Delivery configuration changes remain owned by #40/#42.
+Original image bytes retain embedded EXIF/GPS. Preview is a separately qualified provider-generated web representation; the gateway never inspects or rewrites image metadata. Video delivery and Range remain #41 work. `provider.request_timeout` still bounds metadata/search/preview bodies. For originals it bounds response headers, with dial/TLS additionally capped at five seconds; it is not an absolute original-body timeout. The gateway retains its 60-second handler context and 65-second write timeout, and nginx retains 70-second read inactivity.
 
 ## Provider permissions
 
-Current V0 preview documentation uses the permissions verified for metadata/preview. #40/#41 must immediately re-verify the deployed/supported Immich API and update the minimum dedicated-key permission set for original download/video/range behavior. Do not infer future permissions from old examples.
+The dedicated non-administrator key requires `asset.read` (metadata/search), `asset.view` (preview) and `asset.download` (original). No write permission is required. Original uses only GET `/api/assets/<UUIDv4>/original` with no query, preserving Immich source semantics. See the [reviewed provider contract](deployment.md#reviewed-original-image-contract-40). M6 original-image qualification remains required before merge.
 
 ## Development validation
 

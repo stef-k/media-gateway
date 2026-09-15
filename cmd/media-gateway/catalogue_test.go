@@ -212,13 +212,13 @@ func TestCatalogueMembershipAndProjection(t *testing.T) {
 		t.Fatalf("membership: %s", body)
 	}
 	for i, item := range page.Assets {
-		if item.Root != "images" || item.CollectionPath != "website" || item.OriginalPath != nil || item.Latitude != nil || item.Longitude != nil {
+		if item.Root != "images" || item.CollectionPath != "website" || item.Latitude != nil || item.Longitude != nil {
 			t.Fatalf("projection: %+v", item)
 		}
-		if i == 0 && (item.Filename != "a.jpg" || item.PreviewPath == nil || item.DurationMS != nil) {
+		if i == 0 && (item.Filename != "a.jpg" || item.PreviewPath == nil || item.OriginalPath == nil || *item.OriginalPath != "/media/"+item.ID+"/original" || item.DurationMS != nil) {
 			t.Fatal("image capability")
 		}
-		if i == 1 && (item.Filename != "b.mp4" || item.PreviewPath != nil || item.DurationMS == nil || *item.DurationMS != 23800) {
+		if i == 1 && (item.Filename != "b.mp4" || item.PreviewPath != nil || item.OriginalPath != nil || item.DurationMS == nil || *item.DurationMS != 23800) {
 			t.Fatal("video capability/units")
 		}
 	}

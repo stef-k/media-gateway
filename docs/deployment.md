@@ -124,7 +124,7 @@ SIGINT/SIGTERM close the listener and drain active requests for up to 10 seconds
 on timeout the process closes connections and exits with failure. This fits inside
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
-Only `GET`/`HEAD /media/<asset-id>/preview` can deliver media. `/health`, search,
+Only image `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
 public metadata/control routes and unsupported methods remain fixed denials.
 The [consumer API](consumer-api.md) adds only loopback `/internal/assets` browse
 and detail routes; nginx must never publish `/internal/`. There is
@@ -133,8 +133,9 @@ not that previews are qualified or available. HTTP limits are 5 seconds for
 headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds
 for idle connections, and 16 KiB for headers (plus Go's parsing allowance). No
 handler reads request bodies. A 60-second handler context bounds combined
-metadata/preview work; each provider call also retains its configured timeout
-through body reading. The finite write deadline bounds slow public readers.
+metadata/image work. Metadata/search/preview calls retain the configured timeout
+through body reading; originals use that timeout for headers, leaving body lifetime
+to the gateway bounds. The finite write deadline bounds slow public readers.
 Client disconnects cancel upstream work. Shutdown retains the 10-second drain.
 
 Preview bodies must have a known positive length of at most 16 MiB and an exact
@@ -222,20 +223,20 @@ port (example `8089`), replace `media.example.com` and adapt log paths. The loca
 edge must send that Host. Unknown/missing Host selects the explicit default deny
 server. Do not reuse an unrelated site's default listener or merge in its locations.
 
-Only canonical `/media/<UUIDv4>/preview` GET/HEAD requests reach the gateway.
+Only canonical `/media/<UUIDv4>/preview` and `/media/<UUIDv4>/original` GET/HEAD requests reach the gateway.
 The raw request-target allowlist supplements nginx's normalized location matching;
 publication/lifecycle authorization still belongs exclusively to the application.
 Queries are ignored by the application and cannot select upstream behavior.
 
 | Request to the configured Host | Expected ingress behavior |
 | --- | --- |
-| GET/HEAD `/media/<UUIDv4>/preview` | Fixed loopback gateway; current policy decides 200/404/502 |
+| GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | Fixed loopback gateway; current policy decides 200/404/502 |
 | `/media`, `/media/`, extra segments or other representations | 404; no automatic slash redirect |
 | `/internal/assets` or any `/internal/...` | 404 without upstream access |
 | `/api`, `/api/...`, `/`, search/config/control/diagnostic/provider-looking or unknown paths | 404 without upstream access |
 | Encoded path characters, dot segments, repeated slashes, traversal into/out of `/media/` | Denied before proxying; malformed HTTP may get nginx 400 |
-| POST/PUT/PATCH/DELETE/OPTIONS on a preview route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
-| Unknown Host, even with a valid preview route | Default server denial without upstream access |
+| POST/PUT/PATCH/DELETE/OPTIONS on either image route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
+| Unknown Host, even with a valid image route | Default server denial without upstream access |
 
 An exact `/media` location prevents nginx's implicit prefix slash redirect.
 `^~ /media/` prevents regex-location takeover; the raw allowlist denies normalization
@@ -264,9 +265,14 @@ already rejects provider redirects. Connect/read failures normally yield 502/504
 a failure after headers truncates/closes the stream rather than replacing bytes.
 Request bodies are unused, limited to 1 KiB and never forwarded. Caller headers
 are replaced with a small transport-context allowlist, excluding credentials,
-cookies and WebSocket upgrade. Forwarded fields never grant authorization; behind
+cookies, Range, If-Range, If-None-Match, If-Modified-Since and WebSocket upgrade. Forwarded fields never grant authorization; behind
 a tunnel the recorded peer may be the tunnel unless separately reviewed trusted
 real-IP handling is configured. No upload or WebSocket surface exists.
+
+Run `python3 scripts/test_nginx.py` with local nginx installed to exercise both
+canonical image routes, malformed/private/provider denials, header stripping and
+route log classification in an isolated process. A skipped test is unavailable
+local nginx evidence, not a pass. This synthetic upstream does not qualify M6.
 
 ### Install and qualify ingress
 
@@ -352,10 +358,10 @@ The [Retrieve an asset operation](https://api.immich.app/endpoints/assets/getAss
 remains an origin, not an API path.
 
 Use a non-administrator account with access to the intended assets and an API key
-restricted to **`asset.read` + `asset.view`**, sent only in the **`x-api-key`** header. This is the
-union required by the implemented metadata (`asset.read`) and preview
-(`asset.view`) operations; it does not override Immich's asset-access checks.
-No administrator, original-download or write permission is required. Candidate
+restricted to **`asset.read` + `asset.view` + `asset.download`**, sent only in the **`x-api-key`** header. This is the
+union required by metadata/search (`asset.read`), preview (`asset.view`) and
+original (`asset.download`) operations; it does not override Immich's asset-access checks.
+No administrator or write permission is required. Candidate
 search also uses `asset.read`; it introduces no additional permission.
 
 The OpenAPI and [controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/asset.controller.ts)
@@ -487,6 +493,49 @@ This qualifies `/preview` as the first accepted representation, not all future
 provider versions/settings. The gateway itself does not strip image metadata.
 #30 tracks post-V0 fixed safe profiles; it does not block V0 deployment.
 
+### Reviewed original image contract (#40)
+
+Reverified on 2026-09-15 against official Immich **v3.2.1**:
+[controller](https://github.com/immich-app/immich/blob/v3.2.1/server/src/controllers/asset-media.controller.ts),
+[download DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/asset.dto.ts),
+[service](https://github.com/immich-app/immich/blob/v3.2.1/server/src/services/asset-media.service.ts),
+[file response](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/file.ts)
+and [MIME mappings](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/mime-types.ts).
+Deployed evidence remains v3.2.0 until M6 qualification; source review does not prove an upgrade.
+
+The sole operation is GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and
+`asset.download`. No provider query is sent: optional `edited` defaults false, so
+this selects source `originalPath`, not edited media. Caller Range/conditional
+headers are never forwarded. Public HEAD also opens provider GET, validates its
+status/headers, then closes the body immediately; no provider HEAD support is assumed.
+
+Require direct HTTP 200, exactly one valid parameter-free `image/*` Content-Type,
+and exactly one explicit positive int64 Content-Length. Reject all transfer/content
+encoding and Content-Range. There is no arbitrary original size ceiling. RAW/HEIC
+are valid source types without conversion, even if a browser cannot display them.
+GET streams the declared length; truncation aborts the response without a plaintext
+suffix. Missing original is fixed 404; auth, redirects, other status and malformed
+responses are sanitized 502 before public headers. No alternate fetch exists.
+
+The original transport uses fixed authority and credential, no environment proxy,
+no redirects or compression, and a fresh HTTP/1 connection. It checks bounded wire
+headers before Go normalizes duplicate lengths/transfer fields. Dial/TLS are bounded
+by the smaller of five seconds and `provider.request_timeout`; response headers by
+the configured timeout. The HTTP client has no absolute body timeout. Existing
+60-second handler, 65-second write and 70-second nginx read bounds remain unchanged.
+Range/206/416/Accept-Ranges and the long-stream inactivity model belong to #41.
+
+Public success constructs only Content-Type, Content-Length, no-store and nosniff
+(plus standard HTTP date/framing). Provider disposition, filename, cache validators,
+cookies and other headers are discarded. `/preview` is a separately qualified
+provider-generated web representation; `/original` is exact authorized source bytes.
+Original does **not** strip EXIF/GPS or inspect embedded metadata.
+
+Remove stale `[delivery]` configuration before startup; fixed image representations
+have no feature gate. Update the dedicated key union without adding write/admin
+permissions. See [the required M6 checks](release.md#40-original-image-qualification)
+before acceptance. Software evidence alone does not authorize #40 merge.
+
 ## Host firewall
 
 The gateway listener should not require a firewall opening when bound to `127.0.0.1`.
@@ -504,7 +553,7 @@ Before declaring a deployment usable:
 5. known private asset ID returns `404`;
 6. asset outside the allowed provider root returns `404`;
 7. configured publication-segment near misses return `404`;
-8. public image response has the expected content type and no sensitive EXIF/GPS metadata;
+8. preview has the expected type and qualified metadata privacy; original preserves exact authorized source bytes, including embedded metadata;
 9. provider outage produces bounded failure and no storage fallback;
 10. secrets/private provider paths do not appear in nginx or journald logs or responses;
 11. nginx access logging records the intended public request facts without secret query/header material;

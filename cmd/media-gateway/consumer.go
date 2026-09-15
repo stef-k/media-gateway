@@ -190,6 +190,8 @@ func projectAsset(item immich.Candidate, match publication.Match) consumerAsset 
 	if item.Media == "image" {
 		preview := "/media/" + item.ID + "/preview"
 		asset.PreviewPath = &preview
+		original := "/media/" + item.ID + "/original"
+		asset.OriginalPath = &original
 	}
 	return asset
 }

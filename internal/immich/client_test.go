@@ -131,6 +131,9 @@ func TestInvalidIDs(t *testing.T) {
 		if got, err := client.Preview(context.Background(), id); got != (Preview{}) || err != ErrInvalidID {
 			t.Fatal("invalid preview ID accepted")
 		}
+		if got, err := client.Original(context.Background(), id); got != (Original{}) || err != ErrInvalidID {
+			t.Fatal("invalid original ID accepted")
+		}
 	}
 	if calls.Load() != 0 {
 		t.Fatal("invalid ID contacted provider")
@@ -144,7 +147,7 @@ func TestRedirects(t *testing.T) {
 	defer target.Close()
 	for _, location := range []string{target.URL, "/another-route"} {
 		client := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/api/assets/"+assetID {
+			if r.URL.Path != "/api/assets/"+assetID && r.URL.Path != "/api/assets/"+assetID+"/original" {
 				forwarded.Add(1)
 			}
 			w.Header().Set("Location", location)
@@ -152,6 +155,9 @@ func TestRedirects(t *testing.T) {
 		}, time.Second)
 		if _, err := client.Asset(context.Background(), assetID); err != ErrProvider {
 			t.Fatalf("unexpected redirect outcome: %v", err)
+		}
+		if _, err := client.Original(context.Background(), assetID); err != ErrProvider {
+			t.Fatalf("original redirect: %v", err)
 		}
 	}
 	if forwarded.Load() != 0 {
