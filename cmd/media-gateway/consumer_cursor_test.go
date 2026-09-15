@@ -57,7 +57,10 @@ func TestCursorBoundary(t *testing.T) {
 		if route == "/internal/collections" {
 			separator = "?"
 		}
-		resp, _ := gateway.Client().Get(gateway.URL + route + separator + "cursor=" + url.QueryEscape(good))
+		resp, err := gateway.Client().Get(gateway.URL + route + separator + "cursor=" + url.QueryEscape(good))
+		if err != nil {
+			t.Fatal(err)
+		}
 		resp.Body.Close()
 		if resp.StatusCode != 404 {
 			t.Error("cross-query cursor accepted")
@@ -66,7 +69,10 @@ func TestCursorBoundary(t *testing.T) {
 	if calls.Load() != 0 {
 		t.Fatal("invalid cursor contacted provider")
 	}
-	resp, _ := gateway.Client().Get(gateway.URL + browseRoute + "&cursor=" + url.QueryEscape(good))
+	resp, err := gateway.Client().Get(gateway.URL + browseRoute + "&cursor=" + url.QueryEscape(good))
+	if err != nil {
+		t.Fatal(err)
+	}
 	resp.Body.Close()
 	if resp.StatusCode != 200 || calls.Load() != 1 {
 		t.Fatal("valid cursor rejected")
@@ -88,14 +94,20 @@ func TestSelectorBoundary(t *testing.T) {
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
 	for _, collection := range []string{"", "/website", "website/", "website//x", "website/.", "website/..", `website\x`, "website\n", string([]byte{255}), strings.Repeat("x", 2049)} {
-		resp, _ := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		if err != nil {
+			t.Fatal(err)
+		}
 		resp.Body.Close()
 		if resp.StatusCode != 404 {
 			t.Errorf("invalid collection accepted: %q", collection)
 		}
 	}
 	for _, suffix := range []string{"root=Images&collection=website", "root=missing&collection=website", "root=images&root=images&collection=website", "root=images", "collection=website"} {
-		resp, _ := gateway.Client().Get(gateway.URL + "/internal/assets?" + suffix)
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?" + suffix)
+		if err != nil {
+			t.Fatal(err)
+		}
 		resp.Body.Close()
 		if resp.StatusCode != 404 {
 			t.Error("invalid root selector")
@@ -115,7 +127,10 @@ func TestSelectorBoundary(t *testing.T) {
 		t.Fatal("malformed selectors reached provider")
 	}
 	for _, collection := range []string{"private", strings.Repeat("x", 2048), "website/a b", "website/%2e", "website/é"} {
-		resp, _ := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		if err != nil {
+			t.Fatal(err)
+		}
 		resp.Body.Close()
 		if resp.StatusCode != 200 {
 			t.Error("valid empty selector denied")

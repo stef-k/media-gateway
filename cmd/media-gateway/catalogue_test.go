@@ -158,14 +158,20 @@ func TestCollectionPagination(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, _ := gateway.Client().Get(gateway.URL + "/internal/collections?limit=2")
+	resp, err := gateway.Client().Get(gateway.URL + "/internal/collections?limit=2")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var first collectionPage
-	err := json.NewDecoder(resp.Body).Decode(&first)
+	err = json.NewDecoder(resp.Body).Decode(&first)
 	resp.Body.Close()
 	if err != nil || resp.StatusCode != 200 || len(first.Collections) != 2 || first.NextCursor == nil {
 		t.Fatalf("first: %+v %v", first, err)
 	}
-	resp, _ = gateway.Client().Get(gateway.URL + "/internal/collections?limit=2&cursor=" + url.QueryEscape(*first.NextCursor))
+	resp, err = gateway.Client().Get(gateway.URL + "/internal/collections?limit=2&cursor=" + url.QueryEscape(*first.NextCursor))
+	if err != nil {
+		t.Fatal(err)
+	}
 	var second collectionPage
 	err = json.NewDecoder(resp.Body).Decode(&second)
 	resp.Body.Close()
@@ -195,7 +201,10 @@ func TestCatalogueMembershipAndProjection(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, _ := gateway.Client().Get(gateway.URL + browseRoute)
+	resp, err := gateway.Client().Get(gateway.URL + browseRoute)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var page consumerPage

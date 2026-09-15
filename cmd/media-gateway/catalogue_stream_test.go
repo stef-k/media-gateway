@@ -123,7 +123,10 @@ func TestCatalogueDetailRevocation(t *testing.T) {
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
 	for i := int32(0); i < 4; i++ {
 		state.Store(i)
-		resp, _ := gateway.Client().Get(gateway.URL + "/internal/assets/" + testAsset)
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets/" + testAsset)
+		if err != nil {
+			t.Fatal(err)
+		}
 		resp.Body.Close()
 		want := 404
 		if i == 0 {

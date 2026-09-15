@@ -217,8 +217,8 @@ If provider previews retain unsafe metadata, public image delivery must re-encod
 Do not assume that because a source file is in `public/` every embedded metadata field is intentionally public.
 Trusted catalogue coordinates do not change public preview routes or bytes,
 embed GPS, add public metadata endpoints, or permit coordinates in logs. GPS is
-optional deliberately exposed publication metadata only on the trusted eligible
-consumer plane; public derivatives must remain metadata-minimal.
+deliberately exposed as nullable metadata only on the trusted eligible consumer
+plane; public derivatives must remain metadata-minimal.
 
 ## Logging
 
