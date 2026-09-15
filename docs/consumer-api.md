@@ -84,11 +84,11 @@ Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one 
 | Media | `preview_path` | `original_path` |
 | --- | --- | --- |
 | image | `/media/<id>/preview` | `/media/<id>/original` |
-| video | `null` | `null` |
+| video | `/media/<id>/preview` | `/media/<id>/original` |
 
-All capability fields are present. Null indicates a representation not yet implemented, rather than publication denial. #40 implements image originals; #41 will promote video capabilities without renaming fields. Video preview/original, ranges and long-stream lifetime changes remain unimplemented. Every supported public delivery independently reauthorizes current provider state.
+All capability fields are present and non-null for eligible images and videos. They advertise implemented representations, not existence guarantees or authorization grants. Projection makes no representation probes. A derivative can disappear; every subsequent delivery independently re-fetches current metadata/lifecycle and re-evaluates policy. The metadata schema and millisecond duration units are unchanged.
 
-`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. M6 original qualification remains pending.
+`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. M6 video poster/original-range and long-stream qualification remains pending for #41.
 
 ### Coordinates and privacy
 

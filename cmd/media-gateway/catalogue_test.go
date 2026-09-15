@@ -218,7 +218,7 @@ func TestCatalogueMembershipAndProjection(t *testing.T) {
 		if i == 0 && (item.Filename != "a.jpg" || item.PreviewPath == nil || item.OriginalPath == nil || *item.OriginalPath != "/media/"+item.ID+"/original" || item.DurationMS != nil) {
 			t.Fatal("image capability")
 		}
-		if i == 1 && (item.Filename != "b.mp4" || item.PreviewPath != nil || item.OriginalPath != nil || item.DurationMS == nil || *item.DurationMS != 23800) {
+		if i == 1 && (item.Filename != "b.mp4" || item.PreviewPath == nil || item.OriginalPath == nil || item.DurationMS == nil || *item.DurationMS != 23800) {
 			t.Fatal("video capability/units")
 		}
 	}

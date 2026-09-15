@@ -46,8 +46,9 @@ api_key_file = "/etc/media-gateway/immich.key"
 
 # Maximum duration for a normal provider HTTP request. Provider failure must remain
 # bounded through metadata/search/preview bodies. For originals it bounds headers,
-# not the body; the complete public request retains its 60-second context and
-# 65-second write bound. There is no storage fallback.
+# not the body. Established image/video originals use fixed 60-second per-I/O
+# read/write inactivity bounds, client cancellation and 10-second shutdown drain.
+# There is no storage fallback or configurable delivery feature gate.
 # Required positive Go duration; zero, negative, missing and overflowing values fail.
 request_timeout = "15s"
 
@@ -69,8 +70,8 @@ path = "/media/archive"
 # lists containing only image/video. Pattern punctuation and separators are rejected.
 #
 # `media` declares which provider media types are eligible under this rule. A type
-# can still be denied if the running gateway version does not implement delivery for
-# it. V0 is expected to deliver images first and fail closed for unsupported video.
+# must independently pass current lifecycle/policy on every public request. Both
+# images and videos implement preview/original; only video originals accept Range.
 [[policy.rules]]
 segment = "public"
 media = ["image", "video"]

@@ -135,12 +135,12 @@ Requirements:
 - provider search may optimize discovery but never authorize;
 - logical root/relative collection/filename exposed, absolute provider path hidden;
 - image/video media type, nullable dimensions and `duration_ms`, times, always-present nullable coordinates, and nullable representation capabilities;
-- image preview/original paths are implemented; #41 promotes video capabilities;
+- image/video preview/original paths are implemented without representation probes;
 - at-least-once collections with in-page deduplication, no counts or folder view;
 - coordinates become normal validated trusted metadata rather than an operator feature flag;
 - no consumer selector/reference grants publication.
 
-### #40 — image originals implemented; M6 qualification pending
+### #40 — accepted image originals
 
 Implemented:
 
@@ -150,14 +150,14 @@ GET/HEAD /media/<id>/original
 
 For images, original means exact provider original bytes after current lifecycle/policy reauthorization. No silent preview/full fallback, RAW/HEIC/JPEG conversion or metadata stripping. Consumers own resizing/derivatives.
 
-Immich v3.2.1 source was reverified: fixed GET original endpoint, no query and `asset.download`. Original-only transport removes the shorter provider body timeout while retaining gateway 60/65-second bounds. Stale `[delivery]` fails migration. No video, Range or long-stream infrastructure is included. Do not accept or merge #40 until the deployed M6 instance qualifies JPEG plus RAW/HEIC where available, identity, HEAD, revocation, ingress and leak/failure checks. #42 still owns final product/public-host reconciliation.
+#40 is accepted on main through `d57e6a955af190df719e5fe0be444442630b8125`. Fixed GET original uses no query and `asset.download`; stale `[delivery]` fails migration. #41 extends the original transport lifetime. #42 still owns final product/public-host reconciliation.
 
-### #41 — video catalogue, preview, original ranges and long streaming
+### #41 — software implemented; M6 qualification pending
 
-Complete video as a first-class media type:
+Implemented in the existing catalogue/provider/delivery seams:
 
 - generic catalogue inclusion and video metadata;
-- qualified video preview/poster;
+- fixed video preview/poster, pending real-provider privacy qualification;
 - original video bytes;
 - correct practical byte-range semantics (`Range`, `206`, `Content-Range`, `Accept-Ranges`, 416/HEAD behavior);
 - long media streams no longer limited by V0 preview-only absolute request/write lifetime;
@@ -165,7 +165,7 @@ Complete video as a first-class media type:
 - established streams use bounded inactivity/client-disconnect/shutdown semantics;
 - nginx forwards only explicitly supported media headers and never provider/storage authority.
 
-No gateway transcoding/HLS/DASH is implied.
+No gateway transcoding/HLS/DASH is included. Exact PR-head M6 Immich 3.2.0 poster/original-range, byte identity, >65-second active stream, revocation/ingress and mandatory cleanup evidence block merge. No persistent M6 deployment or public cutover is part of this change.
 
 ### #42 — final product docs, bundle and qualification
 
