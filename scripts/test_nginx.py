@@ -100,7 +100,8 @@ class Ingress(unittest.TestCase):
                     before = len(upstream.requests)
                     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
                     headers = {name: "caller-marker" for name in ("Authorization", "Cookie", "x-api-key",
-                               "Range", "If-Range", "If-None-Match", "If-Modified-Since")}
+                               "Range", "If-Range", "If-None-Match", "If-Modified-Since",
+                               "If-Match", "If-Unmodified-Since", "Upgrade", "X-Caller")}
                     connection.request(method, path, body=b"unused", headers={**headers, "Host": host})
                     response = connection.getresponse()
                     body = response.read()
@@ -113,7 +114,10 @@ class Ingress(unittest.TestCase):
                         self.assertIsNone(response.getheader("Accept-Ranges"))
                         forwarded = {key.lower(): value for key, value in upstream.requests[-1][1].items()}
                         for name in (*headers, "Content-Length"):
-                            self.assertNotIn(name.lower(), forwarded)
+                            if name == "Range" and variant == "original":
+                                self.assertEqual(forwarded.get("range"), "caller-marker")
+                            else:
+                                self.assertNotIn(name.lower(), forwarded)
 
 
 if __name__ == "__main__":

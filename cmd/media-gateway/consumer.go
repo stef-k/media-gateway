@@ -187,7 +187,7 @@ func projectAsset(item immich.Candidate, match publication.Match) consumerAsset 
 	asset := consumerAsset{ID: item.ID, MediaType: item.Media, Root: match.RootName, CollectionPath: match.CollectionPath,
 		Filename: path.Base(item.OriginalPath), Width: item.Width, Height: item.Height, DurationMS: item.DurationMS,
 		FileCreatedAt: item.FileCreatedAt, LocalDateTime: item.LocalDateTime, Latitude: item.Latitude, Longitude: item.Longitude}
-	if item.Media == "image" {
+	if item.Media == "image" || item.Media == "video" {
 		preview := "/media/" + item.ID + "/preview"
 		asset.PreviewPath = &preview
 		original := "/media/" + item.ID + "/original"

@@ -45,16 +45,17 @@ func originalConnection(conn net.Conn, err error) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &originalConn{Conn: conn, reader: bufio.NewReaderSize(conn, 16<<10)}, nil
+	return &originalConn{Conn: conn, reader: bufio.NewReaderSize(conn, 16<<10), inactivity: 60 * time.Second}, nil
 }
 
 // originalConn rejects ambiguous framing that the standard HTTP parser normalizes.
 // Header storage is bounded; bytes following the header remain a streaming reader.
 type originalConn struct {
 	net.Conn
-	reader  *bufio.Reader
-	header  *bytes.Reader
-	checked bool
+	reader     *bufio.Reader
+	header     *bytes.Reader
+	checked    bool
+	inactivity time.Duration
 }
 
 // Read gates the first header block before handing it to net/http. Informational
@@ -70,6 +71,10 @@ func (c *originalConn) Read(p []byte) (int, error) {
 	}
 	if c.header.Len() != 0 {
 		return c.header.Read(p)
+	}
+	// Refresh only body I/O; response-header acquisition keeps its hard timeout.
+	if err := c.Conn.SetReadDeadline(time.Now().Add(c.inactivity)); err != nil {
+		return 0, err
 	}
 	return c.reader.Read(p)
 }
@@ -98,7 +103,7 @@ func (c *originalConn) readHeader() ([]byte, error) {
 		return nil, ErrOriginal
 	}
 	// Error responses may be chunked; their status mapping precedes representation validation.
-	if parts[1] == "200" && (len(fields.Values("Content-Length")) > 1 || len(fields.Values("Transfer-Encoding")) != 0) {
+	if (parts[1] == "200" || parts[1] == "206") && (len(fields.Values("Content-Length")) > 1 || len(fields.Values("Transfer-Encoding")) != 0) {
 		return nil, ErrOriginal
 	}
 	return header, nil

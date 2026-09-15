@@ -153,7 +153,7 @@ func testDeliveryDenials(t *testing.T, variant string) {
 		{name: "outside", path: "/outside/website/photo.jpg"},
 		{name: "near miss", path: "/external/photos/website-old/photo.jpg"},
 		{name: "malformed", path: "/external/photos/website/../photo.jpg"},
-		{name: "video", path: "/external/photos/website/photo.jpg", media: "VIDEO"},
+
 		{name: "unknown type", path: "/external/photos/website/photo.jpg", media: "OTHER"},
 		{name: "missing", metadataStatus: 404},
 		{name: "missing or inaccessible v3", metadataStatus: 400},
