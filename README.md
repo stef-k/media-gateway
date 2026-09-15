@@ -2,9 +2,9 @@
 
 Media Gateway is a small, fail-closed publication gateway for serving explicitly eligible media from a private media provider without exposing the provider itself to the Internet.
 
-The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through `https://media.stefk.me` for consumers such as WordPress.
+The initial provider is [Immich](https://immich.app/). The motivating deployment keeps Immich and the photo archive private on a home LAN while publishing selected media through a dedicated gateway hostname for consumers such as WordPress or Wayfarer.
 
-> **Status:** public image delivery (#4/#18) and the trusted consumer lane (#6/#26) are accepted. Real Immich 3.2.0 phone/RAW preview privacy, visual quality and live lifecycle revocation are qualified. Linux systemd/nginx contracts (#31/#32) are real-host-qualified; #33 bundle/smoke acceptance remains the final #5 deployment gate. Production hostname/edge cutover is separate.
+> **Status:** the V0 security/deployment foundation is accepted at `d3948b7e2e9de9135fbd353a10b371fb727e9be3`: real Immich image-preview privacy/lifecycle behavior, trusted loopback consumer access, hardened systemd/nginx deployment, bundle/smoke and rollback are qualified. [#37](https://github.com/stef-k/media-gateway/issues/37) tracks product completion against the original requirement: named/scoped publication roots, paginated image+video browsing, original-resolution media delivery and range-capable video. The real public hostname/edge cutover remains separate and should follow #37.
 
 ## Core idea
 
@@ -15,40 +15,116 @@ private archive -> Immich -> Media Gateway -> nginx/HTTPS -> Internet
                   private API only
 ```
 
-Publication is **deny by default**. For the motivating deployment, filesystem organization indexed by Immich is the single publication-policy source of truth. The names below are examples configured through TOML, not hard-coded universal requirements:
+Publication is **deny by default**. Filesystem organization indexed by Immich is the publication-policy source of truth. Operators configure exact literal directory conventions such as `public`, `public-images`, `public-videos` or a root-scoped legacy convention such as `post`.
 
-- exact `public` directory segment: image/video eligible;
-- exact `public-images` segment: image eligible;
-- exact `public-videos` segment: video eligible;
-- anything else: private.
+Anything outside a matching publication convention remains private. Moving an asset out of a matching directory revokes future delivery because every public request re-fetches current provider metadata/lifecycle and re-evaluates policy.
 
-Eligibility is checked by Media Gateway on every delivery request. Immich remains private; the gateway never exposes arbitrary provider URLs, NAS paths, or a generic proxy surface.
+Immich remains private; the gateway never exposes arbitrary provider URLs, NAS paths, or a generic proxy surface.
 
-## V0 direction
+## Accepted V0 foundation
 
-V0 is intentionally small:
+V0 intentionally proved one narrow image-preview path before expanding the media plane:
 
 - one Go binary;
-- **Go 1.27.1** initial stable toolchain baseline;
+- Go 1.27.1 reviewed toolchain baseline;
 - one expected third-party runtime dependency: `github.com/pelletier/go-toml/v2` for strict TOML decoding;
-- one TOML configuration file plus a separately protected Immich credential;
+- strict TOML configuration plus separately protected Immich credential;
 - loopback-only application listener;
-- Immich metadata and preview retrieval;
-- exact path/media-type publication policy;
-- public read-only media delivery behind nginx;
-- no database;
-- no UI;
-- no direct NAS mount;
-- no generic URL fetching;
-- no public Immich endpoint.
+- fixed private Immich authority with no ambient proxy forwarding its credential;
+- exact path/media publication policy;
+- current asset lifecycle revalidation;
+- public `GET`/`HEAD /media/<asset-id>/preview` image delivery;
+- same-host trusted `/internal/assets` image browse/detail;
+- validated optional coordinate projection in the V0 contract;
+- nginx-only public boundary;
+- unprivileged systemd service with zero capabilities;
+- Linux amd64 bundle, checksums, portable smoke, upgrade and rollback procedure;
+- no database, UI, direct NAS mount, generic URL fetching or public Immich endpoint.
 
-Go has no separate LTS channel; the project follows supported stable Go releases deliberately, with patch updates reviewed and major upgrades tested rather than taken automatically.
+The accepted image preview representation is a direct JPEG/WebP provider derivative with known positive length up to 16 MiB, no redirect/original fallback and `Cache-Control: no-store`. Private/missing/invalid assets share fixed denial; provider failures are sanitized. Representative real Immich 3.2.0 phone/camera/RAW previews and same-ID lifecycle revocation were qualified.
 
-Image delivery is the first production target. Video delivery may follow once range/streaming behavior is specified and tested.
+That V0 work is retained as the security/deployment foundation; it is not the final product definition.
 
-The foundation epic is intentionally decomposed before implementation: #9 owns the Go/configuration core and #10 owns the executable lifecycle, logging and CI shell. Coarse epics are not handed to coding agents when a bounded child issue exists.
+## Product completion (#37)
 
-## Running the service
+The original product requirement is broader: a secure convention-driven **media** gateway that lets trusted consumer applications browse/select currently public media and serve the actual authorized media through stable gateway URLs.
+
+See [Product completion](docs/product-completion.md) for the authoritative target design.
+
+The deterministic lane is:
+
+```text
+#38 named roots + global/root-scoped policy rules
+ -> #39 paginated eligible image/video collections and assets
+ -> #40 original image delivery
+ -> #41 video preview/original + byte ranges + long-media streaming
+ -> #42 final config/docs/bundle/real-host qualification
+ -> close #37
+```
+
+### Target publication configuration
+
+The final policy model uses named provider roots and rules that may be global or caged to selected roots:
+
+```toml
+[[policy.roots]]
+name = "images"
+path = "/media/archive/Images"
+
+[[policy.roots]]
+name = "art"
+path = "/media/archive/ART"
+
+[[policy.rules]]
+segment = "public"
+media = ["image", "video"]
+
+[[policy.rules]]
+segment = "public-images"
+media = ["image"]
+
+[[policy.rules]]
+segment = "public-videos"
+media = ["video"]
+
+[[policy.rules]]
+segment = "post"
+media = ["image"]
+roots = ["images"]
+```
+
+Root paths are provider-visible absolute POSIX metadata paths, not Windows UNC/NAS paths and not local filesystem mounts. Root names are stable logical identifiers. Omitted rule `roots` means global; an explicit list scopes that convention to the named roots.
+
+### Target trusted catalogue
+
+Trusted same-host consumers will page through publication collections and then page through assets inside a selected collection. Large directories must never be returned unbounded.
+
+Conceptual routes:
+
+```text
+GET /internal/collections?limit=<n>&cursor=<opaque>
+GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /internal/assets/<asset-id>
+```
+
+Safe catalogue items include logical root, root-relative collection path, filename, image/video type, dimensions, duration where applicable, capture/local time, validated nullable coordinates and stable preview/original gateway paths. Absolute provider/NAS paths, provider URLs, credentials and raw EXIF remain private.
+
+Consumer selection never makes an asset public. Every delivery request independently reauthorizes current provider state.
+
+### Target public media routes
+
+The product requires two fixed representations:
+
+```text
+GET/HEAD /media/<asset-id>/preview
+GET/HEAD /media/<asset-id>/original
+```
+
+`preview` is a provider-generated browse/picker/poster representation. `original` means the provider original bytes after current authorization. The gateway does not silently convert RAW/HEIC/video originals or strip metadata from an original file; downstream consumers own resizing/derivatives as needed.
+
+Video is a first-class media type and must support practical byte ranges (`Range`, `206`, `Content-Range`, `Accept-Ranges`) for original delivery. Long media streams must not inherit the V0 preview-only short absolute write lifetime; authorization/open phases remain bounded while established streams use bounded inactivity/disconnect semantics.
+
+## Running the current accepted V0 service
 
 Build with Go 1.27.1 and run with an explicit configuration path:
 
@@ -58,42 +134,13 @@ bin/media-gateway -version
 bin/media-gateway -config /etc/media-gateway/config.toml
 ```
 
-The configuration and separate credential must pass [`config.Load`](docs/configuration.md)
-validation before binding. `GET` and `HEAD /media/<asset-id>/preview` fetch current
-Immich metadata, require explicit active lifecycle state (neither trashed nor
-offline), and authorize the image through `publication.Eligible` before
-requesting a preview. The key needs `asset.read` and `asset.view`. All other
-public routes/methods are denied; there is no health/readiness endpoint. A running
-listener does not establish provider or media readiness. SIGINT/SIGTERM stop accepting
-connections and allow up to 10 seconds for active requests to drain.
+The current implementation/configuration remains the accepted V0 preview slice until #38–#42 land. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Do not treat target schema/routes as implemented before their owning issues are accepted.
 
-Previews must be direct HTTP 200 JPEG/WebP responses with a known positive length
-of at most 16 MiB. Delivery streams without whole-image buffering, rejects every
-provider redirect, and uses `Cache-Control: no-store`. Private/missing/invalid
-assets return fixed `404` denials; provider failures return fixed `502` responses.
-A failure after streaming begins aborts the response. Originals, video, range
-and conditional delivery are unavailable. The first accepted representation is `/preview`: #18 qualified representative
-real Immich previews, including privacy, human visual quality and same-ID live
-revocation after #27. Repeat relevant qualification when changing provider versions
-or preview settings. #30 is the post-V0 fixed safe representation-profile candidate,
-not a requirement for arbitrary gateway resizing or a permanent quality ceiling.
-
-Same-host consumers can use `GET /internal/assets` and
-`GET /internal/assets/<asset-id>` to browse or inspect eligible images. These
-loopback-only routes return a narrow JSON contract and must never be published
-by nginx. See the [private consumer API](docs/consumer-api.md). Every public
-preview request still reauthorizes independently. Optional
-`[consumer].expose_coordinates = true` adds only validated latitude/longitude for
-currently eligible images to this trusted metadata plane. It defaults to false,
-never exposes raw EXIF and does not change public preview bytes.
-
-See [Release and smoke procedure](docs/release.md) for bundles and rollback.
-See [Deployment](docs/deployment.md) for exit codes and operational bounds, and
-[Toolchain](docs/toolchain.md) for the local/CI validation commands.
+See [Release and smoke procedure](docs/release.md) for bundles and rollback, [Deployment](docs/deployment.md) for operational bounds, and [Toolchain](docs/toolchain.md) for local/CI validation.
 
 ## Logging
 
-Logging is deliberately split rather than duplicated:
+Logging remains deliberately split rather than duplicated:
 
 - nginx owns public HTTP access and proxy/transport logging;
 - Media Gateway uses Go `log/slog` for lifecycle, sanitized startup state and provider/runtime/security diagnostics;
@@ -104,6 +151,7 @@ See [Logging](docs/logging.md) for privacy and severity rules.
 
 ## Documentation
 
+- [Product completion design](docs/product-completion.md)
 - [Architecture](docs/architecture.md)
 - [Security model](docs/security.md)
 - [Private consumer API](docs/consumer-api.md)
@@ -114,13 +162,13 @@ See [Logging](docs/logging.md) for privacy and severity rules.
 - [Roadmap](docs/roadmap.md)
 - [GitHub Pages documentation](docs/index.md)
 
-Deployment templates live under [`deploy/`](deploy/). They are examples and must be reviewed for the target host before installation. The TOML, nginx and systemd examples are intentionally comment-documented so operators can understand which values are deployment-specific and which constraints are security invariants.
+Deployment templates live under [`deploy/`](deploy/). They describe the current accepted implementation and must be reviewed for the target host. #38/#42 own migration of the shipped config example to the final product schema.
 
 ## Project boundaries
 
-Media Gateway is a publication boundary, not a media manager. It does not replace Immich, organize a photo library, provide a gallery UI, or decide which WordPress post should use an image.
+Media Gateway is a publication boundary, not a media manager. It does not replace Immich, organize the private photo/video archive, provide a gallery UI, or decide which WordPress/Wayfarer object should use an asset.
 
-Consumers may reference eligible assets, but consumer state does not grant publication permission. A consumer compromise must not turn a private Immich asset into public media.
+Consumers may browse and reference eligible assets, but consumer state never grants publication permission. A consumer compromise must not turn a private Immich asset into public media.
 
 ## License
 
