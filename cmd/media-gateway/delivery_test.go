@@ -223,6 +223,13 @@ func testDeliveryDenials(t *testing.T, variant string) {
 
 // TestPreviewFailures verifies bounded status/header validation and no redirect fallback.
 func TestPreviewFailures(t *testing.T) {
+	for _, media := range []string{"IMAGE", "VIDEO"} {
+		t.Run(media, func(t *testing.T) { testPreviewFailures(t, media) })
+	}
+}
+
+// testPreviewFailures applies the shared fixed preview contract to both media kinds.
+func testPreviewFailures(t *testing.T, media string) {
 	for _, tc := range []struct {
 		name, kind, length, location string
 		status, want                 int
@@ -242,7 +249,7 @@ func TestPreviewFailures(t *testing.T) {
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
 				if r.URL.Path == "/api/assets/"+testAsset {
-					metadata(w, "/external/photos/website/private-path-marker.jpg", "IMAGE")
+					metadata(w, "/external/photos/website/private-path-marker.jpg", media)
 					return
 				}
 				if r.URL.RequestURI() != "/api/assets/"+testAsset+"/thumbnail?size=preview" {

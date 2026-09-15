@@ -108,6 +108,19 @@ func TestCatalogueOverallDeadline(t *testing.T) {
 func TestCatalogueDetailRevocation(t *testing.T) {
 	var state atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == representationTarget(testAsset, "original") || r.URL.Path == "/api/assets/"+testAsset+"/thumbnail" {
+			if state.Load() != 0 {
+				t.Error("revoked catalogue reference opened bytes")
+			}
+			kind := "video/mp4"
+			if r.URL.Path != representationTarget(testAsset, "original") {
+				kind = "image/webp"
+			}
+			w.Header().Set("Content-Type", kind)
+			w.Header().Set("Content-Length", "7")
+			io.WriteString(w, "source!")
+			return
+		}
 		item := candidateFixture(testAsset, "/external/photos/website/a.mp4", "VIDEO")
 		switch state.Load() {
 		case 1:
@@ -116,6 +129,11 @@ func TestCatalogueDetailRevocation(t *testing.T) {
 			item["isOffline"] = true
 		case 3:
 			item["isTrashed"] = true
+		}
+		if r.URL.Path == "/api/assets/"+testAsset {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(item)
+			return
 		}
 		candidateResponse(w, []map[string]any{item}, nil)
 	}))
@@ -131,6 +149,17 @@ func TestCatalogueDetailRevocation(t *testing.T) {
 		want := 404
 		if i == 0 {
 			want = 200
+		}
+		for _, variant := range []string{"preview", "original"} {
+			response, err := gateway.Client().Get(gateway.URL + "/media/" + testAsset + "/" + variant)
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.Copy(io.Discard, response.Body)
+			response.Body.Close()
+			if response.StatusCode != want {
+				t.Fatal("stored catalogue reference bypassed delivery reauthorization")
+			}
 		}
 		if resp.StatusCode != want {
 			t.Fatal("stored reference authorized revoked asset")

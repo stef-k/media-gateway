@@ -220,7 +220,11 @@ embed GPS, add public metadata endpoints, or permit coordinates in logs. GPS is
 deliberately exposed as nullable metadata only on the trusted eligible consumer
 plane; public derivatives must remain metadata-minimal.
 
-Original image GET/HEAD independently require current active metadata, exact policy and image type before fixed provider GET with no query. Only direct 200, one parameter-free `image/*` type and one explicit positive length are accepted, without content/transfer encoding or Content-Range. Source streaming has no arbitrary size ceiling but retains 60/65-second gateway bounds. Provider header acquisition remains bounded independently of body reading. Range/conditional headers never reach the provider; original responses are full 200 with no Accept-Ranges. M6 real-provider qualification remains required before #40 acceptance.
+Original image GET/HEAD independently require current active metadata, exact policy and image type before fixed provider GET with no query. Only direct 200, one parameter-free `image/*` type and one explicit positive length are accepted, without content/transfer encoding or Content-Range. Source streaming has no arbitrary size ceiling and uses 60-second upstream/downstream per-I/O inactivity bounds. Provider header acquisition remains bounded independently of body reading. Image Range and all conditional headers never reach the provider; image original responses are full 200 with no Accept-Ranges.
+
+Video originals use the same fixed endpoint and accept only parameter-free `video/*` or `application/mxf`. After current authorization, one bounded parsed byte range can reach the provider as canonical numeric syntax. Invalid/multiple ranges produce fixed 400; private/lifecycle/policy denials remain 404 before parsing. Validate provider 206 interval/total/length against the requested range, and provider 416 unsatisfiability/positive total before returning a zero-body 416. A provider 200 for Range is 502, never full-body or playback fallback. HEAD uses the identical provider GET and closes it. No arbitrary header forwarding or validator semantics are enabled. Source metadata remains part of authorized original bytes.
+
+Both original kinds use fixed 60-second read/write inactivity deadlines, client cancellation and a 10-second shutdown drain; metadata/connect/header work remains hard-bounded. Stream failures abort without a plaintext suffix and emit at most one fixed warning; canceled clients stay quiet. M6 Immich 3.2.0 poster privacy/original-range/long-stream qualification and temporary-deployment cleanup block #41 merge.
 
 ## Logging
 
@@ -283,8 +287,8 @@ allowlist rejects encoded/normalized aliases; `/media` has an explicit denial
 instead of nginx's automatic slash redirect. All private/unknown paths and
 unknown Hosts fail closed without upstream access. This matters because nginx's
 loopback peer would otherwise satisfy the private consumer API's peer check.
-Caller headers/bodies are not forwarded, except for explicitly constructed
-transport context, which never authorizes publication. No cache, direct-storage
+Caller headers/bodies are not forwarded, except Range on canonical original routes
+and explicitly constructed transport context, which never authorizes publication. No cache, direct-storage
 fallback, upload or WebSocket surface exists. Review inherited host configuration
 and qualify the [ingress route matrix](deployment.md#nginx) before publishing.
 

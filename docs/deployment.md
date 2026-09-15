@@ -124,7 +124,7 @@ SIGINT/SIGTERM close the listener and drain active requests for up to 10 seconds
 on timeout the process closes connections and exits with failure. This fits inside
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
-Only image `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
+Only image/video `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
 public metadata/control routes and unsupported methods remain fixed denials.
 The [consumer API](consumer-api.md) adds only loopback `/internal/assets` browse
 and detail routes; nginx must never publish `/internal/`. There is
@@ -132,10 +132,12 @@ no startup provider probe: `listening` means the loopback listener was acquired,
 not that previews are qualified or available. HTTP limits are 5 seconds for
 headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds
 for idle connections, and 16 KiB for headers (plus Go's parsing allowance). No
-handler reads request bodies. A 60-second handler context bounds combined
-metadata/image work. Metadata/search/preview calls retain the configured timeout
-through body reading; originals use that timeout for headers, leaving body lifetime
-to the gateway bounds. The finite write deadline bounds slow public readers.
+handler reads request bodies. A 60-second handler context bounds authorization/preview
+work. Metadata/search/preview retain their configured timeout through body reading.
+Original connect/header acquisition remains bounded, while established image/video
+original bodies use 60-second read/write inactivity deadlines refreshed per I/O.
+The 65-second write default remains for ordinary responses; active original streams
+can continue beyond it. Stalled upstream/downstream I/O remains finite.
 Client disconnects cancel upstream work. Shutdown retains the 10-second drain.
 
 Preview bodies must have a known positive length of at most 16 MiB and an exact
@@ -230,13 +232,13 @@ Queries are ignored by the application and cannot select upstream behavior.
 
 | Request to the configured Host | Expected ingress behavior |
 | --- | --- |
-| GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | Fixed loopback gateway; current policy decides 200/404/502 |
+| GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | Fixed loopback gateway; current policy/range validation decides 200/206/400/404/416/502 |
 | `/media`, `/media/`, extra segments or other representations | 404; no automatic slash redirect |
 | `/internal/assets` or any `/internal/...` | 404 without upstream access |
 | `/api`, `/api/...`, `/`, search/config/control/diagnostic/provider-looking or unknown paths | 404 without upstream access |
 | Encoded path characters, dot segments, repeated slashes, traversal into/out of `/media/` | Denied before proxying; malformed HTTP may get nginx 400 |
-| POST/PUT/PATCH/DELETE/OPTIONS on either image route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
-| Unknown Host, even with a valid image route | Default server denial without upstream access |
+| POST/PUT/PATCH/DELETE/OPTIONS on either media route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
+| Unknown Host, even with a valid media route | Default server denial without upstream access |
 
 An exact `/media` location prevents nginx's implicit prefix slash redirect.
 `^~ /media/` prevents regex-location takeover; the raw allowlist denies normalization
@@ -250,8 +252,7 @@ See nginx's [location rules](https://nginx.org/en/docs/http/ngx_http_core_module
 and [proxy URI rules](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass).
 
 The proxy connect/send limits are 5/10 seconds. Read inactivity is 70 seconds,
-replacing the old 30 seconds so valid work can finish within the gateway's
-60-second combined handler context and 65-second write deadline. nginx read/send
+accommodating the gateway's 60-second original read/write inactivity bounds. nginx read/send
 limits are **between I/O operations**, not total response deadlines; application
 bounds still cap provider work. Client header/body inactivity is 5/10 seconds,
 client send inactivity 65 seconds and keepalive 30 seconds. The edge must accommodate
@@ -265,12 +266,14 @@ already rejects provider redirects. Connect/read failures normally yield 502/504
 a failure after headers truncates/closes the stream rather than replacing bytes.
 Request bodies are unused, limited to 1 KiB and never forwarded. Caller headers
 are replaced with a small transport-context allowlist, excluding credentials,
-cookies, Range, If-Range, If-None-Match, If-Modified-Since and WebSocket upgrade. Forwarded fields never grant authorization; behind
+cookies, If-Range, If-None-Match, If-Modified-Since and WebSocket upgrade. Only
+canonical original routes forward caller Range to the gateway; preview strips it.
+The application validates video Range after authorization and ignores image Range. Forwarded fields never grant authorization; behind
 a tunnel the recorded peer may be the tunnel unless separately reviewed trusted
 real-IP handling is configured. No upload or WebSocket surface exists.
 
 Run `python3 scripts/test_nginx.py` with local nginx installed to exercise both
-canonical image routes, malformed/private/provider denials, header stripping and
+canonical media routes, malformed/private/provider denials, header stripping and
 route log classification in an isolated process. A skipped test is unavailable
 local nginx evidence, not a pass. This synthetic upstream does not qualify M6.
 
@@ -382,7 +385,7 @@ Only `AssetResponseDto.id`, `originalPath` and `type` are retained. All are requ
 and non-empty. `IMAGE` maps to `image`, `VIDEO` to `video`; documented `AUDIO` and
 `OTHER`, and any unknown type, fail closed. Paths pass unchanged to
 `publication.Evaluate`; neither ID knowledge nor successful metadata retrieval
-grants publication. Video mapping does not enable video delivery.
+grants publication. Video mapping alone never authorizes delivery; current Policy v2 must also succeed.
 
 `internal/immich.New` consumes validated `config.Load` provider values and its
 separately returned credential. `Client.Asset` performs a fresh lookup each time.
@@ -521,9 +524,10 @@ The original transport uses fixed authority and credential, no environment proxy
 no redirects or compression, and a fresh HTTP/1 connection. It checks bounded wire
 headers before Go normalizes duplicate lengths/transfer fields. Dial/TLS are bounded
 by the smaller of five seconds and `provider.request_timeout`; response headers by
-the configured timeout. The HTTP client has no absolute body timeout. Existing
-60-second handler, 65-second write and 70-second nginx read bounds remain unchanged.
-Range/206/416/Accept-Ranges and the long-stream inactivity model belong to #41.
+the configured timeout. The HTTP client has no absolute body timeout. Established
+original streams now use #41 fixed 60-second read/write inactivity deadlines.
+Ordinary responses retain the finite server defaults; nginx read/send inactivity
+remains 70/65 seconds. Client disconnect and bounded shutdown cancel originals.
 
 Public success constructs only Content-Type, Content-Length, no-store and nosniff
 (plus standard HTTP date/framing). Provider disposition, filename, cache validators,
@@ -534,7 +538,39 @@ Original does **not** strip EXIF/GPS or inspect embedded metadata.
 Remove stale `[delivery]` configuration before startup; fixed image representations
 have no feature gate. Update the dedicated key union without adding write/admin
 permissions. See [the required M6 checks](release.md#40-original-image-qualification)
-before acceptance. Software evidence alone does not authorize #40 merge.
+for the accepted image baseline. The #41 video gate below remains pending.
+
+### Reviewed video contract (#41)
+
+Reverified on 2026-09-15 against Immich **v3.2.0**, matching the M6 qualification target:
+[controller](https://github.com/immich-app/immich/blob/v3.2.0/server/src/controllers/asset-media.controller.ts),
+[service](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/asset-media.service.ts),
+[file helper](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/file.ts),
+and [MIME types](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/mime-types.ts).
+
+Video poster uses only GET thumbnail `size=preview`, with the existing direct-200
+JPEG/WebP, positive-length <=16 MiB checks. Video original uses only GET original
+without query; `/video/playback` can select encoded media and is never a fallback.
+The dedicated key union stays `asset.read + asset.view + asset.download`.
+Original type is parameter-free `video/*` or the explicit `application/mxf` exception.
+
+Only an authorized video original parses Range: one field value <=128 bytes,
+unsigned signed-int64 decimal explicit/open/suffix syntax, no whitespace or lists.
+Malformed ranges return fixed 400 without opening original. Private/lifecycle/policy
+denials stay 404 before parsing. Canonical Range is the only caller-derived header
+sent to Immich; all conditionals are discarded. No Range requires direct 200;
+a satisfiable Range requires 206 with mathematically exact Content-Range and length.
+Provider 200 for Range is 502. Valid unsatisfiable 416 requires `bytes */total` with
+positive total and produces a zero-body public 416. HEAD uses the same provider GET
+and closes the body. Video originals advertise Accept-Ranges; image originals remain
+full 200 and ignore Range. All public range headers are validated and constructed.
+
+Source inspection shows original and playback share the file-send helper; it does
+not prove the deployed original endpoint's range behavior. Follow the bounded
+[#41 qualification checklist](video-qualification.md) against the exact PR head.
+M6 poster privacy, original-range identity, >65-second active transfer, authorization,
+ingress and mandatory temporary-instance cleanup must pass before merge. No
+persistent deployment or public hostname cutover belongs to #41.
 
 ## Host firewall
 

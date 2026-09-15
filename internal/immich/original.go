@@ -63,7 +63,8 @@ func (c *Client) original(ctx context.Context, id, media string, requested ByteR
 		Body: &representationBody{ctx: ctx, body: resp.Body, remaining: resp.ContentLength}}, nil
 }
 
-// validateOriginal accepts direct source images, without preview's format/size ceiling.
+// validateOriginal checks status, media type and exact range framing before any
+// public success, without preview's format/size ceiling.
 func validateOriginal(resp *http.Response, media string, requested ByteRange) error {
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusPartialContent, http.StatusRequestedRangeNotSatisfiable:
