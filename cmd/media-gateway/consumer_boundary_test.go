@@ -46,7 +46,7 @@ func TestConsumerInputBoundary(t *testing.T) {
 		}
 	}
 	for _, method := range []string{"HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"} {
-		req, _ := http.NewRequest(method, gateway.URL+"/internal/assets", nil)
+		req, _ := http.NewRequest(method, gateway.URL+"/internal/assets?root=images&collection=website", nil)
 		resp, err := gateway.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -58,7 +58,7 @@ func TestConsumerInputBoundary(t *testing.T) {
 	}
 	// Direct handler calls simulate remote peers without opening a non-loopback listener.
 	for _, peer := range []string{"192.0.2.1:1234", "[2001:db8::1]:1234", "localhost:1234", ""} {
-		req := httptest.NewRequest("GET", "/internal/assets", nil)
+		req := httptest.NewRequest("GET", "/internal/assets?root=images&collection=website", nil)
 		req.RemoteAddr = peer
 		req.Header.Set("X-Forwarded-For", "127.0.0.1")
 		req.Header.Set("Forwarded", "for=127.0.0.1")
@@ -85,7 +85,7 @@ func TestConsumerFailures(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, true)
-			for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 				logs.Reset()
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
@@ -137,7 +137,7 @@ func TestConsumerCancellation(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+"/internal/assets", nil)
+				req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+"/internal/assets?root=images&collection=website", nil)
 				resp, err := gateway.Client().Do(req)
 				if err == nil {
 					resp.Body.Close()
@@ -183,7 +183,7 @@ func TestConsumerResponseBound(t *testing.T) {
 		for i := range items {
 			items[i] = candidateFixture(fmt.Sprintf("%08x-1234-4234-8234-123456789abc", i), "/external/photos/website/a.jpg", "IMAGE")
 			if oversized.Load() {
-				items[i]["fileCreatedAt"] = "2026-09-13T10:00:00." + strings.Repeat("1", 800) + "Z"
+				items[i]["fileCreatedAt"] = "2026-09-13T10:00:00." + strings.Repeat("1", 5200) + "Z"
 			}
 		}
 		candidateResponse(w, items, nil)
@@ -192,7 +192,7 @@ func TestConsumerResponseBound(t *testing.T) {
 	gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
 	for _, large := range []bool{false, true} {
 		oversized.Store(large)
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?limit=100")
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website&limit=100")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -204,7 +204,7 @@ func TestConsumerResponseBound(t *testing.T) {
 			}
 		} else {
 			var page consumerPage
-			if resp.StatusCode != 200 || len(body) > maxConsumerJSONBytes || json.Unmarshal(body, &page) != nil || len(page.Assets) != 100 || strings.Contains(string(body), "next_cursor") {
+			if resp.StatusCode != 200 || len(body) > maxConsumerJSONBytes || json.Unmarshal(body, &page) != nil || len(page.Assets) != 100 || !strings.Contains(string(body), `"next_cursor":null`) {
 				t.Fatalf("bounded page: %d, %d bytes", resp.StatusCode, len(body))
 			}
 		}

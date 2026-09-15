@@ -46,7 +46,6 @@ func TestSearchResponseFailures(t *testing.T) {
 		{"invalid ID", 200, "application/json", strings.Replace(good, assetID, "../private", 1), ErrMetadata},
 		{"empty path", 200, "application/json", strings.Replace(good, "/outside/private/../photo.jpg", "", 1), ErrMetadata},
 		{"missing type", 200, "application/json", strings.Replace(good, `"type":"IMAGE",`, "", 1), ErrMetadata},
-		{"video", 200, "application/json", strings.Replace(good, "IMAGE", "VIDEO", 1), ErrUnsupported},
 		{"unknown type", 200, "application/json", strings.Replace(good, "IMAGE", "FUTURE", 1), ErrUnsupported},
 		{"missing width", 200, "application/json", strings.Replace(good, `"width":1200,`, "", 1), ErrMetadata},
 		{"negative width", 200, "application/json", strings.Replace(good, `"width":1200`, `"width":-1`, 1), ErrMetadata},

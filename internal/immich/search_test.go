@@ -16,7 +16,7 @@ import (
 )
 
 // candidateJSON uses top-level dimensions/times; unrelated private EXIF is ignored.
-const candidateJSON = `{"id":"a1234567-abcd-4abc-8abc-123456789abc","type":"IMAGE","isTrashed":false,"isOffline":false,"originalPath":"/outside/private/../photo.jpg","width":1200,"height":null,"fileCreatedAt":"2026-09-12T12:34:56.123Z","localDateTime":"2026-09-12T15:34:56.123Z","exifInfo":{"gps":"body-marker"}}`
+const candidateJSON = `{"id":"a1234567-abcd-4abc-8abc-123456789abc","type":"IMAGE","isTrashed":false,"isOffline":false,"originalPath":"/outside/private/../photo.jpg","duration":null,"width":1200,"height":null,"fileCreatedAt":"2026-09-12T12:34:56.123Z","localDateTime":"2026-09-12T15:34:56.123Z","exifInfo":{"gps":"body-marker"}}`
 
 // candidateResponse wraps synthetic assets in the reviewed search envelope.
 func candidateResponse(items, cursor string, count int) string {
@@ -29,7 +29,7 @@ func TestSearchCandidatesContract(t *testing.T) {
 		t.Run("id="+id, func(t *testing.T) {
 			cursor := `opaque/+?\"filter:VIDEO`
 			query := CandidateQuery{Limit: 2, Cursor: cursor}
-			filter := map[string]any{"type": map[string]any{"eq": "IMAGE"}}
+			filter := map[string]any{"type": map[string]any{"in": []any{"IMAGE", "VIDEO"}}, "isOffline": map[string]any{"eq": false}, "trashedAt": map[string]any{"eq": nil}}
 			if id != "" {
 				query = CandidateQuery{Limit: 1, ID: id}
 				filter["id"] = map[string]any{"eq": id}
@@ -42,7 +42,7 @@ func TestSearchCandidatesContract(t *testing.T) {
 				if json.NewDecoder(r.Body).Decode(&got) != nil {
 					t.Error("invalid request JSON")
 				}
-				want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": float64(query.Limit), "withExif": false, "withPeople": false, "withStacked": false}
+				want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": float64(query.Limit), "withExif": true, "withPeople": false, "withStacked": false}
 				if query.Cursor != "" {
 					want["cursor"] = query.Cursor
 				}

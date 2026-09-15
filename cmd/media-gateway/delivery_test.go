@@ -34,7 +34,7 @@ func gatewayWithCoordinates(t *testing.T, provider *httptest.Server, logs io.Wri
 	t.Cleanup(client.CloseIdleConnections)
 	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
-	server.Config = newServer(gatewayHandler(client, policy, config.Consumer{ExposeCoordinates: enabled}, slog.New(slog.NewJSONHandler(logs, nil))))
+	server.Config = newServer(gatewayHandler(client, policy, cursorKey{1}, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()
 	t.Cleanup(server.Close)
 	return server

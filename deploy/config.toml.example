@@ -103,10 +103,3 @@ allow_original = false
 # Repeat privacy/quality checks after provider/settings changes. Future fixed safe
 # profiles belong to #30; originals and arbitrary resizing remain unavailable.
 image_variant = "preview"
-
-[consumer]
-# Deliberately expose latitude/longitude only for currently eligible images on the
-# trusted loopback /internal/assets API. Omission defaults to false; raw EXIF is
-# never returned. nginx must never publish /internal/. This does not change public
-# /media/<id>/preview bytes or embed GPS in images. Restart after changing this.
-expose_coordinates = false

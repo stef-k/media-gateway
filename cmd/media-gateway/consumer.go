@@ -5,48 +5,66 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/url"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stef-k/media-gateway/internal/config"
 	"github.com/stef-k/media-gateway/internal/immich"
 	"github.com/stef-k/media-gateway/internal/publication"
 )
 
-// Consumer bounds limit one candidate page, raw query parsing and encoded output.
+// Catalogue work and output stay finite even for sparse or changing libraries.
 const (
 	defaultConsumerLimit  = 25
-	maxConsumerQueryBytes = 4096
-	maxConsumerJSONBytes  = 64 << 10
+	maxConsumerQueryBytes = 8 << 10
+	maxConsumerJSONBytes  = 512 << 10
+	maxCatalogueCalls     = 8
+	catalogueTimeout      = 30 * time.Second
 )
 
-// consumerAsset is the entire JSON allowlist; never embed private Candidate/Metadata.
+// consumerAsset is the complete safe allowlist, never embedded provider metadata.
 type consumerAsset struct {
-	ID            string `json:"id"`
-	Width         *int64 `json:"width"`
-	Height        *int64 `json:"height"`
-	FileCreatedAt string `json:"file_created_at"`
-	LocalDateTime string `json:"local_date_time"`
-	PreviewPath   string `json:"preview_path"`
-	// Outer nil omits disabled fields; inner nil emits enabled unknowns as null.
-	Latitude  **float64 `json:"latitude,omitempty"`
-	Longitude **float64 `json:"longitude,omitempty"`
+	ID             string   `json:"id"`
+	MediaType      string   `json:"media_type"`
+	Root           string   `json:"root"`
+	CollectionPath string   `json:"collection_path"`
+	Filename       string   `json:"filename"`
+	Width          *int64   `json:"width"`
+	Height         *int64   `json:"height"`
+	DurationMS     *int64   `json:"duration_ms"`
+	FileCreatedAt  string   `json:"file_created_at"`
+	LocalDateTime  string   `json:"local_date_time"`
+	Latitude       *float64 `json:"latitude"`
+	Longitude      *float64 `json:"longitude"`
+	PreviewPath    *string  `json:"preview_path"`
+	OriginalPath   *string  `json:"original_path"`
 }
 
-// consumerPage may be empty with continuation because eligibility follows search.
+// consumerPage always carries a nullable gateway continuation.
 type consumerPage struct {
 	Assets     []consumerAsset `json:"assets"`
-	NextCursor string          `json:"next_cursor,omitempty"`
+	NextCursor *string         `json:"next_cursor"`
 }
 
-// gatewayHandler dispatches without path cleaning or redirects. The public handler
-// remains independent; nginx must never proxy /internal/, even from loopback.
-func gatewayHandler(client *immich.Client, policy config.Policy, settings config.Consumer, logger *slog.Logger) http.Handler {
+// consumerCollection is the policy-derived identity; counts are intentionally absent.
+type consumerCollection struct {
+	Root           string `json:"root"`
+	CollectionPath string `json:"collection_path"`
+}
+
+type collectionPage struct {
+	Collections []consumerCollection `json:"collections"`
+	NextCursor  *string              `json:"next_cursor"`
+}
+
+// gatewayHandler dispatches without path cleaning or redirects. nginx must never
+// proxy /internal/, even though a same-host proxy appears to have a local peer.
+func gatewayHandler(client *immich.Client, policy config.Policy, key cursorKey, logger *slog.Logger) http.Handler {
 	public := deliveryHandler(client, policy, logger)
-	consumer := consumerHandler(client, policy, settings, logger)
+	consumer := consumerHandler(client, policy, key, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/internal/") {
 			consumer.ServeHTTP(w, r)
@@ -56,89 +74,123 @@ func gatewayHandler(client *immich.Client, policy config.Policy, settings config
 	})
 }
 
-// consumerHandler authorizes unchanged policy facts before projecting safe fields.
-// A loopback peer is required; forwarded headers never establish local identity.
-func consumerHandler(client *immich.Client, policy config.Policy, settings config.Consumer, logger *slog.Logger) http.Handler {
+// consumerHandler validates selectors and signatures before bounded provider work.
+func consumerHandler(client *immich.Client, policy config.Policy, key cursorKey, logger *slog.Logger) http.Handler {
+	streams := immich.DiscoveryStreams(policy)
+	policyFingerprint := fingerprint(streams)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		query, ok := consumerQuery(r)
+		query, ok := consumerQuery(r, policy)
 		if !ok {
 			publicError(w, r, http.StatusNotFound)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), deliveryTimeout)
-		defer cancel()
-		query.ExposeCoordinates = settings.ExposeCoordinates
-		page, err := client.SearchCandidates(ctx, query)
-		if err != nil {
-			consumerSearchError(w, r, logger, err)
+		queryFingerprint := policyFingerprint
+		streamCount := len(streams)
+		if query.Kind == 'a' {
+			queryFingerprint = fingerprint(struct {
+				Policy           [32]byte
+				Root, Collection string
+			}{policyFingerprint, query.Root.Name, query.Collection})
+			streamCount = 1
+		}
+		state, ok := key.verify(query.Cursor, query.Kind, queryFingerprint, streamCount)
+		if !ok {
+			publicError(w, r, http.StatusNotFound)
 			return
 		}
-		result := consumerPage{Assets: make([]consumerAsset, 0, len(page.Items)), NextCursor: page.NextCursor}
-		for _, item := range page.Items {
-			if _, eligible := publication.Evaluate(policy, item.OriginalPath, item.Media); item.Media != "image" || !eligible {
-				continue
-			}
-			asset := consumerAsset{
-				ID: item.ID, Width: item.Width, Height: item.Height,
-				FileCreatedAt: item.FileCreatedAt, LocalDateTime: item.LocalDateTime,
-				PreviewPath: "/media/" + item.ID + "/preview",
-			}
-			if settings.ExposeCoordinates {
-				asset.Latitude, asset.Longitude = &item.Latitude, &item.Longitude
-			}
-			result.Assets = append(result.Assets, asset)
-		}
-		if query.ID != "" {
-			if len(result.Assets) != 1 {
-				publicError(w, r, http.StatusNotFound)
-				return
-			}
-			consumerJSON(w, r, result.Assets[0])
+		ctx, cancel := context.WithTimeout(r.Context(), catalogueTimeout)
+		defer cancel()
+		result, err := catalogue(ctx, client, policy, streams, key, queryFingerprint, query, state)
+		if err != nil {
+			consumerSearchError(w, r, logger, err)
 			return
 		}
 		consumerJSON(w, r, result)
 	})
 }
 
-// consumerQuery allows only pagination on browse and no query on exact detail.
-// SearchCandidates validates UUIDv4 and opaque cursor bytes before provider I/O.
-func consumerQuery(r *http.Request) (immich.CandidateQuery, bool) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || !net.ParseIP(host).IsLoopback() || r.Method != http.MethodGet || r.URL.RawPath != "" || r.URL.IsAbs() || r.URL.Opaque != "" || len(r.URL.RawQuery) > maxConsumerQueryBytes {
-		return immich.CandidateQuery{}, false
-	}
-	if r.URL.Path != "/internal/assets" {
-		id, found := strings.CutPrefix(r.URL.Path, "/internal/assets/")
-		return immich.CandidateQuery{ID: id, Limit: 1}, found && id != "" && !strings.Contains(id, "/") && r.URL.RawQuery == "" && !r.URL.ForceQuery
-	}
-	values, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil {
-		return immich.CandidateQuery{}, false
-	}
-	query := immich.CandidateQuery{Limit: defaultConsumerLimit}
-	for key, value := range values {
-		if len(value) != 1 || value[0] == "" {
-			return immich.CandidateQuery{}, false
-		}
-		switch key {
-		case "limit":
-			// Only decimal digits; no signs, whitespace or alternate numeric syntax.
-			if strings.IndexFunc(value[0], func(c rune) bool { return c < '0' || c > '9' }) >= 0 {
-				return immich.CandidateQuery{}, false
+// catalogue fills only remaining output slots; every successful provider page is
+// fully consumed. Stream transitions and sparse pages share the eight-call budget.
+func catalogue(ctx context.Context, client *immich.Client, policy config.Policy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogueQuery, state continuation) (any, error) {
+	assets := consumerPage{Assets: []consumerAsset{}}
+	collections := collectionPage{Collections: []consumerCollection{}}
+	seen := map[consumerCollection]bool{}
+	count, more := 0, true
+	for calls := 0; calls < maxCatalogueCalls && count < query.Limit && more; calls++ {
+		providerQuery := immich.CandidateQuery{Limit: query.Limit - count, Cursor: state.Provider, ID: query.ID}
+		if query.Kind == 'c' {
+			if state.Stream >= len(streams) {
+				more = false
+				break
 			}
-			query.Limit, err = strconv.Atoi(value[0])
-			if err != nil || query.Limit < 1 || query.Limit > immich.MaxCandidates {
-				return immich.CandidateQuery{}, false
+			providerQuery.Discovery = &streams[state.Stream]
+		} else if query.ID == "" {
+			providerQuery.Collection = &immich.CollectionSelector{Root: query.Root, Path: query.Collection}
+		}
+		page, err := client.SearchCandidates(ctx, providerQuery)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range page.Items {
+			match, eligible := publication.Evaluate(policy, item.OriginalPath, item.Media)
+			if !eligible {
+				continue
 			}
-		case "cursor":
-			query.Cursor = value[0]
-		default:
-			return immich.CandidateQuery{}, false
+			if query.Kind == 'c' {
+				identity := consumerCollection{match.RootName, match.CollectionPath}
+				if !seen[identity] {
+					seen[identity] = true
+					collections.Collections = append(collections.Collections, identity)
+					count++
+				}
+			} else if query.ID != "" || (match.RootName == query.Root.Name && match.CollectionPath == query.Collection) {
+				assets.Assets = append(assets.Assets, projectAsset(item, match))
+				count++
+			}
+		}
+		state.Provider = page.NextCursor
+		more = state.Provider != ""
+		if query.Kind == 'c' && !more {
+			state.Stream++
+			more = state.Stream < len(streams)
+		}
+		if query.ID != "" {
+			break
 		}
 	}
-	return query, true
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if query.ID != "" {
+		if len(assets.Assets) != 1 {
+			return nil, immich.ErrUnsupported
+		}
+		return assets.Assets[0], nil
+	}
+	var next *string
+	if more {
+		next = key.sign(query.Kind, hash, state)
+	}
+	if query.Kind == 'c' {
+		collections.NextCursor = next
+		return collections, nil
+	}
+	assets.NextCursor = next
+	return assets, nil
+}
+
+// projectAsset advertises only implemented representations after exact authorization.
+func projectAsset(item immich.Candidate, match publication.Match) consumerAsset {
+	asset := consumerAsset{ID: item.ID, MediaType: item.Media, Root: match.RootName, CollectionPath: match.CollectionPath,
+		Filename: path.Base(item.OriginalPath), Width: item.Width, Height: item.Height, DurationMS: item.DurationMS,
+		FileCreatedAt: item.FileCreatedAt, LocalDateTime: item.LocalDateTime, Latitude: item.Latitude, Longitude: item.Longitude}
+	if item.Media == "image" {
+		preview := "/media/" + item.ID + "/preview"
+		asset.PreviewPath = &preview
+	}
+	return asset
 }
 
 // consumerJSON commits no success headers until the entire narrow payload fits.

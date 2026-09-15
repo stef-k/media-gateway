@@ -119,12 +119,12 @@ func TestConsumerLifecycle(t *testing.T) {
 				if query.Filter["id"] == nil {
 					items = append(items, candidateFixture("22345678-1234-4234-8234-123456789abc", "/external/photos/website/active.jpg", "IMAGE"))
 				}
-				candidateResponse(w, items, "next-page")
+				candidateResponse(w, items, nil)
 			}))
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayFor(t, provider, &logs, time.Second)
-			for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
 					t.Fatal(err)
@@ -143,7 +143,7 @@ func TestConsumerLifecycle(t *testing.T) {
 				}
 				if want == 200 {
 					var page consumerPage
-					if json.Unmarshal(body, &page) != nil || len(page.Assets) != 1 || page.NextCursor != "next-page" {
+					if json.Unmarshal(body, &page) != nil || len(page.Assets) != 1 || page.NextCursor != nil {
 						t.Fatal("active sibling or cursor lost")
 					}
 				}
