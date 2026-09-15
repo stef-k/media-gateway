@@ -87,6 +87,13 @@ func TestDeliveryBounds(t *testing.T) {
 // TestTruncatedPreview proves a post-header failure cannot become a complete image
 // or a successful shorter body; the declared public length remains authoritative.
 func TestTruncatedPreview(t *testing.T) {
+	for _, variant := range []string{"preview", "original"} {
+		t.Run(variant, func(t *testing.T) { testTruncatedPreview(t, variant) })
+	}
+}
+
+// testTruncatedPreview checks the shared image contract for each fixed route.
+func testTruncatedPreview(t *testing.T, variant string) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/assets/"+testAsset {
 			metadata(w, "/external/photos/website/photo.jpg", "IMAGE")
@@ -99,7 +106,7 @@ func TestTruncatedPreview(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, err := gateway.Client().Get(gateway.URL + testRoute)
+	resp, err := gateway.Client().Get(gateway.URL + ("/media/" + testAsset + "/" + variant))
 	if err != nil {
 		return
 	} // An abort before headers reach the socket is also closed.
@@ -113,6 +120,13 @@ func TestTruncatedPreview(t *testing.T) {
 // TestMetadataAndTransportFailures proves HTTP orchestration sanitizes failures
 // before authorization and never requests a preview after failed metadata retrieval.
 func TestMetadataAndTransportFailures(t *testing.T) {
+	for _, variant := range []string{"preview", "original"} {
+		t.Run(variant, func(t *testing.T) { testMetadataAndTransportFailures(t, variant) })
+	}
+}
+
+// testMetadataAndTransportFailures checks the shared image contract for each fixed route.
+func testMetadataAndTransportFailures(t *testing.T, variant string) {
 	for _, status := range []int{401, 403, 500, 200, 0} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +142,7 @@ func TestMetadataAndTransportFailures(t *testing.T) {
 				provider.Close()
 			}
 			gateway := gatewayFor(t, provider, io.Discard, time.Second)
-			resp, err := gateway.Client().Get(gateway.URL + testRoute)
+			resp, err := gateway.Client().Get(gateway.URL + ("/media/" + testAsset + "/" + variant))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -143,6 +157,13 @@ func TestMetadataAndTransportFailures(t *testing.T) {
 
 // TestHeadClosesPreview verifies HEAD does not drain or wait for a complete image.
 func TestHeadClosesPreview(t *testing.T) {
+	for _, variant := range []string{"preview", "original"} {
+		t.Run(variant, func(t *testing.T) { testHeadClosesPreview(t, variant) })
+	}
+}
+
+// testHeadClosesPreview checks the shared image contract for each fixed route.
+func testHeadClosesPreview(t *testing.T, variant string) {
 	stopped := make(chan struct{})
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/assets/"+testAsset {
@@ -158,7 +179,7 @@ func TestHeadClosesPreview(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, 3*time.Second)
-	resp, err := gateway.Client().Head(gateway.URL + testRoute)
+	resp, err := gateway.Client().Head(gateway.URL + ("/media/" + testAsset + "/" + variant))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,6 @@ type Config struct {
 	Server   Server   `toml:"server"`
 	Provider Provider `toml:"provider"`
 	Policy   Policy   `toml:"policy"`
-	Delivery Delivery `toml:"delivery"`
 }
 
 // Server restricts the future service to a numeric loopback listener.
@@ -50,12 +49,6 @@ type Rule struct {
 	Media   []string `toml:"media"`
 	// Roots is nil for an omitted/global scope; a non-nil empty slice is invalid.
 	Roots []string `toml:"roots"`
-}
-
-// Delivery reserves only the preview representation; originals remain forbidden.
-type Delivery struct {
-	AllowOriginal bool   `toml:"allow_original"`
-	ImageVariant  string `toml:"image_variant"`
 }
 
 // Load reads an explicit TOML file, validates it, and loads the credential.

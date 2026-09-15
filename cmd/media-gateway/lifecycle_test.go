@@ -15,6 +15,13 @@ import (
 // TestLifecycleRevocation exercises a running gateway as provider availability changes.
 // Missing/private controls prove the exact same denial headers, body and quiet logs.
 func TestLifecycleRevocation(t *testing.T) {
+	for _, variant := range []string{"preview", "original"} {
+		t.Run(variant, func(t *testing.T) { testLifecycleRevocation(t, variant) })
+	}
+}
+
+// testLifecycleRevocation applies the same active/revoked cases to both image routes.
+func testLifecycleRevocation(t *testing.T, variant string) {
 	cases := []struct {
 		name             string
 		trashed, offline any
@@ -57,7 +64,7 @@ func TestLifecycleRevocation(t *testing.T) {
 	for i, tc := range cases {
 		state.Store(int32(i))
 		for _, method := range []string{"GET", "HEAD"} {
-			req, _ := http.NewRequest(method, gateway.URL+testRoute, nil)
+			req, _ := http.NewRequest(method, gateway.URL+"/media/"+testAsset+"/"+variant, nil)
 			resp, err := gateway.Client().Do(req)
 			if err != nil {
 				t.Fatal(err)

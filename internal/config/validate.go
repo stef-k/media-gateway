@@ -34,9 +34,7 @@ func (c Config) validate() error {
 	if err := c.Policy.validate(); err != nil {
 		return err
 	}
-	if c.Delivery.AllowOriginal || c.Delivery.ImageVariant != "preview" {
-		return errors.New("config: delivery requires allow_original=false and image_variant=preview")
-	}
+
 	return nil
 }
 

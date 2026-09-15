@@ -18,13 +18,15 @@ func decode(data []byte, c *Config) error {
 			APIKeyFile     string `toml:"api_key_file"`
 			RequestTimeout string `toml:"request_timeout"`
 		} `toml:"provider"`
-		Policy   Policy   `toml:"policy"`
-		Delivery Delivery `toml:"delivery"`
+		Policy Policy `toml:"policy"`
 	}
 	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&raw); err != nil {
 		// Inspect only the obsolete key after a failed strict decode; never return raw input.
 		var legacy map[string]any
 		if toml.Unmarshal(data, &legacy) == nil {
+			if _, present := legacy["delivery"]; present {
+				return errors.New("config: obsolete delivery section; preview/original are fixed product representations; remove the delivery section")
+			}
 			if consumer, ok := legacy["consumer"].(map[string]any); ok {
 				if _, present := consumer["expose_coordinates"]; present {
 					return errors.New("config: obsolete consumer.expose_coordinates; remove it, trusted catalogue coordinates are now always included")
@@ -49,7 +51,7 @@ func decode(data []byte, c *Config) error {
 	*c = Config{
 		Server:   raw.Server,
 		Provider: Provider{Type: raw.Provider.Type, BaseURL: raw.Provider.BaseURL, APIKeyFile: raw.Provider.APIKeyFile, RequestTimeout: timeout},
-		Policy:   raw.Policy, Delivery: raw.Delivery,
+		Policy:   raw.Policy,
 	}
 	return nil
 }

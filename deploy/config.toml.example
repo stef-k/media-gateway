@@ -35,7 +35,7 @@ type = "immich"
 base_url = "http://127.0.0.1:2283"
 
 # File containing the dedicated Immich API key, restricted to asset.read +
-# asset.view on a non-administrator account with access to the intended assets.
+# asset.view + asset.download on a non-administrator account with access to the intended assets.
 # The host service account must be able to read it; other local users should not.
 # Do not put the key itself in this TOML file. Use an absolute normalized path to a regular file with owner-read
 # permission and no group/other permissions. Install as media-gateway:media-gateway
@@ -45,8 +45,9 @@ base_url = "http://127.0.0.1:2283"
 api_key_file = "/etc/media-gateway/immich.key"
 
 # Maximum duration for a normal provider HTTP request. Provider failure must remain
-# bounded through body streaming; the complete public request also has a fixed
-# 60-second context and 65-second write bound. There is no storage fallback.
+# bounded through metadata/search/preview bodies. For originals it bounds headers,
+# not the body; the complete public request retains its 60-second context and
+# 65-second write bound. There is no storage fallback.
 # Required positive Go duration; zero, negative, missing and overflowing values fail.
 request_timeout = "15s"
 
@@ -89,17 +90,11 @@ segment = "public-images"
 media = ["image"]
 
 # Example video-only publication directory. The rule may classify video as eligible,
-# but V0 must still deny video until range/streaming delivery is implemented.
+# but delivery must still deny video until range/streaming delivery is implemented.
 [[policy.rules]]
 segment = "public-videos"
 media = ["video"]
 
-[delivery]
-# Originals are not exposed by default. Keep this false for V0; changing original
-# delivery policy later requires explicit design around metadata/privacy and size.
-allow_original = false
-
-# First accepted public representation, qualified on real Immich 3.2.0 in #18.
-# Repeat privacy/quality checks after provider/settings changes. Future fixed safe
-# profiles belong to #30; originals and arbitrary resizing remain unavailable.
-image_variant = "preview"
+# Image preview/original are fixed routes, not configuration options. Remove any
+# obsolete [delivery] section. Originals preserve source EXIF/GPS; use the separately
+# qualified preview for web/privacy needs. Video delivery awaits #41.
