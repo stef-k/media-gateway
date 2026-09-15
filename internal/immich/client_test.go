@@ -39,7 +39,7 @@ func clientFor(t *testing.T, handler http.HandlerFunc, timeout time.Duration) *C
 
 // TestAssetPolicyInputs proves inspection does not grant permission, including crafted paths.
 func TestAssetPolicyInputs(t *testing.T) {
-	policy := config.Policy{AllowedRoots: []string{"/external/photos"}, Rules: []config.Rule{{Segment: "website", Media: []string{"image"}}}}
+	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image"}}}}
 	for _, tc := range []struct {
 		path, kind, media string
 		eligible          bool
@@ -62,7 +62,7 @@ func TestAssetPolicyInputs(t *testing.T) {
 			if err != nil || got != (Metadata{assetID, tc.path, tc.media}) {
 				t.Fatalf("unexpected mapping: %v", err)
 			}
-			if publication.Eligible(policy, got.OriginalPath, got.Media) != tc.eligible {
+			if _, eligible := publication.Evaluate(policy, got.OriginalPath, got.Media); eligible != tc.eligible {
 				t.Fatal("unexpected policy result")
 			}
 		})

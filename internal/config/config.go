@@ -35,14 +35,22 @@ type Provider struct {
 
 // Policy declares provider-visible roots and exact literal directory rules.
 type Policy struct {
-	AllowedRoots []string `toml:"allowed_roots"`
-	Rules        []Rule   `toml:"rules"`
+	Roots []Root `toml:"roots"`
+	Rules []Rule `toml:"rules"`
+}
+
+// Root names a private provider metadata namespace; Path is never opened locally.
+type Root struct {
+	Name string `toml:"name"`
+	Path string `toml:"path"`
 }
 
 // Rule classifies media eligibility; it does not enable delivery implementations.
 type Rule struct {
 	Segment string   `toml:"segment"`
 	Media   []string `toml:"media"`
+	// Roots is nil for an omitted/global scope; a non-nil empty slice is invalid.
+	Roots []string `toml:"roots"`
 }
 
 // Delivery reserves only the preview representation; originals remain forbidden.

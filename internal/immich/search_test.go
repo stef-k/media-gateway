@@ -71,8 +71,8 @@ func TestSearchCandidatesContract(t *testing.T) {
 			if got.NextCursor != wantCursor {
 				t.Fatal("cursor changed")
 			}
-			policy := config.Policy{AllowedRoots: []string{"/published"}, Rules: []config.Rule{{Segment: "public", Media: []string{"image"}}}}
-			if publication.Eligible(policy, item.OriginalPath, item.Media) {
+			policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/published"}}, Rules: []config.Rule{{Segment: "public", Media: []string{"image"}}}}
+			if _, eligible := publication.Evaluate(policy, item.OriginalPath, item.Media); eligible {
 				t.Fatal("private candidate authorized")
 			}
 		})

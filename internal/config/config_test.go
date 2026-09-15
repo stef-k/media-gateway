@@ -51,7 +51,7 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	text = strings.ReplaceAll(text, `public_base_url = "https://media.example.com"`, "")
 	text = strings.ReplaceAll(text, `127.0.0.1:2290`, `[::1]:2290`)
 	c, _, err = loadText(t, text)
-	if err != nil || c.Policy.AllowedRoots[0] != "/external/photos" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
+	if err != nil || c.Policy.Roots[0].Path != "/external/photos" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
 		t.Fatalf("installation-specific configuration failed: %v", err)
 	}
 }
@@ -63,14 +63,6 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 		{"unknown table", "[server]", "[unexpected]\nvalue = 1\n[server]"},
 		{"wrong type", `request_timeout = "15s"`, `request_timeout = 15`},
 		{"syntax", "[server]", "[server"},
-		{"relative root", `["/media/archive"]`, `["relative"]`},
-		{"empty root", `["/media/archive"]`, `[""]`},
-		{"no roots", `["/media/archive"]`, `[]`},
-		{"duplicate root", `["/media/archive"]`, `["/media/archive", "/media/archive"]`},
-		{"unclean root", `["/media/archive"]`, `["/media/../archive"]`},
-		{"double slash root", `["/media/archive"]`, `["/media//archive"]`},
-		{"root backslash", `["/media/archive"]`, `['/media\archive']`},
-		{"root control", `["/media/archive"]`, `["/media/\narchive"]`},
 		{"provider type", `type = "immich"`, `type = "other"`},
 		{"url scheme", `http://127.0.0.1:2283`, `file:///private`},
 		{"url bracket hostname", `http://127.0.0.1:2283`, `http://[host]`},

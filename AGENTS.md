@@ -85,13 +85,10 @@ Tests must include known-private assets, outside-root/near-match paths, lifecycl
 
 ## Publication policy
 
-### Accepted V0
+### Current Policy v2 (#38)
 
-Current main uses flat `policy.allowed_roots` plus globally applied exact `policy.rules`.
-
-### #37 target
-
-#38 replaces that model with named roots and global/root-scoped rules:
+Use named roots and global/root-scoped rules. Obsolete `policy.allowed_roots` is
+rejected with a sanitized migration error; no compatibility alias exists:
 
 ```toml
 [[policy.roots]]
@@ -116,7 +113,12 @@ Root paths are canonical provider-reported POSIX metadata paths, never local mou
 
 A matching segment may occur at any descendant depth but must be exact component equality (`post` never matches `post process`).
 
-Policy evaluation should produce enough matched logical-root context for the trusted catalogue without exposing provider absolute paths.
+The canonical `publication.Evaluate` returns eligibility plus logical root name and
+root-relative parent collection path; denial returns zero context. Current HTTP
+callers discard context; #39 owns consumer JSON expansion. Root names are unique
+1..64 lowercase ASCII letters/digits/hyphens with alphanumeric ends. `/` and
+overlapping root paths are invalid. Explicit empty scopes and duplicate
+segment/unordered-scope pairs fail startup; distinct scopes combine with OR semantics.
 
 ## Public and private surfaces
 

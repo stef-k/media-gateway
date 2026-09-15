@@ -62,9 +62,9 @@ The deterministic lane is:
  -> close #37
 ```
 
-### Target publication configuration
+### Current publication configuration (Policy v2)
 
-The final policy model uses named provider roots and rules that may be global or caged to selected roots:
+Policy v2 uses named provider roots and rules that may be global or caged to selected roots:
 
 ```toml
 [[policy.roots]]
@@ -124,7 +124,7 @@ GET/HEAD /media/<asset-id>/original
 
 Video is a first-class media type and must support practical byte ranges (`Range`, `206`, `Content-Range`, `Accept-Ranges`) for original delivery. Long media streams must not inherit the V0 preview-only short absolute write lifetime; authorization/open phases remain bounded while established streams use bounded inactivity/disconnect semantics.
 
-## Running the current accepted V0 service
+## Running the current service
 
 Build with Go 1.27.1 and run with an explicit configuration path:
 
@@ -134,7 +134,7 @@ bin/media-gateway -version
 bin/media-gateway -config /etc/media-gateway/config.toml
 ```
 
-The current implementation/configuration remains the accepted V0 preview slice until #38–#42 land. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Do not treat target schema/routes as implemented before their owning issues are accepted.
+The current service uses Policy v2 with the accepted image-preview delivery and image-only consumer contract. Catalogue/original/video expansion remains in #39–#42. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Target catalogue and original/video routes remain unimplemented.
 
 See [Release and smoke procedure](docs/release.md) for bundles and rollback, [Deployment](docs/deployment.md) for operational bounds, and [Toolchain](docs/toolchain.md) for local/CI validation.
 
@@ -162,7 +162,7 @@ See [Logging](docs/logging.md) for privacy and severity rules.
 - [Roadmap](docs/roadmap.md)
 - [GitHub Pages documentation](docs/index.md)
 
-Deployment templates live under [`deploy/`](deploy/). They describe the current accepted implementation and must be reviewed for the target host. #38/#42 own migration of the shipped config example to the final product schema.
+Deployment templates live under [`deploy/`](deploy/). They describe the current accepted implementation and must be reviewed for the target host. The shipped example uses Policy v2; stale `policy.allowed_roots` configuration fails startup with a migration diagnostic.
 
 ## Project boundaries
 

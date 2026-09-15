@@ -22,7 +22,7 @@ type Preview struct {
 }
 
 // Preview retrieves only the fixed generated preview. Callers must first authorize
-// current Asset metadata with publication.Eligible; this method grants no permission.
+// current Asset metadata with publication.Evaluate; this method grants no permission.
 func (c *Client) Preview(ctx context.Context, id string) (Preview, error) {
 	if !uuidV4.MatchString(id) {
 		return Preview{}, ErrInvalidID

@@ -70,7 +70,7 @@ sudo -u media-gateway test -r /etc/media-gateway/immich.key
 
 The account must have only its dedicated group, with no NAS, Immich, nginx or
 administrative group memberships. Do not grant it file capabilities, ACL access to
-archives, or storage mounts. Provider-visible `policy.allowed_roots` are metadata,
+archives, or storage mounts. Provider-visible `policy.roots` are metadata,
 not local directories to create or mount.
 
 `ProtectSystem=strict` prevents writes, **not reads** of otherwise accessible
@@ -375,7 +375,7 @@ No lifecycle values are returned or logged.
 Only `AssetResponseDto.id`, `originalPath` and `type` are retained. All are required
 and non-empty. `IMAGE` maps to `image`, `VIDEO` to `video`; documented `AUDIO` and
 `OTHER`, and any unknown type, fail closed. Paths pass unchanged to
-`publication.Eligible`; neither ID knowledge nor successful metadata retrieval
+`publication.Evaluate`; neither ID knowledge nor successful metadata retrieval
 grants publication. Video mapping does not enable video delivery.
 
 `internal/immich.New` consumes validated `config.Load` provider values and its
@@ -495,7 +495,7 @@ error classes plus `ErrSearchQuery` for invalid pagination/query inputs. It emit
 no logs and exposes no provider values through errors.
 
 **Candidate discovery is not authorization.** Private, outside-root and crafted
-paths can be returned unchanged for later `publication.Eligible` evaluation.
+paths can be returned unchanged for later `publication.Evaluate` evaluation.
 Every item must pass that evaluation before a consumer receives it; provider
 search filters and consumer references never grant permission. Accepted #21 wires
 the private consumer API; #26 adds default-off eligible coordinates. Source review

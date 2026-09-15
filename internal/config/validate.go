@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -84,39 +83,4 @@ func validOrigin(value string) bool {
 // unsafeText rejects ambiguous surrounding whitespace and control characters.
 func unsafeText(value string) bool {
 	return strings.TrimSpace(value) != value || strings.ContainsFunc(value, unicode.IsControl)
-}
-
-// validate keeps policy vocabulary closed without implementing path authorization.
-func (p Policy) validate() error {
-	if len(p.AllowedRoots) == 0 {
-		return errors.New("config: policy.allowed_roots must not be empty")
-	}
-	roots := make(map[string]bool)
-	for _, root := range p.AllowedRoots {
-		if !path.IsAbs(root) || path.Clean(root) != root || strings.Contains(root, "\\") || unsafeText(root) || roots[root] {
-			return errors.New("config: policy.allowed_roots requires unique absolute normalized paths")
-		}
-		roots[root] = true
-	}
-	if len(p.Rules) == 0 {
-		return errors.New("config: policy.rules must not be empty")
-	}
-	segments := make(map[string]bool)
-	for _, rule := range p.Rules {
-		if rule.Segment == "" || rule.Segment == "." || rule.Segment == ".." || strings.ContainsAny(rule.Segment, `/\*?[]{}()|^$+`) || unsafeText(rule.Segment) || segments[rule.Segment] {
-			return errors.New("config: policy.rules segment must be a unique literal directory component without pattern syntax")
-		}
-		segments[rule.Segment] = true
-		if len(rule.Media) == 0 {
-			return errors.New("config: policy.rules media must not be empty")
-		}
-		media := make(map[string]bool)
-		for _, kind := range rule.Media {
-			if (kind != "image" && kind != "video") || media[kind] {
-				return errors.New("config: policy.rules media requires unique image or video values")
-			}
-			media[kind] = true
-		}
-	}
-	return nil
 }

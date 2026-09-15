@@ -1,6 +1,6 @@
 # Configuration foundation
 
-> **Current vs target:** this file documents the accepted V0 configuration implemented on `main` at the start of #37. The product-complete replacement for publication roots/rules is defined in [product completion](product-completion.md) and issue #38. Do not use the target TOML against current V0 binaries until #38 is accepted.
+> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery remains image-preview only and trusted browsing remains image-only; #39–#42 own further product completion.
 
 `internal/config.Load(filename)` reads an explicitly supplied TOML file and returns validated typed configuration, a separate credential string, and an error. It does not start a listener, contact Immich, evaluate asset authorization or deliver media. Any failure returns zero configuration and an empty credential. No environment, working-directory or home-directory configuration discovery occurs.
 
@@ -25,22 +25,9 @@ Follow [deployment](deployment.md#service-account-and-installation). The accepte
 
 TOML and the key are loaded once before binding. **Changes require service restart**. There is no hot reload or `ExecReload`; #37 does not change that requirement.
 
-## Current V0 policy/delivery schema
+## Current delivery and consumer configuration
 
-Current `main` uses:
-
-```toml
-[policy]
-allowed_roots = ["/media/archive"]
-
-[[policy.rules]]
-segment = "public"
-media = ["image", "video"]
-```
-
-`policy.allowed_roots` requires unique absolute normalized POSIX provider paths. `policy.rules` are global across every allowed root and use exact literal directory-component matching. Media values are `image` and/or `video`.
-
-Current V0 also requires:
+The current service requires:
 
 ```toml
 [delivery]
@@ -53,11 +40,11 @@ expose_coordinates = false
 
 The accepted public handler therefore delivers image preview only, and consumer coordinates are currently opt-in. These are known product-slice limitations rather than the final #37 contract.
 
-## Target policy v2 (#38)
+## Current Policy v2 (#38)
 
-The final product replaces flat `allowed_roots` with named provider roots and allows rules to be global or caged to selected roots.
+Policy v2 replaces flat `allowed_roots` with named provider roots and allows rules to be global or scoped to selected roots.
 
-Target shape:
+Configuration shape:
 
 ```toml
 [policy]
@@ -94,9 +81,15 @@ roots = ["images"]
 
 `path` is the absolute normalized POSIX path **reported by the provider in asset metadata**. It is not a Windows UNC path such as `\\NAS\Multimedia\Images`, not a host NAS mount and never a local path opened by Media Gateway.
 
-`name` is stable logical configuration identity. Consumers may receive this logical name; they must never receive the root's absolute provider path.
+`name` is a unique stable logical identifier: 1..64 ASCII lowercase letters,
+digits and hyphens, with alphanumeric first/last characters. Comparison is exact.
+Uppercase, whitespace, Unicode, underscores and leading/trailing hyphens fail.
 
-#38 must reject duplicate/unsafe names, duplicate paths and overlapping roots so one provider asset cannot belong ambiguously to multiple configured roots.
+Paths must already be canonical; validation never repairs them. `/`, relative
+paths, dot components, repeated/trailing separators, backslashes, control characters,
+invalid UTF-8 and surrounding whitespace fail. Duplicate paths and ancestor/descendant
+overlap fail in either declaration order. `/Images` and `/Images-old` do not overlap.
+The evaluator defensively denies zero or multiple root matches.
 
 ### Rule scoping
 
@@ -108,9 +101,34 @@ Rules remain OR-ed exact conventions.
 - unknown/duplicated root references -> invalid;
 - segment matching remains exact component equality at any descendant depth;
 - `post` never matches `post process`;
-- media remains provider-normalized `image`/`video`.
+- media is a non-empty list of unique exact `image`/`video` values.
 
-The policy layer should return enough matched logical-root context for #39 catalogue projection without making absolute provider paths consumer data.
+One segment plus one scope may occur only once, even with different media lists.
+Scope root order has no meaning. A global rule and a scoped rule are distinct,
+even when the latter lists all current roots. Different scoped sets (including
+partially overlapping sets) are valid and OR together. There are no deny rules
+or precedence rules. Combine media in a single rule for an identical segment/scope.
+
+`publication.Evaluate` returns eligibility and `Match{RootName, CollectionPath}`.
+For root `/media/archive/Images` and asset
+`/media/archive/Images/2019/Romania/post/DSC1.JPG`, the context is `images` and
+`2019/Romania/post`. Only directory components strictly beneath the root and above
+the basename can match, at any depth. Malformed metadata denies without repair.
+Denial returns zero context. Current consumer JSON exposes neither field; #39
+owns catalogue projection.
+
+### Breaking migration from V0
+
+Replace `policy.allowed_roots` with named `[[policy.roots]]` entries and choose
+unique logical names. Existing global rules can remain global; add `roots` only
+when a convention should apply under selected roots. Nested roots and `/` must be
+replaced with meaningful non-overlapping namespaces.
+
+There is no runtime alias or automatic translation. An obsolete
+`policy.allowed_roots` field fails startup with a sanitized Policy v2 migration
+error that identifies the field without echoing private values. All other unknown
+fields remain strictly rejected. Failure returns no partial configuration or
+credential. Review the new configuration and restart; there is no hot reload.
 
 ## Target delivery/consumer configuration cleanup
 

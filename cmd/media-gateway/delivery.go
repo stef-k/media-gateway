@@ -37,7 +37,7 @@ func deliveryHandler(client *immich.Client, policy config.Policy, logger *slog.L
 			deliveryError(w, r, logger, err)
 			return
 		}
-		if asset.Media != "image" || !publication.Eligible(policy, asset.OriginalPath, asset.Media) {
+		if _, eligible := publication.Evaluate(policy, asset.OriginalPath, asset.Media); asset.Media != "image" || !eligible {
 			publicError(w, r, http.StatusNotFound)
 			return
 		}

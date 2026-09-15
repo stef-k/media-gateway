@@ -13,7 +13,7 @@ import (
 
 // examplePolicy mirrors the validated policy vocabulary without loading credentials.
 func examplePolicy() config.Policy {
-	return config.Policy{AllowedRoots: []string{"/photos"}, Rules: []config.Rule{
+	return config.Policy{Roots: []config.Root{{Name: "photos", Path: "/photos"}}, Rules: []config.Rule{
 		{Segment: "public", Media: []string{"image", "video"}},
 		{Segment: "public-images", Media: []string{"image"}},
 		{Segment: "public-videos", Media: []string{"video"}},
@@ -55,8 +55,8 @@ func TestEligible(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Eligible(examplePolicy(), tt.path, tt.media); got != tt.want {
-				t.Fatalf("Eligible(%q, %q) = %v, want %v", tt.path, tt.media, got, tt.want)
+			if _, got := Evaluate(examplePolicy(), tt.path, tt.media); got != tt.want {
+				t.Fatalf("Evaluate(%q, %q) = %v, want %v", tt.path, tt.media, got, tt.want)
 			}
 		})
 	}
@@ -73,14 +73,14 @@ func TestMalformedPaths(t *testing.T) {
 		"/photos/public/a\u0085.jpg", "/photos/public/a\xff.jpg",
 	} {
 		t.Run(value, func(t *testing.T) {
-			if Eligible(examplePolicy(), value, "image") {
+			if _, ok := Evaluate(examplePolicy(), value, "image"); ok {
 				t.Fatalf("malformed path allowed: %q", value)
 			}
 		})
 	}
 }
 
-// TestConfiguredRoots proves shared-rule union semantics independent of root order.
+// TestConfiguredRoots proves root boundaries and ambiguity denial in either order.
 func TestConfiguredRoots(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -93,19 +93,23 @@ func TestConfiguredRoots(t *testing.T) {
 		{"segment inside root", []string{"/photos/public"}, "public", "/photos/public/a", false},
 		{"segment above root", []string{"/public/photos"}, "public", "/public/photos/a", false},
 		{"segment below named root", []string{"/photos/public"}, "public", "/photos/public/public/a", true},
-		{"nested union", []string{"/photos/public", "/photos"}, "public", "/photos/public/a", true},
+		{"ambiguous nested roots", []string{"/photos/public", "/photos"}, "public", "/photos/public/a", false},
 		{"nested private", []string{"/photos/trip", "/photos"}, "public", "/photos/trip/private/a", false},
-		{"slash root", []string{"/"}, "public", "/public/a", true},
+		{"slash root", []string{"/"}, "public", "/public/a", false},
 		{"slash basename", []string{"/"}, "public", "/public", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := config.Policy{AllowedRoots: tt.roots, Rules: []config.Rule{{Segment: tt.segment, Media: []string{"image"}}}}
-			if got := Eligible(p, tt.path, "image"); got != tt.want {
+			roots := make([]config.Root, len(tt.roots))
+			for i, path := range tt.roots {
+				roots[i] = config.Root{Name: "photos", Path: path}
+			}
+			p := config.Policy{Roots: roots, Rules: []config.Rule{{Segment: tt.segment, Media: []string{"image"}}}}
+			if _, got := Evaluate(p, tt.path, "image"); got != tt.want {
 				t.Fatalf("got %v, want %v", got, tt.want)
 			}
-			slices.Reverse(p.AllowedRoots)
-			if got := Eligible(p, tt.path, "image"); got != tt.want {
+			slices.Reverse(p.Roots)
+			if _, got := Evaluate(p, tt.path, "image"); got != tt.want {
 				t.Fatalf("reversed roots: got %v, want %v", got, tt.want)
 			}
 		})
@@ -116,16 +120,16 @@ func TestConfiguredRoots(t *testing.T) {
 func TestInputUnchanged(t *testing.T) {
 	p, before := examplePolicy(), examplePolicy()
 	value, media := "/photos/private/../public/a.jpg", "image"
-	if Eligible(p, value, media) {
+	if _, ok := Evaluate(p, value, media); ok {
 		t.Fatal("ambiguous path allowed")
 	}
-	if !Eligible(p, "/photos/public/a.jpg", media) {
+	if _, ok := Evaluate(p, "/photos/public/a.jpg", media); !ok {
 		t.Fatal("eligible path denied")
 	}
 	if !reflect.DeepEqual(p, before) || value != "/photos/private/../public/a.jpg" || media != "image" {
 		t.Fatal("evaluation mutated caller input")
 	}
-	if Eligible(config.Policy{}, "/photos/public/a.jpg", "image") {
+	if _, ok := Evaluate(config.Policy{}, "/photos/public/a.jpg", "image"); ok {
 		t.Fatal("empty policy allowed")
 	}
 }
@@ -135,12 +139,15 @@ func FuzzEligible(f *testing.F) {
 	for _, seed := range []string{"/photos/public/a", "/photos/private/a", "/photos/../public/a", "/photos/public/", "/photos//public/a", "/photos/public/a\x00"} {
 		f.Add(seed, "image")
 	}
+	f.Add("/photos/post/a", "image")
+	f.Add("/art/post/a", "image")
+	f.Add("/art/public/a", "video")
 	f.Add("/photos/public/a", "video")
 	f.Add("/photos/public/a", "unknown")
 	f.Fuzz(func(t *testing.T, value, media string) {
 		parts := strings.Split(value, "/")
 		valid := utf8.ValidString(value) && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\\") && !strings.ContainsFunc(value, unicode.IsControl)
-		valid = valid && len(parts) >= 4 && parts[0] == "" && parts[1] == "photos"
+		valid = valid && len(parts) >= 4 && parts[0] == "" && (parts[1] == "photos" || parts[1] == "art")
 		for _, component := range parts[1:] {
 			if component == "" || component == "." || component == ".." {
 				valid = false
@@ -149,11 +156,22 @@ func FuzzEligible(f *testing.F) {
 		want := false
 		if valid {
 			for _, dir := range parts[2 : len(parts)-1] {
-				want = want || (dir == "public" && (media == "image" || media == "video")) || (dir == "public-images" && media == "image") || (dir == "public-videos" && media == "video")
+				want = want || (dir == "post" && parts[1] == "photos" && media == "image") || (dir == "public" && (media == "image" || media == "video")) || (dir == "public-images" && media == "image") || (dir == "public-videos" && media == "video")
 			}
 		}
-		if got := Eligible(examplePolicy(), value, media); got != want {
-			t.Fatalf("Eligible(%q, %q) = %v, want %v", value, media, got, want)
+		p := examplePolicy()
+		p.Roots = append(p.Roots, config.Root{Name: "art", Path: "/art"})
+		p.Rules = append(p.Rules, config.Rule{Segment: "post", Media: []string{"image"}, Roots: []string{"photos"}})
+		match, got := Evaluate(p, value, media)
+		if got != want {
+			t.Fatalf("Evaluate(%q, %q) = %v, want %v", value, media, got, want)
+		}
+		expected := Match{}
+		if want {
+			expected = Match{RootName: parts[1], CollectionPath: strings.Join(parts[2:len(parts)-1], "/")}
+		}
+		if match != expected {
+			t.Fatalf("context = %#v, want %#v", match, expected)
 		}
 	})
 }
