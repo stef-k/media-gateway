@@ -76,7 +76,7 @@ public-videos   -> videos eligible
 
 Anything else is private.
 
-`internal/publication.Eligible(policy, originalPath, media)` implements the pure
+`internal/publication.Evaluate(policy, originalPath, media)` implements the pure
 policy decision using the `config.Policy` returned by `config.Load`. It accepts
 only canonical absolute POSIX asset paths and normalized `image` or `video` media
 values. It does not contact a provider, access storage, log metadata or deliver
@@ -84,9 +84,13 @@ bytes. Callers must not mutate the policy concurrently with evaluation.
 
 Only exact directory components strictly beneath an allowed root and above the
 asset basename can grant eligibility. Any matching rule that permits the media
-type is sufficient. Roots share global rules, so nested roots form a union:
-any qualifying root can grant eligibility, independently of root order. Root `/`
-uses the same semantics, with the leading separator as the containment boundary.
+type within its global or named-root scope is sufficient (OR semantics, no
+precedence). Named roots must have unique names and canonical non-overlapping
+paths; `/` is invalid. The evaluator defensively denies zero or multiple matching
+roots. It returns only `Match{RootName, CollectionPath}` plus eligibility, with
+zero context on denial. The collection is the root-relative parent path without
+leading/trailing slashes. Current HTTP callers discard this internal context;
+#39 owns any future catalogue projection.
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
@@ -176,7 +180,7 @@ pages and `GET /internal/assets/<asset-id>` for exact eligible-image details.
 The listener and consumer peer must be loopback; forwarded headers are not
 identity. nginx must never publish `/internal/`, including through a local proxy.
 
-Every candidate passes `publication.Eligible` before projection into the six safe
+Every candidate passes `publication.Evaluate` before projection into the six safe
 consumer fields and, only with `consumer.expose_coordinates=true`, a validated
 nullable latitude/longitude pair. The default false preserves the six-field shape.
 Consumer references do not authorize subsequent public delivery.
@@ -193,9 +197,9 @@ unchanged original path and normalized media type. It does not grant publication
 itself. The adapter requires explicit boolean `isTrashed=false` and
 `isOffline=false` before returning metadata. Either true returns `ErrMissing`;
 missing, null or wrongly typed lifecycle fields return `ErrMetadata`. Lifecycle
-state stays within the provider boundary; `publication.Eligible` remains pure.
+state stays within the provider boundary; `publication.Evaluate` remains pure.
 The public handler calls `Asset`, requires image media, evaluates
-`publication.Eligible`, and only then calls `Preview`. Startup constructs one client
+`publication.Evaluate`, and only then calls `Preview`. Startup constructs one client
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
 
@@ -208,7 +212,7 @@ latitude/longitude from EXIF, discarding unrelated fields.
 The same metadata decoder checks lifecycle availability. Unavailable candidates
 are omitted while preserving the provider cursor; malformed lifecycle fields
 reject the page. They are **not publication-authorized**, including when a provider filter matched.
-The consumer handler evaluates every candidate with `publication.Eligible` and
+The consumer handler evaluates every candidate with `publication.Evaluate` and
 omits provider paths before any consumer receives a result. The adapter itself
 grants no publication authority and public delivery remains independent. See the
 [reviewed search contract](deployment.md#reviewed-candidate-search-contract).
@@ -285,8 +289,9 @@ type = "immich"
 base_url = "http://127.0.0.1:2283"
 api_key_file = "/etc/media-gateway/immich.key"
 
-[policy]
-allowed_roots = ["/media/archive"]
+[[policy.roots]]
+name = "images"
+path = "/media/archive"
 
 [[policy.rules]]
 segment = "public"

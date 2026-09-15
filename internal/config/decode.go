@@ -23,6 +23,15 @@ func decode(data []byte, c *Config) error {
 		Consumer Consumer `toml:"consumer"`
 	}
 	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&raw); err != nil {
+		var missing *toml.StrictMissingError
+		if errors.As(err, &missing) {
+			for _, field := range missing.Errors {
+				key := field.Key()
+				if len(key) == 2 && key[0] == "policy" && key[1] == "allowed_roots" {
+					return errors.New("config: obsolete policy.allowed_roots; migrate to Policy v2 named policy.roots")
+				}
+			}
+		}
 		return errors.New("config: invalid TOML schema or syntax (check field names and types)")
 	}
 	timeout, err := time.ParseDuration(raw.Provider.RequestTimeout)

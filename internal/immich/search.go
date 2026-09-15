@@ -35,7 +35,7 @@ type CandidateQuery struct {
 }
 
 // Candidate is untrusted for publication. OriginalPath is unchanged private
-// metadata for publication.Eligible, never a consumer field or a local file to open.
+// metadata for publication.Evaluate, never a consumer field or a local file to open.
 // Nil dimensions mean unknown; time strings retain provider precision/local meaning.
 // FileCreatedAt is capture time; LocalDateTime is timezone-agnostic local wall time.
 type Candidate struct {

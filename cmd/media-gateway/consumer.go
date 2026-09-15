@@ -77,7 +77,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, settings confi
 		}
 		result := consumerPage{Assets: make([]consumerAsset, 0, len(page.Items)), NextCursor: page.NextCursor}
 		for _, item := range page.Items {
-			if item.Media != "image" || !publication.Eligible(policy, item.OriginalPath, item.Media) {
+			if _, eligible := publication.Evaluate(policy, item.OriginalPath, item.Media); item.Media != "image" || !eligible {
 				continue
 			}
 			asset := consumerAsset{

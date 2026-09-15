@@ -62,7 +62,7 @@ metadata, not local filesystem locations.
 
 ### Exact publication segments
 
-V0 policy matches exact directory segments only:
+Policy v2 matches exact directory segments only:
 
 ```text
 public
@@ -82,9 +82,13 @@ my-public
 A segment grants eligibility only when it is a directory strictly below a
 matched allowed root and above the asset basename. Matching text inside or above
 the root, or only in the filename, grants nothing. If multiple publication
-segments occur, at least one exact rule must permit the media type. All allowed
-roots share these rules: any qualifying root may grant eligibility, including
-when roots are nested; their order does not affect the result.
+segments occur, at least one applicable global or root-scoped rule must permit
+the media type. Rules combine with OR semantics, with no deny or precedence rules.
+Named roots require unique logical names and canonical, unique, non-overlapping
+paths other than `/`. Zero or multiple matching roots deny even for invalid
+in-memory policy. Successful evaluation returns only logical root identity and
+the root-relative parent collection; denial returns zero context. Current consumer
+JSON does not expose this context.
 
 ### Media type is independent of path
 
@@ -104,7 +108,7 @@ provider metadata and requires explicit boolean `isTrashed=false` and
 `isOffline=false` before evaluating path/media policy. Either true denies even
 when Immich retains an old eligible path. Missing, null or non-boolean lifecycle
 fields are invalid metadata and fail closed. Lifecycle availability belongs to
-the provider adapter, not the pure `publication.Eligible` evaluator.
+the provider adapter, not the pure `publication.Evaluate` evaluator.
 
 This is required for revocation by reorganizing the archive. Cached derivatives must not bypass this property unless a later explicit cache design provides equivalent bounded revocation behavior.
 
@@ -225,9 +229,10 @@ Safe operational fields can include request ID, status, bounded latency, variant
 
 Startup validation should reject:
 
-- empty or malformed allowed roots;
+- empty or malformed named roots, duplicate names/paths, `/`, or overlapping paths;
 - relative roots;
-- duplicate/conflicting rules where semantics are ambiguous;
+- duplicate segment/unordered-scope pairs, empty scopes or unknown/duplicate root references;
+- obsolete `policy.allowed_roots` (sanitized migration error, no compatibility alias);
 - unsupported configured media types;
 - non-loopback listen addresses unless an explicit future option intentionally supports them;
 - provider URLs with unsupported schemes;

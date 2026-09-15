@@ -32,7 +32,7 @@ func gatewayWithCoordinates(t *testing.T, provider *httptest.Server, logs io.Wri
 	t.Helper()
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: timeout}, testKey)
 	t.Cleanup(client.CloseIdleConnections)
-	policy := config.Policy{AllowedRoots: []string{"/external/photos"}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
+	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
 	server.Config = newServer(gatewayHandler(client, policy, config.Consumer{ExposeCoordinates: enabled}, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()

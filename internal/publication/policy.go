@@ -3,7 +3,6 @@
 package publication
 
 import (
-	"path"
 	"slices"
 	"strings"
 	"unicode"
@@ -12,45 +11,63 @@ import (
 	"github.com/stef-k/media-gateway/internal/config"
 )
 
-// Eligible reports whether any allowed root and exact directory rule permit media.
-// Policy must originate from config.Load and remain unchanged during evaluation.
-// originalPath is provider-reported metadata, never a URL or a local filesystem path
-// to open. media must already be normalized to "image" or "video" by the provider
-// adapter. Eligibility alone does not establish support for delivering that type.
-// Inputs are read only; malformed metadata is denied without cleaning or decoding.
-func Eligible(policy config.Policy, originalPath, media string) bool {
+// Match contains only logical identity and the root-relative parent collection.
+// It never contains the configured absolute root or absolute provider asset path.
+type Match struct {
+	RootName       string
+	CollectionPath string
+}
+
+// Evaluate authorizes canonical provider metadata using immutable config.Load policy.
+// It performs no I/O, cleaning, decoding or mutation. Only exact image/video media
+// is accepted; eligibility does not establish delivery support. Denial returns zero
+// context, including when an invalid in-memory policy resolves multiple roots.
+func Evaluate(policy config.Policy, originalPath, media string) (Match, bool) {
 	if (media != "image" && media != "video") || !canonicalAssetPath(originalPath) {
-		return false
+		return Match{}, false
 	}
-	for _, root := range policy.AllowedRoots {
-		// Retain the separator so a root cannot match a neighboring name's prefix.
-		prefix := root
-		if root != "/" {
-			prefix += "/"
+	var root config.Root
+	relative := ""
+	for _, candidate := range policy.Roots {
+		if !canonicalAssetPath(candidate.Path) {
+			return Match{}, false
 		}
-		relative, inside := strings.CutPrefix(originalPath, prefix)
-		if !inside {
-			continue
-		}
-		// Exclude the asset basename and every component at or above this root.
-		slash := strings.LastIndexByte(relative, '/')
-		if slash < 0 {
-			continue
-		}
-		for _, dir := range strings.Split(relative[:slash], "/") {
-			for _, rule := range policy.Rules {
-				if dir == rule.Segment && slices.Contains(rule.Media, media) {
-					return true
-				}
+		if value, inside := strings.CutPrefix(originalPath, candidate.Path+"/"); inside {
+			if relative != "" {
+				return Match{}, false
 			}
+			root, relative = candidate, value
 		}
 	}
-	return false
+	// Exclude the basename and every directory at or above the unique root.
+	slash := strings.LastIndexByte(relative, '/')
+	if slash < 0 {
+		return Match{}, false
+	}
+	collection := relative[:slash]
+	dirs := strings.Split(collection, "/")
+	for _, rule := range policy.Rules {
+		if rule.Roots != nil && !slices.Contains(rule.Roots, root.Name) {
+			continue
+		}
+		if slices.Contains(rule.Media, media) && slices.Contains(dirs, rule.Segment) {
+			return Match{RootName: root.Name, CollectionPath: collection}, true
+		}
+	}
+	return Match{}, false
 }
 
 // canonicalAssetPath validates POSIX metadata without repairing ambiguous input.
 func canonicalAssetPath(value string) bool {
-	return value != "/" && path.IsAbs(value) && path.Clean(value) == value &&
-		utf8.ValidString(value) && strings.TrimSpace(value) == value &&
-		!strings.Contains(value, "\\") && !strings.ContainsFunc(value, unicode.IsControl)
+	if !strings.HasPrefix(value, "/") || !utf8.ValidString(value) ||
+		strings.TrimSpace(value) != value || strings.Contains(value, "\\") ||
+		strings.ContainsFunc(value, unicode.IsControl) {
+		return false
+	}
+	for _, component := range strings.Split(value[1:], "/") {
+		if component == "" || component == "." || component == ".." {
+			return false
+		}
+	}
+	return true
 }
