@@ -1,160 +1,190 @@
-# Private eligible image consumer API
+# Trusted consumer API
 
-This API is for trusted same-host consumers through the configured numeric
-loopback listener. It requires a loopback TCP peer and does not trust forwarded
-address headers. **nginx must never publish `/internal/`**: publish only `/media/`
-and deny every other route. A localhost reverse proxy still appears local to the
-application; the peer check does not replace the nginx route boundary. No CORS
-permission or consumer authentication system is added.
+> **Current vs target:** the accepted V0 implementation exposes loopback-only image `GET /internal/assets` browse/detail with provider-candidate pagination and optional coordinates. Issue #39 replaces that slice with the product-complete **paginated eligible image/video catalogue** described below. Until #39 is accepted, callers must use the current V0 behavior implemented by `main`.
 
-The only consumer routes are:
+The consumer API is for trusted same-host applications through the configured numeric loopback listener. It requires a loopback TCP peer and never trusts forwarded address headers. **nginx must never publish `/internal/`**. A localhost reverse proxy still appears local to the application, so the peer check does not replace the nginx route boundary.
+
+Consumer selectors/references never grant publication permission. Every item returned by browse/detail must be currently lifecycle-active and pass authoritative publication policy. Every later public preview/original request independently reauthorizes again.
+
+## Accepted V0 surface
+
+Current `main` provides:
 
 ```text
-GET /internal/assets
+GET /internal/assets?limit=<1..100>&cursor=<opaque>
 GET /internal/assets/<asset-id>
 ```
 
-Other methods, route variants, escaped paths and invalid IDs receive the fixed
-`404` denial. IDs must match the accepted Immich UUIDv4 form. No path cleaning or
-redirect occurs. Request bodies are not consumed or forwarded.
+It searches images only, defaults to 25 provider candidates, and may return fewer/zero eligible assets plus a continuation cursor because policy filtering occurs after one provider candidate page. Its safe object contains ID, dimensions, capture/local time, preview path, and optionally validated latitude/longitude when the current config flag is enabled.
 
-## Browse
+The current contract never returns provider/NAS paths, URLs, credentials, filenames, checksums, owner/library IDs or raw EXIF.
 
-`GET /internal/assets?limit=25&cursor=<opaque-value>` accepts only these optional
-query keys, each at most once and with a nonempty value:
+Those V0 properties remain useful security evidence, but image-only/provider-page semantics are not the final product contract.
 
-- `limit`: decimal integer 1–100; default 25. It bounds **provider candidates**,
-  not the number of eligible images promised in a page.
-- `cursor`: the previous response's `next_cursor`, URL-encoded as a query value.
-  Treat it as opaque continuation state, never as metadata or authorization.
-  It is limited to 1024 UTF-8 bytes and cannot contain Unicode control characters.
+## Target product catalogue (#39)
 
-The complete encoded query is limited to 4096 bytes. Unknown keys, malformed
-encoding, invalid limits/cursors and duplicate values fail with `404` before
-provider work. There are no caller-selected provider filters, paths, URLs, media
-types or ordering controls. A cursor is passed only in the fixed search body's
-cursor field; it cannot change gateway-owned filters or the configured origin.
+Consumers need two bounded paginated levels:
 
-One request performs one `SearchCandidates` call, with the adapter's fixed
-image-only, newest-capture-first ordering. The adapter requires explicit active
-lifecycle booleans and omits trashed/offline records before returning candidates,
-while preserving the provider cursor. Malformed lifecycle fields reject the
-whole page with the existing sanitized 502. Every returned candidate must then
-pass `publication.Eligible` using its unchanged provider path and media type.
-Private, outside-root, near-miss and malformed paths are silently omitted.
+```text
+GET /internal/collections?limit=<n>&cursor=<opaque>
+GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /internal/assets/<asset-id>
+```
 
-Default/disabled response (`consumer.expose_coordinates=false`):
+The exact final encoding/query rules are owned by #39, but the requirements here are authoritative.
+
+### Collection browsing
+
+A collection represents an eligible publication directory as safe logical metadata:
 
 ```json
 {
-  "assets": [
-    {
-      "id": "12345678-1234-4234-8234-123456789abc",
-      "width": 640,
-      "height": null,
-      "file_created_at": "2026-09-13T10:00:00Z",
-      "local_date_time": "2026-09-13T12:00:00Z",
-      "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview"
-    }
-  ],
-  "next_cursor": "opaque-continuation"
+  "root": "images",
+  "collection_path": "2022/Egypt Oct 2022/public-images"
 }
 ```
 
-`assets` is always an array, including `[]`. `next_cursor` is omitted when
-pagination ends. An empty eligible page can still have a continuation cursor:
-consumers must not infer completion from the item count. Pagination is not a
-snapshot of a changing provider library.
+`root` is the logical name from #38 configuration. `collection_path` is relative to that root. Neither field exposes the provider's absolute root, NAS path or provider URL.
 
-## Detail and safe fields
+Only collections containing at least one currently eligible asset may appear. If complete image/video counts cannot be obtained correctly and boundedly, omit them rather than publish misleading partial counts.
 
-`GET /internal/assets/<asset-id>` accepts no query parameters. It performs a fresh
-exact candidate lookup, requires image media and current publication eligibility,
-and returns one object with the same fields as browse (six when coordinates are
-disabled). Missing, private,
-malformed-path, unsupported, trashed/offline and invalid-ID results share `404` with body
-`not found\n`; knowledge of a private ID grants no information.
+Collections themselves are paginated because a large archive may contain many public directories.
 
-Dimensions are nonnegative integers or `null` when unknown. Times retain the
-adapter's validated RFC3339 strings, including fractional precision;
-`file_created_at` is capture time and `local_date_time` preserves provider local
-wall-clock meaning without timezone conversion. The relative `preview_path` is
-constructed only from a validated ID and the fixed public preview route.
+### Asset browsing within a collection
 
-No provider/NAS paths, URLs, credentials, filenames, checksums, owner/library IDs,
-raw EXIF or raw provider JSON are serialized. Richer search filters remain outside
-this contract.
+Opening one collection returns a bounded page of currently eligible assets. A directory with thousands of files must never overwhelm the consumer.
 
-## Opt-in coordinates
+Pagination requirements:
 
-`[consumer].expose_coordinates` defaults to false when the section or flag is
-omitted. Disabled mode requests `withExif=false`, ignores EXIF even if supplied
-by the provider, and omits latitude/longitude keys entirely. The six-field JSON
-contract above is unchanged.
+- small default page size around the existing 25;
+- hard maximum 100;
+- opaque bounded cursor;
+- no unbounded directory dump;
+- consumer-visible continuation represents the eligible browse operation;
+- provider search/paging/filtering remains internal;
+- any internal fill/scan across provider pages has a hard candidate/page/time budget;
+- if the work budget is reached before provider exhaustion, return safe continuation instead of scanning indefinitely.
 
-When true, the same fixed structured search requests `withExif=true`. Only
-`exifInfo.latitude` and `exifInfo.longitude` are decoded from EXIF. Every active
-candidate is validated, then authorized with current `publication.Eligible`,
-then projected into the consumer allowlist. Private/outside-root/near-match and
-malformed paths expose nothing. Lifecycle-unavailable candidates are omitted
-before coordinate decoding, preserving pagination and exact-detail 404 behavior.
+Provider-side path/root filtering may optimize discovery after current Immich API verification, but it never authorizes an asset.
 
-Enabled detail example (browse wraps the same object in `assets`):
+### Safe asset object
+
+Target image example:
 
 ```json
 {
   "id": "12345678-1234-4234-8234-123456789abc",
-  "width": 640,
-  "height": null,
-  "file_created_at": "2026-09-13T10:00:00Z",
-  "local_date_time": "2026-09-13T12:00:00Z",
+  "media_type": "image",
+  "root": "images",
+  "collection_path": "2019/Romania Dec 2019/post",
+  "filename": "DSC01234.JPG",
+  "width": 6000,
+  "height": 4000,
+  "duration": null,
+  "file_created_at": "2019-12-08T10:21:00Z",
+  "local_date_time": "2019-12-08T12:21:00Z",
+  "latitude": 44.4268,
+  "longitude": 26.1025,
   "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
-  "latitude": 25.0584,
-  "longitude": 121.635
+  "original_path": "/media/12345678-1234-4234-8234-123456789abc/original"
 }
 ```
 
-Both coordinate fields absent (including absent/null `exifInfo`), or both fields
-present and `null`, produce `"latitude":null,"longitude":null` on an otherwise
-eligible object. Exactly one field present, even if `null`, or a numeric value
-paired with null is invalid. A nonnumeric/non-finite value, latitude outside
-`[-90,90]`, or longitude outside `[-180,180]` rejects the provider page through the fixed sanitized 502
-path, with no partial results. Zero and the inclusive boundary values are valid.
-No altitude, accuracy, camera details, people/albums or other EXIF is exposed.
-Coordinates and unrelated EXIF never enter application logs.
+Target video example:
 
-This deliberately supports concrete consumer features: `stef-k/divi-child` stores
-attachment coordinates for public gallery Maps links and Wikipedia geosearch;
-`stef-k/Wayfarer` uses coordinates for maps, Maps links and Wikipedia geosearch
-after its own trip/timeline publication and privacy checks. Those applications
-own their public UX and integration code; this gateway has no coupling to either.
-There is no per-asset override, geocoding, database or coordinate cache.
+```json
+{
+  "id": "12345678-1234-4234-8234-123456789abc",
+  "media_type": "video",
+  "root": "images",
+  "collection_path": "2022/Egypt Oct 2022/public-videos",
+  "filename": "DJI_0042.MP4",
+  "width": 3840,
+  "height": 2160,
+  "duration": 23.8,
+  "file_created_at": "2022-10-10T08:00:00Z",
+  "local_date_time": "2022-10-10T10:00:00Z",
+  "latitude": null,
+  "longitude": null,
+  "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
+  "original_path": "/media/12345678-1234-4234-8234-123456789abc/original"
+}
+```
 
-Public `/media/<id>/preview` GET/HEAD routes, headers and bytes are unchanged.
-GPS is deliberately available only on the trusted eligible-consumer metadata
-plane; preview bytes remain metadata-minimal and no public metadata route exists.
+Exact field encodings/nullability must be fixed by #39 tests/provider verification, but the allowlist must not grow into raw provider metadata.
 
-## Bounds, failures and authorization lifetime
+Never serialize:
 
-Responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
-Successful responses are `application/json`, with a maximum encoded size of
-64 KiB and at most 100 assets. Oversized output fails before success headers.
-The existing adapter bounds provider JSON to 1 MiB and rejects malformed provider
-responses. Exceptional provider/validation failures produce fixed `502` text
-`media unavailable\n`, with no provider details. This includes HTTP 404 from
-the provider search endpoint; a genuinely missing exact candidate is a successful
-empty search page and remains a consumer 404. Routine denials and successful
-requests remain quiet; exceptional provider failures use the existing sanitized
-logging classes. Canceled requests do not generate warnings.
+- absolute original/provider/NAS path;
+- provider URL or API key;
+- provider library/owner identifiers;
+- people/albums;
+- raw EXIF/provider JSON;
+- arbitrary provider fields.
 
-The existing provider timeout bounds each search through body reading; a
-60-second request context also caps consumer work. Client disconnects cancel it.
-Existing finite HTTP header/read/write bounds apply. There are no automatic page
-scans, retries or caches.
+## Coordinates
 
-Results establish eligibility only at browse/detail time. Consumer references
-never grant publication: `/media/<id>/preview` independently fetches current
-metadata, requires current lifecycle availability and reauthorizes on every GET/HEAD.
+Product completion treats coordinates as normal trusted catalogue metadata rather than an optional consumer feature.
 
-Issue #21 supplies software evidence only. Real-Immich preview privacy/quality
-qualification in #18/#4 and host/nginx qualification in #5 remain independent.
+Continue the accepted safety semantics:
+
+- decode only latitude and longitude from the provider metadata needed for that pair;
+- both unknown -> nullable pair;
+- both valid numbers -> expose after eligibility;
+- one missing/null while the other is numeric, nonnumeric/non-finite values, latitude outside `[-90,90]` or longitude outside `[-180,180]` -> provider metadata failure;
+- zero and inclusive range boundaries are valid;
+- no altitude, accuracy, camera/EXIF details or geocoding;
+- never log coordinates.
+
+#39 owns removal/migration of the current `[consumer].expose_coordinates` config flag. Do not remove it ahead of the code migration.
+
+## Selectors are never authorization
+
+A request such as:
+
+```text
+root=images&collection=2019/Romania Dec 2019/raws
+```
+
+must not expose that private directory merely because the consumer named it.
+
+For every candidate, Media Gateway must resolve current provider metadata/lifecycle and require the #38 policy result. Root/collection/cursor/asset ID are selectors only.
+
+Exact detail lookup must independently reauthorize. A previously returned/stored asset reference may later become a 404 after the file is moved out of a publication convention or becomes lifecycle-unavailable.
+
+## Preview and original references
+
+The target catalogue advertises stable gateway routes, never provider URLs:
+
+```text
+/media/<id>/preview
+/media/<id>/original
+```
+
+Preview is used for picker/grid/poster UX. Original is the authorized provider-original media route owned by #40/#41. A catalogue reference never guarantees future access; delivery reauthorizes current state.
+
+## Bounds and failures
+
+Keep the accepted principles:
+
+- `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` on trusted JSON;
+- bounded query/cursor/output/provider JSON sizes;
+- fixed sanitized errors;
+- no provider error bodies or private values in output/logs;
+- client disconnect cancels work;
+- no unbounded automatic provider paging;
+- no database/cache merely to support browse pagination.
+
+#39 will set exact collection-page/asset-page response-size and internal scan budgets from evidence.
+
+## Consumer responsibilities
+
+Consumers own:
+
+- folder/tree/picker UI;
+- selected asset persistence;
+- gallery/order/caption state;
+- downstream resizing/derivative generation if desired;
+- publication of coordinates through their own UX/privacy decisions.
+
+Media Gateway owns current eligibility, safe browse metadata and stable policy-checked media references. It does not become a CMS or gallery database.
