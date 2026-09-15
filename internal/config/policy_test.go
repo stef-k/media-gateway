@@ -65,9 +65,9 @@ func TestNamedRoots(t *testing.T) {
 // TestRuleScopes proves nil/empty decoder semantics and unordered scope identity.
 func TestRuleScopes(t *testing.T) {
 	base, _ := fixture(t)
-	start, end := strings.Index(base, "[[policy.rules]]"), len(base)
+	start := strings.Index(base, "[[policy.rules]]")
 	base = base[:start] + "[[policy.roots]]\nname='art'\npath='/art'\n" + base[start:]
-	start, end = strings.Index(base, "[[policy.rules]]"), len(base)
+	start = strings.Index(base, "[[policy.rules]]")
 	rule := "[[policy.rules]]\nsegment='post'\nmedia=['image']\n"
 	cases := []struct {
 		name, rules string
@@ -88,7 +88,7 @@ func TestRuleScopes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, key, err := loadText(t, base[:start]+tc.rules+base[end:])
+			c, key, err := loadText(t, base[:start]+tc.rules)
 			if (err == nil) != tc.valid {
 				t.Fatalf("valid=%v, error=%v", tc.valid, err)
 			}

@@ -3,7 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/stef-k/media-gateway/internal/config"
+	"github.com/stef-k/media-gateway/internal/immich"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,5 +58,27 @@ func TestOriginalFailures(t *testing.T) {
 				t.Fatal("provider diagnostics leaked")
 			}
 		})
+	}
+}
+
+// TestImageRuleDenial proves a matching video-only convention cannot authorize an image.
+func TestImageRuleDenial(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/assets/"+testAsset {
+			t.Error("denied image fetched bytes")
+		}
+		metadata(w, "/external/photos/website/source.jpg", "IMAGE")
+	}))
+	defer provider.Close()
+	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: time.Second}, testKey)
+	defer client.CloseIdleConnections()
+	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"video"}}}}
+	handler := deliveryHandler(client, policy, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	for _, variant := range []string{"preview", "original"} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("GET", "/media/"+testAsset+"/"+variant, nil))
+		if recorder.Code != 404 || recorder.Body.String() != "not found\n" {
+			t.Fatal("image ignored rule media")
+		}
 	}
 }

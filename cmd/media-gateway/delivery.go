@@ -74,7 +74,7 @@ func deliveryHandler(client *immich.Client, policy config.Policy, logger *slog.L
 }
 
 // mediaRoute does no cleaning, redirects or unescaping. Query values are ignored;
-// they cannot select a representation. Asset validates UUIDv4 before provider I/O.
+// they cannot select provider behavior. UUIDv4 is validated before provider I/O.
 func mediaRoute(r *http.Request) (id string, original bool, ok bool) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return "", false, false

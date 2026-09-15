@@ -34,7 +34,6 @@ func (c Config) validate() error {
 	if err := c.Policy.validate(); err != nil {
 		return err
 	}
-
 	return nil
 }
 

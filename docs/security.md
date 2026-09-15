@@ -87,8 +87,8 @@ the media type. Rules combine with OR semantics, with no deny or precedence rule
 Named roots require unique logical names and canonical, unique, non-overlapping
 paths other than `/`. Zero or multiple matching roots deny even for invalid
 in-memory policy. Successful evaluation returns only logical root identity and
-the root-relative parent collection; denial returns zero context. Current consumer
-JSON does not expose this context.
+the root-relative parent collection; denial returns zero context. Trusted consumer
+JSON exposes this logical context only after eligibility succeeds.
 
 ### Media type is independent of path
 
@@ -136,7 +136,7 @@ Provider credentials:
 ### Non-enumerating denial
 
 Private, missing, invalid, unsupported, trashed, offline and policy-denied assets, including a
-missing approved preview, return the same fixed `404` response. Provider auth,
+missing approved preview or original, return the same fixed `404` response. Provider auth,
 transport, malformed metadata and representation validation failures return fixed
 `502` responses. Neither class exposes provider details. HEAD emits no body.
 Every handler response has `Cache-Control: no-store` and
@@ -194,9 +194,9 @@ The implementation should provide:
 
 Do not add elaborate rate-limiting infrastructure before evidence. nginx/Cloudflare may provide coarse public abuse controls while application behavior remains bounded.
 
-## Image privacy
+## Preview privacy and original source semantics
 
-The public representation must be tested for metadata leakage before production use.
+The public preview derivative must be tested for metadata leakage before production use.
 
 Issue #17 supplies synthetic HTTP contract tests. Accepted #18 adds real Immich
 3.2.0 representative phone/camera/RAW preview privacy and human visual-quality
@@ -205,20 +205,22 @@ representation. MIME/length checks alone do not prove privacy or visual quality;
 repeat representative qualification after provider/settings changes. #30 tracks
 post-V0 fixed safe profiles without implicit original exposure.
 
-The adapter accepts only direct 200 JPEG/WebP responses of 1 byte through 16 MiB
+The preview adapter accepts only direct 200 JPEG/WebP responses of 1 byte through 16 MiB
 with explicit length, no content encoding and no partial/transfer-coded response.
 All redirects fail, including same-origin redirects to originals. No original or
 fullsize request is made. A truncated/failed stream is aborted rather than marked
 complete; bytes already streamed cannot be recalled. The gateway does not buffer
 or inspect complete image contents.
 
-If provider previews retain unsafe metadata, public image delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
+If provider previews retain unsafe metadata, public preview delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
 
-Do not assume that because a source file is in `public/` every embedded metadata field is intentionally public.
+Operators must account for original-source metadata when choosing publication conventions: `/original` exposes exact authorized source bytes, including EXIF/GPS, without inspection or rewriting. Use `/preview`, a separately qualified provider-generated web representation, when metadata-minimal delivery is required. RAW/HEIC source preservation does not imply browser display support.
 Trusted catalogue coordinates do not change public preview routes or bytes,
 embed GPS, add public metadata endpoints, or permit coordinates in logs. GPS is
 deliberately exposed as nullable metadata only on the trusted eligible consumer
 plane; public derivatives must remain metadata-minimal.
+
+Original image GET/HEAD independently require current active metadata, exact policy and image type before fixed provider GET with no query. Only direct 200, one parameter-free `image/*` type and one explicit positive length are accepted, without content/transfer encoding or Content-Range. Source streaming has no arbitrary size ceiling but retains 60/65-second gateway bounds. Provider header acquisition remains bounded independently of body reading. Range/conditional headers never reach the provider; original responses are full 200 with no Accept-Ranges. M6 real-provider qualification remains required before #40 acceptance.
 
 ## Logging
 
@@ -276,7 +278,7 @@ Fuzzing path-policy parsing is encouraged because this code is small and securit
 The reference systemd service should run unprivileged with no required Linux capabilities and with standard hardening options where compatible.
 
 The reference nginx configuration proxies only canonical GET/HEAD
-`/media/<UUIDv4>/preview` requests to fixed numeric loopback. An original-target
+`/media/<UUIDv4>/preview` and `/media/<UUIDv4>/original` requests to fixed numeric loopback. An original-target
 allowlist rejects encoded/normalized aliases; `/media` has an explicit denial
 instead of nginx's automatic slash redirect. All private/unknown paths and
 unknown Hosts fail closed without upstream access. This matters because nginx's

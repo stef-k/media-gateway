@@ -135,14 +135,14 @@ Requirements:
 - provider search may optimize discovery but never authorize;
 - logical root/relative collection/filename exposed, absolute provider path hidden;
 - image/video media type, nullable dimensions and `duration_ms`, times, always-present nullable coordinates, and nullable representation capabilities;
-- only image preview paths are currently usable; #40/#41 promote other capabilities;
+- image preview/original paths are implemented; #41 promotes video capabilities;
 - at-least-once collections with in-page deduplication, no counts or folder view;
 - coordinates become normal validated trusted metadata rather than an operator feature flag;
 - no consumer selector/reference grants publication.
 
-### #40 — policy-checked original image delivery
+### #40 — image originals implemented; M6 qualification pending
 
-Add:
+Implemented:
 
 ```text
 GET/HEAD /media/<id>/original
@@ -150,7 +150,7 @@ GET/HEAD /media/<id>/original
 
 For images, original means exact provider original bytes after current lifecycle/policy reauthorization. No silent preview/full fallback, RAW/HEIC/JPEG conversion or metadata stripping. Consumers own resizing/derivatives.
 
-Immediately re-verify the supported Immich original-download API and required dedicated-key permission before implementation.
+Immich v3.2.1 source was reverified: fixed GET original endpoint, no query and `asset.download`. Original-only transport removes the shorter provider body timeout while retaining gateway 60/65-second bounds. Stale `[delivery]` fails migration. No video, Range or long-stream infrastructure is included. Do not accept or merge #40 until the deployed M6 instance qualifies JPEG plus RAW/HEIC where available, identity, HEAD, revocation, ingress and leak/failure checks. #42 still owns final product/public-host reconciliation.
 
 ### #41 — video catalogue, preview, original ranges and long streaming
 

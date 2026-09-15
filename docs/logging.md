@@ -26,7 +26,7 @@ Public-edge logging must not record secrets. In particular:
 
 The V0 public route is intentionally path-based and requires no secret query parameter.
 The reference `media_gateway` access format records the peer, method, classified
-route (`preview` or `denied`), status, bytes and request/upstream timings. It omits
+route (`preview`, `original` or `denied`), status, bytes and request/upstream timings. It omits
 raw paths, asset IDs, query strings, Host, Referer, User-Agent and all credential
 headers. Both the default-deny and media servers use this format and dedicated
 access/error files. Behind an edge the peer may be the local tunnel; do not trust
@@ -81,7 +81,7 @@ use fixed failure descriptions and cause a nonzero exit.
 The public handler keeps successes and routine malformed/private/missing denials
 quiet. Exceptional failures before headers emit one `provider request failed`
 warning with the adapter's fixed sanitized outcome. Failed body copies emit only
-`preview stream failed`; canceled public requests remain quiet. No request IDs,
+`image stream failed`; canceled public requests remain quiet. No request IDs,
 asset IDs, provider paths, header values or body text are logged.
 The consumer handler emits `provider search failed` with fixed provider failure
 outcomes, mapping a search-endpoint HTTP 404 to unexpected provider status. It keeps

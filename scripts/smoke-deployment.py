@@ -75,7 +75,7 @@ def denial_checks(args):
             status, headers, body = request(args, f"/media/{asset}/preview")
             require(status == 404 and body == b"not found\n", "policy denial failed")
             require(headers.get("cache-control") == "no-store", "denial no-store failed")
-    paths = ("/internal/assets", f"/internal/assets/{args.eligible_id}", "/api", "/api/assets", "/", "/photos", "/albums", "/search", "/unknown", "/media", "/media/", f"/media/{args.eligible_id}/original", f"/media//{args.eligible_id}/preview", f"/media/%2e%2e/media/{args.eligible_id}/preview")
+    paths = ("/internal/assets", f"/internal/assets/{args.eligible_id}", "/api", "/api/assets", "/", "/photos", "/albums", "/search", "/unknown", "/media", "/media/", f"/media/{args.eligible_id}/fullsize", f"/media//{args.eligible_id}/preview", f"/media/%2e%2e/media/{args.eligible_id}/preview")
     for path in paths:
         require(request(args, path)[0] == 404, "public route isolation failed")
     for method in ("POST", "PUT", "PATCH", "DELETE", "OPTIONS"):

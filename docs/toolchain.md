@@ -69,8 +69,9 @@ Operators may configure, subject to strict validation:
 - provider credential file path;
 - provider request timeout;
 - one or more provider-visible allowed roots;
-- literal publication directory-segment names and permitted media types;
-- supported delivery options.
+- literal publication directory-segment names and permitted media types.
+
+Image preview/original are fixed product routes; no delivery feature gate remains.
 
 Security semantics are not configurable:
 

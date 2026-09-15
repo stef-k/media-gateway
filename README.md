@@ -107,11 +107,11 @@ GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cu
 GET /internal/assets/<asset-id>
 ```
 
-Safe catalogue items include logical root, root-relative collection path, filename, image/video type, nullable dimensions and `duration_ms` (milliseconds), validated capture/local time and always-present nullable coordinates. Image previews have gateway paths; video previews and all originals are currently null capabilities. Collection pagination is at least once with in-page deduplication; consumers merge by `(root, collection_path)`. Gateway-signed cursors bind the query/policy and expire on process restart. Absolute provider/NAS paths, provider URLs, credentials and raw EXIF remain private.
+Safe catalogue items include logical root, root-relative collection path, filename, image/video type, nullable dimensions and `duration_ms` (milliseconds), validated capture/local time and always-present nullable coordinates. Images have preview and original gateway paths; both video capabilities remain null until #41. Collection pagination is at least once with in-page deduplication; consumers merge by `(root, collection_path)`. Gateway-signed cursors bind the query/policy and expire on process restart. Absolute provider/NAS paths, provider URLs, credentials and raw EXIF remain private.
 
 Consumer selection never makes an asset public. Every delivery request independently reauthorizes current provider state.
 
-### Target public media routes
+### Current image routes and remaining video work
 
 The product requires two fixed representations:
 
@@ -122,7 +122,7 @@ GET/HEAD /media/<asset-id>/original
 
 `preview` is a provider-generated browse/picker/poster representation. `original` means the provider original bytes after current authorization. The gateway does not silently convert RAW/HEIC/video originals or strip metadata from an original file; downstream consumers own resizing/derivatives as needed.
 
-Video is a first-class media type and must support practical byte ranges (`Range`, `206`, `Content-Range`, `Accept-Ranges`) for original delivery. Long media streams must not inherit the V0 preview-only short absolute write lifetime; authorization/open phases remain bounded while established streams use bounded inactivity/disconnect semantics.
+In #41, video delivery must support practical byte ranges (`Range`, `206`, `Content-Range`, `Accept-Ranges`) for original delivery. Long media streams must not inherit the V0 preview-only short absolute write lifetime; authorization/open phases remain bounded while established streams use bounded inactivity/disconnect semantics.
 
 ## Running the current service
 
@@ -134,7 +134,7 @@ bin/media-gateway -version
 bin/media-gateway -config /etc/media-gateway/config.toml
 ```
 
-The current service uses Policy v2, paginated image/video collections and assets, and the accepted image-preview delivery. Original/video delivery and final qualification remain in #40–#42. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Original and video public routes remain unimplemented. There is no `[consumer]` config section; stale `consumer.expose_coordinates` fails with migration guidance. Catalogue search uses structured Immich metadata search, never folder view.
+The current service uses Policy v2, paginated image/video collections and assets, image previews and policy-checked image originals. #40 software implements originals; M6 real-provider qualification is still required before acceptance. Video/range/long-stream delivery and final product qualification remain in #41–#42. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Image originals preserve exact source bytes, including EXIF/GPS. Their provider GET uses no query and requires `asset.download` in addition to `asset.read` and `asset.view`. The 60-second handler/65-second write bounds remain; the shorter provider timeout bounds original headers, not the body. Video public delivery remains unimplemented. Remove obsolete `[delivery]` configuration; it now fails startup with migration guidance. There is no `[consumer]` config section; stale `consumer.expose_coordinates` fails with migration guidance. Catalogue search uses structured Immich metadata search, never folder view.
 
 See [Release and smoke procedure](docs/release.md) for bundles and rollback, [Deployment](docs/deployment.md) for operational bounds, and [Toolchain](docs/toolchain.md) for local/CI validation.
 

@@ -101,12 +101,13 @@ Consumers such as WordPress may store a provider asset reference, alt text, capt
 
 A request for a consumer-referenced asset must still pass the gateway's current provider-root, path-segment and media-type checks. A compromised consumer must not be able to use a private asset ID to bypass policy.
 
-## V0 request flow
+## Current image request flow
 
 The implemented public image request flow is:
 
 ```text
 GET or HEAD /media/<asset-id>/preview
+GET or HEAD /media/<asset-id>/original
           |
           v
 validate route/method/identifier/variant
@@ -127,7 +128,7 @@ contains an exact eligible directory segment?
 provider media type permitted by that rule and implemented by gateway?
           | no -> 404
           v yes
-request an approved provider representation/preview
+request the fixed authorized image preview or original
           |
           v
 validate bounded upstream response
@@ -145,10 +146,11 @@ new ineligible path also denies. There is no second publication database to sync
 
 V0 does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
 
-The implemented stable route is:
+The implemented stable image routes are:
 
 ```text
 /media/<asset-id>/preview
+/media/<asset-id>/original
 ```
 
 without a publication database or reversible token scheme.
@@ -187,13 +189,13 @@ never exceed remaining output slots. No catalogue database or folder-view API is
 
 Assets expose logical root/relative collection, path basename, image/video type,
 nullable dimensions and integer `duration_ms`, validated times and always-present
-nullable coordinates. Only current image previews have a non-null representation
-path; video previews and originals await #40/#41. Consumer references do not
+nullable coordinates. Images have non-null preview and original representation
+paths; both video capabilities await #41. Consumer references do not
 authorize subsequent detail or public delivery. Raw EXIF remains private.
 
 ## Provider boundary
 
-`internal/immich` provides a concrete metadata/preview/candidate client so provider-specific HTTP/JSON
+`internal/immich` provides a concrete metadata/preview/original/candidate client so provider-specific HTTP/JSON
 stays outside the pure publication evaluator. Its `Asset` method returns only ID,
 unchanged original path and normalized media type. It does not grant publication
 itself. The adapter requires explicit boolean `isTrashed=false` and
@@ -201,7 +203,7 @@ itself. The adapter requires explicit boolean `isTrashed=false` and
 missing, null or wrongly typed lifecycle fields return `ErrMetadata`. Lifecycle
 state stays within the provider boundary; `publication.Evaluate` remains pure.
 The public handler calls `Asset`, requires image media, evaluates
-`publication.Evaluate`, and only then calls `Preview`. Startup constructs one client
+`publication.Evaluate`, and only then calls the fixed `Preview` or `Original` operation. Startup constructs one client
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
 
@@ -231,13 +233,13 @@ Exact Immich API endpoints must be verified against the supported Immich version
 
 V0 implements provider-generated preview streaming. Immich owns generation;
 Media Gateway does no transcoding, original/fullsize fallback or image buffering.
-The sole upstream representation is `/api/assets/{id}/thumbnail?size=preview`.
+The fixed preview upstream representation is `/api/assets/{id}/thumbnail?size=preview`.
 All redirects are rejected. Before public headers, require HTTP 200, exactly
 `image/jpeg` or `image/webp`, and a known positive `Content-Length` no larger than
 16 MiB. Encoded, chunked and partial representations are rejected.
 
 GET streams the validated representation. HEAD performs the same fresh metadata,
-policy and preview-header checks, then closes the provider body without draining
+policy and selected representation-header checks, then closes the provider body without draining
 it. Both construct only content type/length, `X-Content-Type-Options: nosniff` and
 `Cache-Control: no-store` (plus standard HTTP framing/date). Provider headers are
 never forwarded. Queries and caller headers do not select upstream behavior.
@@ -254,7 +256,7 @@ sent cannot be replaced with a 502. No error text is appended to image bytes.
 `/preview` is the first accepted representation, not a permanent quality ceiling;
 #30 tracks post-V0 fixed safe representation profiles.
 
-A representation may be qualified for production public delivery only after tests prove:
+A preview derivative may be qualified for production public delivery only after tests prove:
 
 - acceptable visual quality for the intended web use;
 - no sensitive EXIF/GPS metadata is present in the delivered derivative;
@@ -264,7 +266,13 @@ A representation may be qualified for production public delivery only after test
 
 If provider previews do not meet those requirements, an explicit image-transformation slice may add safe re-encoding/metadata stripping. Do not add ImageMagick/libvips/transcoding dependencies preemptively.
 
-Original-file delivery is off by default and is not a V0 requirement.
+### Original images (#40)
+
+`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. M6 qualification remains pending.
+
+Validate direct 200, exactly one valid parameter-free `image/*` Content-Type and one explicit positive int64 Content-Length. Reject transfer/content encoding and Content-Range. There is no preview-size ceiling. GET streams a shared length-enforcing body; HEAD validates the provider GET then closes it. Both construct the same four public headers described above.
+
+Originals use a separate HTTP/1 transport with no environment proxy, redirects, compression or connection reuse. A bounded 16 KiB wire-header check rejects duplicate Content-Length and transfer encoding before Go normalizes them; net/http continues to own HTTP parsing and body framing. Dial/TLS/header acquisition are bounded, while caller cancellation and the retained 60-second handler/65-second write bounds control the body. No new long-stream inactivity framework is introduced; #41 owns that work.
 
 ## Video delivery
 
@@ -304,11 +312,9 @@ media = ["image"]
 segment = "public-videos"
 media = ["video"]
 
-[delivery]
-allow_original = false
 ```
 
-The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout and preview image variant. `public_base_url` is optional.
+The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
 
@@ -328,7 +334,7 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 - Provider/auth/metadata/representation failure before headers: fixed `502` with
   `media unavailable` body; no direct-storage fallback. Mid-stream errors abort.
-- Invalid/missing/private/unsupported/trashed/offline assets or missing previews: fixed `404` with
+- Invalid/missing/private/unsupported/trashed/offline assets or missing representations: fixed `404` with
   `not found` body. HEAD has matching error headers but no body. All use no-store.
 - Provider metadata incomplete/ambiguous: deny.
 - Asset outside allowed root: deny.

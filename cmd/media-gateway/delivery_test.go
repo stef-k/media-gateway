@@ -53,7 +53,7 @@ func testDeliveryRevalidation(t *testing.T, variant string) {
 	var private atomic.Bool
 	var assets, previews atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host == "attacker.invalid" || r.Method != "GET" || r.Header.Get("x-api-key") != testKey || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Caller") != "" || r.Header.Get("Range") != "" || r.Header.Get("If-None-Match") != "" {
+		if r.Host == "attacker.invalid" || r.Method != "GET" || r.Header.Get("x-api-key") != testKey || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("X-Caller") != "" || r.Header.Get("Range") != "" || r.Header.Get("If-None-Match") != "" || r.Header.Get("If-Range") != "" || r.Header.Get("If-Modified-Since") != "" {
 			t.Error("unexpected upstream method or headers")
 		}
 		switch r.URL.RequestURI() {
@@ -85,7 +85,7 @@ func testDeliveryRevalidation(t *testing.T, variant string) {
 		private.Store(i >= 2)
 		req, _ := http.NewRequest(method, gateway.URL+("/media/"+testAsset+"/"+variant)+"?size=original&url=http://attacker.invalid/&key=caller", nil)
 		req.Host = "attacker.invalid"
-		for _, name := range []string{"Authorization", "Cookie", "X-Caller", "x-api-key", "Range", "If-None-Match"} {
+		for _, name := range []string{"Authorization", "Cookie", "X-Caller", "x-api-key", "Range", "If-None-Match", "If-Range", "If-Modified-Since"} {
 			req.Header.Set(name, "caller-secret")
 		}
 		resp, err := gateway.Client().Do(req)
@@ -163,6 +163,8 @@ func testDeliveryDenials(t *testing.T, variant string) {
 		{name: "dot path", route: "/media/../" + testAsset + "/preview"},
 		{name: "double slash", route: "/media//" + testAsset + "/preview"},
 		{name: "URL path", route: "/media/http://attacker.invalid/preview"},
+		{name: "extra segment", route: "/media/" + testAsset + "/preview/extra"},
+		{name: "trailing slash", route: "/media/" + testAsset + "/preview/"},
 		{name: "extra variant", route: "/media/" + testAsset + "/fullsize"},
 		{name: "health", route: "/health"},
 		{name: "search", route: "/internal/search"},

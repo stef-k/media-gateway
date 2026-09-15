@@ -159,8 +159,7 @@ func TestMissingConfiguration(t *testing.T) {
 func TestMissingRules(t *testing.T) {
 	text, _ := fixture(t)
 	start := strings.Index(text, "[[policy.rules]]")
-	end := len(text)
-	_, _, err := loadText(t, text[:start]+text[end:])
+	_, _, err := loadText(t, text[:start])
 	if err == nil {
 		t.Fatal("accepted policy without rules")
 	}

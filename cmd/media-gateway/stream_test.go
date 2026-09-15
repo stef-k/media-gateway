@@ -14,8 +14,12 @@ import (
 // TestDeliveryBounds proves cancellation and provider deadlines stop actual HTTP
 // work both before public headers and during streaming, without whole-image buffering.
 func TestDeliveryBounds(t *testing.T) {
-	for _, phase := range []string{"metadata", "preview headers", "preview body"} {
+	for _, phase := range []string{"metadata", "preview headers", "preview body", "original headers", "original body"} {
 		for _, cancelCaller := range []bool{false, true} {
+			// Original body lifetime is proved separately at the provider seam.
+			if phase == "original body" && !cancelCaller {
+				continue
+			}
 			t.Run(fmt.Sprintf("%s/cancel=%t", phase, cancelCaller), func(t *testing.T) {
 				entered, stopped := make(chan struct{}), make(chan struct{})
 				provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +27,7 @@ func TestDeliveryBounds(t *testing.T) {
 						metadata(w, "/external/photos/website/photo.jpg", "IMAGE")
 						return
 					}
-					if phase == "preview body" {
+					if phase == "preview body" || phase == "original body" {
 						w.Header().Set("Content-Type", "image/jpeg")
 						w.Header().Set("Content-Length", "65536")
 						_, _ = io.WriteString(w, strings.Repeat("p", 8192))
@@ -43,7 +47,11 @@ func TestDeliveryBounds(t *testing.T) {
 				defer cancel()
 				done := make(chan error, 1)
 				go func() {
-					req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+testRoute, nil)
+					route := testRoute
+					if strings.HasPrefix(phase, "original") {
+						route = "/media/" + testAsset + "/original"
+					}
+					req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+route, nil)
 					resp, err := gateway.Client().Do(req)
 					if err == nil {
 						_, err = io.Copy(io.Discard, resp.Body)

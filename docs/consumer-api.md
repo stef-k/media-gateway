@@ -73,7 +73,7 @@ Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one 
   "latitude": 44.4268,
   "longitude": 26.1025,
   "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
-  "original_path": null
+  "original_path": "/media/12345678-1234-4234-8234-123456789abc/original"
 }
 ```
 
@@ -83,10 +83,12 @@ Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one 
 
 | Media | `preview_path` | `original_path` |
 | --- | --- | --- |
-| image | `/media/<id>/preview` | `null` |
+| image | `/media/<id>/preview` | `/media/<id>/original` |
 | video | `null` | `null` |
 
-All capability fields are present. Null indicates a representation not yet implemented, rather than publication denial. #40/#41 will promote applicable values without renaming fields. #39 adds no original route, video preview, ranges or streaming-lifetime changes. Every supported public delivery independently reauthorizes current provider state.
+All capability fields are present. Null indicates a representation not yet implemented, rather than publication denial. #40 implements image originals; #41 will promote video capabilities without renaming fields. Video preview/original, ranges and long-stream lifetime changes remain unimplemented. Every supported public delivery independently reauthorizes current provider state.
+
+`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. M6 original qualification remains pending.
 
 ### Coordinates and privacy
 

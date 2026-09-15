@@ -104,6 +104,11 @@ adapt only names that differ on the host. Work in a controlled maintenance windo
    installed/live version equal the recorded old revision and repeat the smoke.
    Report restoration failures; do not leave a failed rollback described as healthy.
 
+For #40 upgrades, remove the obsolete `[delivery]` section from the staged TOML and
+provision the dedicated key with `asset.read` + `asset.view` + `asset.download`.
+Retain the old TOML/key with the old binary for coherent rollback. Originals expose
+source EXIF/GPS; this behavior requires the qualification below before #40 merge.
+
 ## Portable smoke interface
 
 Python 3 standard library is sufficient for HTTP checks. No credentials, DNS,
@@ -162,3 +167,28 @@ identity/listener, effective upstream and logging ownership/privacy, safe outage
 and restoration where approved, plus upgrade/rollback evidence. Accepted #31/#32
 host results remain valid but do not prove new #33 tooling. Update tracker #1 and
 #5 only after acceptance/merge. Production cutover and #30 remain separate work.
+
+## #40 original image qualification
+
+**Pending:** software/source review and CI do not qualify the new original seam.
+Do not merge #40 until the user/operator qualifies its exact revision on M6.
+The existing portable smoke covers previews and ingress denials; it does not prove
+original identity or privacy semantics. #42 owns final product/bundle/smoke/public-host
+reconciliation after video/Range work, and the real public hostname cutover stays gated.
+
+Record sanitized evidence, without IDs, private paths, credentials or raw metadata:
+
+- deployed Immich version and exact gateway PR/revision;
+- dedicated key permissions: asset.read, asset.view, asset.download;
+- representative eligible JPEG and RAW/ARW or HEIC if available (record absence);
+- provider original GET status/type/length, gateway byte identity by hash and length;
+- preserved source type, GET/HEAD framing and immediate HEAD body closure;
+- same-ID lifecycle/path revocation and known-private original denial with no fallback;
+- nginx original ingress, unknown Host/private/provider/malformed route denial and
+  caller Range/conditional stripping (full 200, no Accept-Ranges);
+- bounded, sanitized provider outage/auth failure and absence of path/credential/
+  source-metadata leaks in response headers and routine logs.
+
+Embedded EXIF/GPS in authorized original **body bytes** is intentional source
+preservation, not a metadata-minimal derivative claim. Use the separately qualified
+preview for web/privacy requirements. Never inspect/rewrite originals in the gateway.

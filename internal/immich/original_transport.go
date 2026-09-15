@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/textproto"
+	"strings"
 	"time"
 )
 
@@ -88,11 +89,16 @@ func (c *originalConn) readHeader() ([]byte, error) {
 	}
 	reader := textproto.NewReader(bufio.NewReader(bytes.NewReader(header)))
 	status, err := reader.ReadLine()
-	if err != nil || len(status) < 12 || status[9] == '1' {
+	parts := strings.SplitN(status, " ", 3)
+	if err != nil || len(parts) != 3 || strings.HasPrefix(parts[1], "1") {
 		return nil, ErrOriginal
 	}
 	fields, err := reader.ReadMIMEHeader()
-	if err != nil || len(fields.Values("Content-Length")) > 1 || len(fields.Values("Transfer-Encoding")) != 0 {
+	if err != nil {
+		return nil, ErrOriginal
+	}
+	// Error responses may be chunked; their status mapping precedes representation validation.
+	if parts[1] == "200" && (len(fields.Values("Content-Length")) > 1 || len(fields.Values("Transfer-Encoding")) != 0) {
 		return nil, ErrOriginal
 	}
 	return header, nil

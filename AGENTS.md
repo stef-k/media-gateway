@@ -162,7 +162,7 @@ Coordinates are target normal trusted metadata, not publication authority. Prese
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
-Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Only image preview capabilities are non-null in #39; originals and video previews await #40/#41. Use structured metadata search, never Immich folder view.
+Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Image preview and original capabilities are non-null after #40; both video capabilities remain null until #41. Use structured metadata search, never Immich folder view.
 
 ## Provider integration
 
@@ -174,7 +174,7 @@ Use bounded connect/header/metadata operations and explicit response validation.
 
 ## Original and video delivery
 
-#40 owns original image delivery. #41 owns video preview/original, byte ranges and long-media streaming.
+#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. M6 qualification is required before #40 merge. #41 owns video preview/original, byte ranges and long-media streaming.
 
 Do not smuggle either into unrelated policy/catalogue changes.
 
@@ -184,7 +184,7 @@ If provider original download cannot satisfy browser video range needs, do not r
 
 ### Streaming lifetime
 
-The V0 preview-oriented short absolute request/write lifetime must not be copied blindly into original/video streaming.
+#40 retains the 60-second handler, 65-second write and 70-second nginx read bounds. The original-only HTTP transport bounds dial/TLS/headers without an absolute client body timeout; metadata/search/preview remain unchanged. The long-media model below is future #41 work.
 
 Authorization, provider connect/header acquisition and metadata work remain hard-bounded. Once an authorized media stream is established, longer transfer lifetime should be bounded by I/O inactivity, client disconnect, provider transport safety and bounded shutdown rather than a short absolute wall-clock deadline. Stalled connections must still be finite.
 
@@ -203,7 +203,7 @@ Follow `docs/logging.md`.
 
 ## Configuration and secrets
 
-Configuration remains human-readable TOML with strict unknown-field rejection. Invalid/ambiguous authorization config fails startup.
+Configuration remains human-readable TOML with strict unknown-field rejection. The obsolete `[delivery]` table fails with sanitized guidance to remove it: image preview/original are fixed representations, with no runtime feature gate. Invalid/ambiguous authorization config fails startup.
 
 Committed operator examples must comment deployment-specific values, trust boundaries and non-obvious hardening choices.
 

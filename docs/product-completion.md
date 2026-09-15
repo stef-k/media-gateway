@@ -189,7 +189,7 @@ original_path                 nullable gateway capability
 
 Do not serialize absolute provider/NAS paths, provider URLs, credentials, library/owner identifiers, people/albums, raw EXIF or raw provider JSON.
 
-During #39, image `preview_path` is `/media/<id>/preview`; video previews and all `original_path` values are null until #40/#41 implement those representations. All capability and coordinate fields are always present. Duration units are milliseconds, not seconds.
+After #40, images advertise `/media/<id>/preview` and `/media/<id>/original`; both video capabilities remain null until #41. All capability and coordinate fields are always present. Duration units are milliseconds, not seconds.
 
 ### Coordinates
 
@@ -221,9 +221,15 @@ HEAD /media/<asset-id>/original
 
 Original means provider original bytes after current policy/lifecycle reauthorization. It must never silently mean preview, a browser-safe derivative or provider playback/transcoding output.
 
-If a deliberately published original is JPEG, HEIC, RAW, MP4 or another provider-supported source format, `/original` returns that format. Downstream consumers may resize, transform, cache or create derivatives according to their own requirements.
+In the completed #37 product, if a deliberately published original is JPEG, HEIC, RAW, MP4 or another provider-supported source format, `/original` returns that format. Downstream consumers may resize, transform, cache or create derivatives according to their own requirements.
 
 Original delivery does not claim metadata sanitization. An original file's EXIF/GPS/etc. are part of those bytes. Operators who require metadata-minimal browser representations should use a qualified derivative such as preview or later #30 profiles.
+
+### Current #40 image slice
+
+Image originals now use fixed provider GET `/api/assets/<UUIDv4>/original` with no query and `asset.download`. Omitting `edited` preserves provider source bytes. GET and HEAD both validate a provider GET; HEAD immediately closes its body. Only direct 200 with one parameter-free `image/*` type and one explicit positive int64 length is accepted, without transfer/content encoding or Content-Range. No image-size ceiling, conversion, buffering or fallback exists.
+
+`[delivery]` is removed; stale configuration fails with targeted migration guidance. #40 retains the 60-second handler/65-second write/70-second nginx bounds while removing the shorter provider client body timeout for originals. Range and conditional headers remain unforwarded; no 206/416/Accept-Ranges or video delivery exists in this slice. M6 real-provider qualification is pending and blocks #40 acceptance/merge.
 
 ## Authorization on every public request
 
@@ -257,7 +263,7 @@ Before #41 implementation, re-verify the supported/deployed Immich version for o
 
 ## Large-media streaming lifetime
 
-The V0 preview server uses a short absolute request/write lifetime appropriate to bounded previews. Product-complete original images and videos need a different model.
+The current #40 image slice retains the V0 short absolute request/write lifetime. #41 owns the following different model for product-complete large originals and videos.
 
 Separate:
 
