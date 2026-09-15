@@ -23,7 +23,8 @@ const (
 // ErrSearchQuery is a fixed, log-safe input validation outcome.
 var ErrSearchQuery = errors.New("immich: invalid candidate query")
 
-// CandidateQuery exposes no provider URL, path, filter tree or ordering controls.
+// CandidateQuery carries only concrete gateway-owned selectors, never a provider
+// URL, raw filter tree or ordering control. Root paths come from validated config.
 // Limit must be 1..MaxCandidates. An optional UUIDv4 ID selects one exact asset;
 // ID and Cursor cannot be combined. Empty Cursor starts a new search.
 type CandidateQuery struct {
@@ -66,7 +67,7 @@ func (c *Client) SearchCandidates(ctx context.Context, query CandidateQuery) (Ca
 	if query.ID != "" && !uuidV4.MatchString(query.ID) {
 		return CandidatePage{}, ErrInvalidID
 	}
-	if query.Limit < 1 || query.Limit > MaxCandidates || !validCandidateCursor(query.Cursor) || (query.ID != "" && query.Cursor != "") {
+	if query.Limit < 1 || query.Limit > MaxCandidates || !validCandidateCursor(query.Cursor) || (query.ID != "" && (query.Cursor != "" || query.Discovery != nil || query.Collection != nil)) || (query.Discovery != nil && query.Collection != nil) {
 		return CandidatePage{}, ErrSearchQuery
 	}
 	// Only gateway-owned keys/operators can appear in the structured search body.
@@ -199,11 +200,9 @@ func decodeCandidate(raw []byte, requested string, discovery bool) (Candidate, e
 			return Candidate{}, ErrMetadata
 		}
 	}
-	{
-		item.Latitude, item.Longitude, err = decodeCoordinates(fields["exifInfo"])
-		if err != nil {
-			return Candidate{}, err
-		}
+	item.Latitude, item.Longitude, err = decodeCoordinates(fields["exifInfo"])
+	if err != nil {
+		return Candidate{}, err
 	}
 	return item, nil
 }

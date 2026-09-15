@@ -1,6 +1,6 @@
 # Configuration foundation
 
-> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery remains image-preview only and trusted browsing remains image-only; #39–#42 own further product completion.
+> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery remains image-preview only and trusted browsing supports paginated image/video collections; #40–#42 own further product completion.
 
 `internal/config.Load(filename)` reads an explicitly supplied TOML file and returns validated typed configuration, a separate credential string, and an error. It does not start a listener, contact Immich, evaluate asset authorization or deliver media. Any failure returns zero configuration and an empty credential. No environment, working-directory or home-directory configuration discovery occurs.
 
@@ -33,12 +33,9 @@ The current service requires:
 [delivery]
 allow_original = false
 image_variant = "preview"
-
-[consumer]
-expose_coordinates = false
 ```
 
-The accepted public handler therefore delivers image preview only, and consumer coordinates are currently opt-in. These are known product-slice limitations rather than the final #37 contract.
+The public handler delivers image preview only. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
 
 ## Current Policy v2 (#38)
 
@@ -114,8 +111,7 @@ For root `/media/archive/Images` and asset
 `/media/archive/Images/2019/Romania/post/DSC1.JPG`, the context is `images` and
 `2019/Romania/post`. Only directory components strictly beneath the root and above
 the basename can match, at any depth. Malformed metadata denies without repair.
-Denial returns zero context. Current consumer JSON exposes neither field; #39
-owns catalogue projection.
+Denial returns zero context. Current consumer JSON exposes both logical fields after successful authorization.
 
 ### Breaking migration from V0
 
@@ -134,9 +130,7 @@ credential. Review the new configuration and restart; there is no hot reload.
 
 The final #37 product requires fixed gateway `preview` and `original` representations. Publication policy decides whether media may be public; the current `[delivery] allow_original=false/image_variant=preview` gate is therefore expected to be removed or replaced by a smaller actual requirement during #40/#42 rather than carried as a permanent contradictory switch.
 
-Likewise, validated latitude/longitude are part of the normal trusted catalogue requirement in #39. The current `[consumer].expose_coordinates` feature flag is expected to disappear from the final schema. Continue to expose only the validated nullable coordinate pair; raw EXIF remains private.
-
-Do not remove either current field before its owning implementation issue migrates code/tests/docs strictly and makes stale configs fail clearly.
+The consumer coordinate migration is implemented in #39. Raw EXIF remains private. Delivery configuration changes remain owned by #40/#42.
 
 ## Provider permissions
 

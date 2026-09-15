@@ -62,7 +62,7 @@ reload. Do not replace the host's complete nginx configuration.
 Run `systemd-analyze verify` on the installed unit, `systemctl daemon-reload`, then
 start/enable only the gateway unit. Startup is the TOML/key validator; there is no
 validation-only command. Check its journal/listener and run the smoke below before
-publishing. The opt-in #26 coordinate capability is private-consumer-only; nginx
+publishing. The always-present nullable #39 coordinate metadata is private-consumer-only; nginx
 must continue denying `/internal/`.
 
 ## Upgrade and rollback

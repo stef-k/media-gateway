@@ -65,9 +65,9 @@ The real public `media.stefk.me`/Cloudflare cutover remains owned by `stef-k/ser
 
 ### #6 (accepted) — private eligible-image consumer API
 
-#20/#21 provide loopback-only bounded browse/detail for eligible images and #26 adds validated nullable coordinates behind the current V0 feature flag.
+#20/#21 provide loopback-only bounded browse/detail for eligible images and #26 adds validated nullable coordinates behind the historical V0 feature flag.
 
-This proved the consumer seam but does not define the final media catalogue. Current limitations intentionally corrected by #37 include image-only search/projection, preview-only stable paths, provider-candidate pagination semantics and optional coordinates.
+This proved the consumer seam but does not define the final media catalogue. Historical limitations corrected by the #37 lane include image-only search/projection, preview-only stable paths, provider-candidate pagination semantics and optional coordinates.
 
 ## Product completion — original convention-driven media gateway
 
@@ -114,11 +114,11 @@ roots = ["images"]
 
 Root paths are provider-visible POSIX metadata paths, never NAS mounts. Root names are stable logical identifiers. Omitted rule roots mean global; explicit root lists cage a convention. Overlapping roots are rejected.
 
-### #39 — paginated generic eligible-media catalogue
+### #39 — implemented paginated generic eligible-media catalogue
 
-Generalize the trusted consumer surface to images and videos organized as safe logical collections.
+The implementation generalizes the trusted consumer surface to images and videos organized as safe logical collections.
 
-Conceptual contract:
+Catalogue contract:
 
 ```text
 GET /internal/collections?limit=<n>&cursor=<opaque>
@@ -130,11 +130,13 @@ Requirements:
 
 - collection and asset browsing always paginated;
 - small default page size, hard maximum 100;
-- bounded opaque continuation;
+- gateway-signed bounded continuation, invalidated on restart;
 - bounded internal provider scanning/filling;
 - provider search may optimize discovery but never authorize;
 - logical root/relative collection/filename exposed, absolute provider path hidden;
-- image/video media type, dimensions, duration, times, nullable coordinates, preview/original gateway paths;
+- image/video media type, nullable dimensions and `duration_ms`, times, always-present nullable coordinates, and nullable representation capabilities;
+- only image preview paths are currently usable; #40/#41 promote other capabilities;
+- at-least-once collections with in-page deduplication, no counts or folder view;
 - coordinates become normal validated trusted metadata rather than an operator feature flag;
 - no consumer selector/reference grants publication.
 

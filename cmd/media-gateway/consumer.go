@@ -55,6 +55,7 @@ type consumerCollection struct {
 	CollectionPath string `json:"collection_path"`
 }
 
+// collectionPage makes terminal continuation explicit and carries no counts.
 type collectionPage struct {
 	Collections []consumerCollection `json:"collections"`
 	NextCursor  *string              `json:"next_cursor"`

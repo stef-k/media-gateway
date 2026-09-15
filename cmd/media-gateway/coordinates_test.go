@@ -47,15 +47,13 @@ func TestConsumerCoordinates(t *testing.T) {
 		{"wrong exif shape", `"exif-marker"`, nil, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, enabled := range []bool{true} {
-				checkCoordinateResponse(t, tc.exif, enabled, tc.invalid, tc.lat, tc.lon)
-			}
+			checkCoordinateResponse(t, tc.exif, tc.invalid, tc.lat, tc.lon)
 		})
 	}
 }
 
 // checkCoordinateResponse asserts the complete fixed search and consumer allowlist.
-func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, lat, lon any) {
+func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon any) {
 	t.Helper()
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var query map[string]any
@@ -70,7 +68,7 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 			filter["id"] = map[string]any{"eq": testAsset}
 			size = 1
 		}
-		want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": size, "withExif": enabled, "withPeople": false, "withStacked": false}
+		want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": size, "withExif": true, "withPeople": false, "withStacked": false}
 		if !reflect.DeepEqual(query, want) {
 			t.Errorf("unexpected request: %v", query)
 		}
@@ -83,7 +81,7 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, enabled)
+	gateway := gatewayFor(t, provider, &logs, time.Second)
 	for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 		logs.Reset()
 		resp, err := gateway.Client().Get(gateway.URL + route)
@@ -93,7 +91,7 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		assertPublicHeaders(t, resp)
-		if enabled && invalid {
+		if invalid {
 			if resp.StatusCode != 502 || string(body) != "media unavailable\n" {
 				t.Fatalf("invalid coordinates: %d %s", resp.StatusCode, body)
 			}
@@ -113,9 +111,7 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 				asset = asset["assets"].([]any)[0].(map[string]any)
 			}
 			want := map[string]any{"id": testAsset, "media_type": "image", "root": "images", "collection_path": "website", "filename": "a.jpg", "duration_ms": nil, "original_path": nil, "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
-			if enabled {
-				want["latitude"], want["longitude"] = lat, lon
-			}
+			want["latitude"], want["longitude"] = lat, lon
 			if !reflect.DeepEqual(asset, want) {
 				t.Fatalf("allowlist mismatch: %v", asset)
 			}
@@ -157,7 +153,7 @@ func TestCoordinatesDeniedCandidates(t *testing.T) {
 			}))
 			defer provider.Close()
 			var logs bytes.Buffer
-			gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, true)
+			gateway := gatewayFor(t, provider, &logs, time.Second)
 			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
@@ -191,7 +187,7 @@ func TestCoordinatesMalformedJSON(t *testing.T) {
 			raw = bytes.Replace(raw, []byte(`"LATITUDE"`), []byte(payload), 1)
 			fmt.Fprintf(w, `{"assets":{"items":[%s],"count":1,"nextCursor":null}}`, raw)
 		}))
-		gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
+		gateway := gatewayFor(t, provider, io.Discard, time.Second)
 		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
 		if err != nil {
 			t.Fatal(err)
@@ -222,7 +218,7 @@ func TestCoordinateMixedPage(t *testing.T) {
 		candidateResponse(w, items, nil)
 	}))
 	defer provider.Close()
-	gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
+	gateway := gatewayFor(t, provider, io.Discard, time.Second)
 	resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
 	if err != nil {
 		t.Fatal(err)

@@ -19,6 +19,7 @@ const maxConsumerCursorBytes = 2 << 10
 // cursorKey is ephemeral process state; creation failure prevents binding a listener.
 type cursorKey [32]byte
 
+// newCursorKey requires a complete signing key before any listener is created.
 func newCursorKey(source io.Reader) (cursorKey, error) {
 	var key cursorKey
 	_, err := io.ReadFull(source, key[:])
@@ -38,7 +39,7 @@ func fingerprint(value any) [32]byte {
 	return sha256.Sum256(body)
 }
 
-// sign authenticates a version-one continuation. Nil is the explicit terminal cursor.
+// sign authenticates a version-one continuation; callers use nil for terminal pages.
 func (key cursorKey) sign(kind byte, query [32]byte, state continuation) *string {
 	body := make([]byte, 38, len(state.Provider)+70)
 	body[0], body[1] = 1, kind

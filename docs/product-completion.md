@@ -150,6 +150,8 @@ images
 
 Media Gateway still remains stateless; this is derived authorization/catalogue data rather than persistent gallery state.
 
+#39 fixes collection pagination as at least once: identities are unique within one response page but may recur on later pages. Consumers merge by `(root, collection_path)`; no cross-page seen-set, counts or folder-view integration is introduced.
+
 ### Paginated asset browsing
 
 A collection may contain thousands of files. Asset browsing must always be bounded and paginated.
@@ -175,17 +177,19 @@ id
 media_type                    image | video
 root                          logical root name
 collection_path               relative to the root
-filename                      basename/display metadata only
+filename                      basename of validated provider path
 width / height                nullable
-duration                      nullable, primarily video
+duration_ms                   nullable nonnegative integer milliseconds
 file_created_at
 local_date_time
 latitude / longitude          validated nullable pair
-preview_path                  /media/<id>/preview
-original_path                 /media/<id>/original
+preview_path                  nullable gateway capability
+original_path                 nullable gateway capability
 ```
 
 Do not serialize absolute provider/NAS paths, provider URLs, credentials, library/owner identifiers, people/albums, raw EXIF or raw provider JSON.
+
+During #39, image `preview_path` is `/media/<id>/preview`; video previews and all `original_path` values are null until #40/#41 implement those representations. All capability and coordinate fields are always present. Duration units are milliseconds, not seconds.
 
 ### Coordinates
 

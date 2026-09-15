@@ -155,21 +155,29 @@ A compromised consumer may attempt to request arbitrary provider asset IDs. The 
 private asset ID -> gateway policy check -> 404
 ```
 
-The [private consumer API](consumer-api.md) returns only currently eligible images
-from bounded candidate search or exact lookup. Every candidate passes the same
-publication evaluator before any fields are serialized. The adapter omits
-trashed/offline candidates before projection and rejects malformed lifecycle
-metadata; an unavailable exact candidate receives the same fixed 404. Only IDs, dimensions,
-capture/local times and relative preview paths leave this boundary by default.
-The explicit `consumer.expose_coordinates=true` opt-in additionally permits only
-a validated nullable latitude/longitude pair for currently eligible images. This
-is deliberate disclosure to trusted consumers, which may apply their own public
-UX/privacy decisions. Partial, nonnumeric, non-finite and out-of-range pairs fail
-closed with sanitized provider errors. Raw EXIF and unrelated metadata remain
-excluded; disabled mode neither requests nor decodes coordinates. The service
-requires a loopback peer, ignores forwarded identity headers and gives no CORS
-permission. nginx must never publish `/internal/`: a local proxy is still a local
-peer, so application peer checks cannot establish public ingress isolation.
+The [private consumer API](consumer-api.md) returns only currently eligible image/video
+assets and policy-derived collection identities. Every candidate passes current
+lifecycle and exact publication evaluation. Collection asset selectors additionally
+require exact logical root and parent-collection equality; descendants, near-prefix,
+case and accent overmatches do not grant access. Detail reauthorizes independently.
+
+Only the fixed safe projection leaves this boundary: logical context, path basename,
+media type, nullable dimensions/duration in milliseconds, validated time strings,
+always-present nullable coordinates and implemented nullable gateway capabilities.
+Provider absolute paths, URLs, owner/library IDs and raw EXIF remain private.
+There is no coordinate opt-in or `[consumer]` configuration table.
+
+Gateway HMAC-SHA256 cursors bind query/policy; invalid signatures, versions, kinds
+and cross-query tokens deny before provider I/O. A random ephemeral startup key
+invalidates tokens on restart. Tokens contain no provider paths or credentials and
+are never logged. Work is bounded to eight provider calls, 30 seconds and 512 KiB
+consumer JSON; provider pages never exceed remaining output slots. Collection
+identities can recur across pages; no persistent seen-set is maintained.
+
+Only fixed structured Immich metadata search is used, never unpaginated folder
+view. Provider search filters optimize candidate selection, not authorization.
+The loopback TCP peer check ignores forwarded headers and grants no CORS access.
+nginx must never expose `/internal/`, including through a local proxy.
 
 ## Request hardening
 
@@ -207,7 +215,7 @@ or inspect complete image contents.
 If provider previews retain unsafe metadata, public image delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
 
 Do not assume that because a source file is in `public/` every embedded metadata field is intentionally public.
-The consumer coordinate opt-in does not change public preview routes or bytes,
+Trusted catalogue coordinates do not change public preview routes or bytes,
 embed GPS, add public metadata endpoints, or permit coordinates in logs. GPS is
 optional deliberately exposed publication metadata only on the trusted eligible
 consumer plane; public derivatives must remain metadata-minimal.

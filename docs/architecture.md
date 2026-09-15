@@ -89,8 +89,7 @@ precedence). Named roots must have unique names and canonical non-overlapping
 paths; `/` is invalid. The evaluator defensively denies zero or multiple matching
 roots. It returns only `Match{RootName, CollectionPath}` plus eligibility, with
 zero context on denial. The collection is the root-relative parent path without
-leading/trailing slashes. Current HTTP callers discard this internal context;
-#39 owns any future catalogue projection.
+leading/trailing slashes. The trusted catalogue projects this context only after successful evaluation.
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
@@ -175,19 +174,22 @@ Private/missing/invalid/unauthorized assets should normally be indistinguishable
 
 ## Consumer/control surface
 
-Trusted same-host consumers use `GET /internal/assets` for bounded eligible-image
-pages and `GET /internal/assets/<asset-id>` for exact eligible-image details.
-The listener and consumer peer must be loopback; forwarded headers are not
-identity. nginx must never publish `/internal/`, including through a local proxy.
+Trusted same-host consumers browse paginated image/video collections and exact
+collection assets, with independently reauthorized detail. The listener and TCP
+peer must be loopback; forwarded headers are not identity. nginx never publishes
+`/internal/`. See the [consumer contract](consumer-api.md) for the full allowlist.
 
-Every candidate passes `publication.Evaluate` before projection into the six safe
-consumer fields and, only with `consumer.expose_coordinates=true`, a validated
-nullable latitude/longitude pair. The default false preserves the six-field shape.
-Consumer references do not authorize subsequent public delivery.
-See the [consumer contract](consumer-api.md) for JSON, pagination and bounds.
-Coordinates are deliberately exposed eligible-consumer metadata; raw EXIF, public
-metadata routes and consumer writes remain excluded. Public preview bytes stay
-metadata-minimal and independent of this opt-in.
+Collection identities come from Policy v2 and are deduplicated within each page,
+with at-least-once discovery across pages. Stateless gateway HMAC cursors bind the
+query/policy and invalidate on restart. Each request has at most eight provider
+calls, a 30-second deadline and 512 KiB buffered JSON output. Provider page sizes
+never exceed remaining output slots. No catalogue database or folder-view API is used.
+
+Assets expose logical root/relative collection, path basename, image/video type,
+nullable dimensions and integer `duration_ms`, validated times and always-present
+nullable coordinates. Only current image previews have a non-null representation
+path; video previews and originals await #40/#41. Consumer references do not
+authorize subsequent detail or public delivery. Raw EXIF remains private.
 
 ## Provider boundary
 
@@ -203,18 +205,15 @@ The public handler calls `Asset`, requires image media, evaluates
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
 
-`Client.SearchCandidates` adds one bounded image-candidate page or an exact
-UUIDv4 candidate lookup through the same private transport. Candidates retain
-private provider paths, nullable dimensions and capture/local times internally.
-Only the configured coordinate opt-in changes the fixed search to `withExif=true`;
-otherwise `withExif=false` remains unchanged. The adapter retains only validated
-latitude/longitude from EXIF, discarding unrelated fields.
-The same metadata decoder checks lifecycle availability. Unavailable candidates
-are omitted while preserving the provider cursor; malformed lifecycle fields
-reject the page. They are **not publication-authorized**, including when a provider filter matched.
-The consumer handler evaluates every candidate with `publication.Evaluate` and
-omits provider paths before any consumer receives a result. The adapter itself
-grants no publication authority and public delivery remains independent. See the
+`Client.SearchCandidates` performs one bounded structured metadata search page
+for gateway-owned discovery, collection assets or exact UUIDv4 detail. Discovery
+uses `withExif=false` and decodes only lifecycle/path/media facts. Asset projection
+uses `withExif=true`, validates dimensions/duration/times, and retains only the
+validated nullable coordinate pair. Unavailable candidates are omitted; malformed
+consumed metadata fails the request. Provider path/media/lifecycle filters are
+optimizers only: case/accent overmatches still pass exact `publication.Evaluate`.
+The handler fills pages within its finite budget and requires exact root/parent
+membership for collection assets. See the
 [reviewed search contract](deployment.md#reviewed-candidate-search-contract).
 
 The provider needs only capabilities required by current issues, initially:
@@ -307,10 +306,6 @@ media = ["video"]
 
 [delivery]
 allow_original = false
-
-[consumer]
-# Eligible trusted-consumer coordinates only; never embedded in public previews.
-expose_coordinates = false
 ```
 
 The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout and preview image variant. `public_base_url` is optional.
@@ -319,7 +314,7 @@ Invalid policy must fail startup rather than silently widen access. Rules use ex
 
 ## State
 
-Media Gateway has no application database in V0.
+Media Gateway has no application database. The catalogue keeps only a random 32-byte HMAC key and deterministic discovery streams in process memory; no persistent cursor state or seen-set exists.
 
 Allowed state is limited to normal process/runtime state and, if later justified, disposable derived-media cache. A cache must never become publication authority; policy must still be checked before serving cached content unless an explicitly designed cache contract proves equivalent revocation semantics.
 
