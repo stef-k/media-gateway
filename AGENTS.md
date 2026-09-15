@@ -1,164 +1,241 @@
 # AGENTS.md
 
-This file defines Media Gateway-specific rules for coding agents. General Git safety, review discipline, and globally supplied agent capabilities are intentionally not duplicated here.
+This file defines Media Gateway-specific rules for coding agents. General Git safety, review discipline and globally supplied agent capabilities are intentionally not duplicated here.
 
 ## Repository authority
 
 Before consequential implementation or issue hardening, read:
 
 1. `README.md`
-2. `docs/architecture.md`
-3. `docs/security.md`
-4. `docs/toolchain.md`
-5. `docs/logging.md`
-6. `docs/deployment.md` when work touches host integration
-7. `docs/roadmap.md`
-8. this file
-9. the owning epic and implementation issue
+2. `docs/product-completion.md` for #37 work
+3. `docs/architecture.md`
+4. `docs/security.md`
+5. `docs/toolchain.md`
+6. `docs/logging.md`
+7. `docs/deployment.md` when work touches host integration
+8. `docs/roadmap.md`
+9. this file
+10. the owning epic and implementation issue
 
-If implementation and documentation disagree on a security boundary, public contract, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
+The accepted V0 implementation remains authoritative for **current behavior**. `docs/product-completion.md` and #37/#38–#42 are authoritative for the **target product contract**. Do not silently treat planned routes/schema as already implemented.
+
+If implementation and documentation disagree on a security boundary, public/consumer contract, policy semantics, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
 
 ## Product boundary
 
-Media Gateway is a deliberately small publication boundary between a private media provider and public HTTP delivery.
+Media Gateway is a deliberately small convention-driven publication boundary between a private media provider and public HTTP delivery.
 
-V0 uses Immich as the provider and targets image delivery first. Keep the design provider-aware without building a generic plugin system before a second provider exists.
+Immich is the initial provider. Operators identify publishable media through configured provider-root and exact directory-component conventions. Trusted same-host consumers browse/select only currently eligible media. Consumer selection never grants publication authority.
 
 Do not turn the project into:
 
-- a media manager or gallery application;
+- a media manager/gallery/editor;
 - a replacement for Immich;
-- a generic reverse proxy;
-- a generic URL fetcher;
-- a NAS browser;
-- a publication database;
+- a generic reverse proxy or URL fetcher;
+- a NAS browser/direct filesystem server;
+- a publication/selection database;
 - a web UI;
-- a WordPress plugin.
+- a WordPress/Wayfarer plugin;
+- an arbitrary image/video transformation service.
 
-## V0 implementation direction
+Keep the provider seam small and concrete; do not build a plugin framework before another provider establishes real requirements.
+
+## Technical baseline
 
 Follow `docs/toolchain.md`.
 
-The settled initial baseline is:
+The settled foundation is:
 
 - Go 1.27 family, initial reviewed toolchain Go 1.27.1;
 - one binary;
-- one TOML configuration file;
+- one strict TOML configuration file;
 - a separately protected provider credential;
 - standard library first;
-- `github.com/pelletier/go-toml/v2` v2.4.3 as the expected V0 TOML dependency;
-- `net/http` rather than a web/router framework;
-- `log/slog` rather than a third-party logging framework;
-- standard `testing`/fuzz support;
+- `github.com/pelletier/go-toml/v2` as the expected TOML runtime dependency;
+- `net/http`, `log/slog`, standard `testing`/fuzz support;
 - no database;
 - no container requirement;
-- systemd + nginx deployment examples;
+- systemd + nginx reference deployment;
 - loopback-only application listener.
 
-Do not add a web framework, DI container, logging framework, ORM, background-job system, configuration framework or other runtime dependency unless the owning issue establishes a concrete requirement that the standard library cannot reasonably satisfy.
+Do not add a web framework, DI container, logging framework, ORM, job system, configuration framework or other runtime dependency unless the owning issue establishes a concrete need the standard library cannot reasonably satisfy.
 
-Go has no separate LTS channel. Use supported stable releases only. Toolchain/dependency upgrades are deliberate changes with tests and documentation, not opportunistic agent updates.
+Toolchain/dependency upgrades are deliberate reviewed changes, not opportunistic agent updates.
 
 ## Security invariants
 
 These are not ordinary configuration choices:
 
 - deny by default;
-- the provider itself remains private;
-- the gateway never accepts an arbitrary upstream URL;
-- the gateway never accepts a filesystem path from a public request;
-- the gateway never reads the NAS directly in V0;
-- public delivery requires both an allowed provider root and an exact eligible directory segment;
-- publication segment names are configurable literals, but matching must remain exact path-component equality and must never degrade into prefix/glob/regex behavior such as `public*`;
-- media type must be validated from provider metadata, not trusted from a filename alone;
-- authorization is reevaluated from current provider metadata for delivery rather than inferred from a consumer reference;
-- consumer state, including WordPress attachment/reference state, never grants publication permission;
-- private/missing/invalid assets return a non-enumerating denial such as `404`;
-- public HTTP supports only the explicitly designed read methods and routes;
-- provider credentials are never emitted to callers, logs, URLs, or public error responses;
-- no endpoint may turn an arbitrary provider asset identifier into bytes without policy evaluation.
+- Immich/provider remains private;
+- never accept an arbitrary upstream URL from a public or consumer request;
+- never accept/open a filesystem path supplied by a caller;
+- never mount/read the NAS directly as part of normal product operation;
+- publication requires a configured provider root plus an exact eligible directory convention and media type;
+- directory conventions remain configurable literals and must never degrade into prefix/glob/regex semantics such as `public*`;
+- media type comes from provider metadata, not filename alone;
+- lifecycle and publication authorization are reevaluated from current provider metadata for every public delivery request;
+- consumer collection/root/asset selectors and stored references never grant publication permission;
+- private/missing/invalid assets remain non-enumerating denials;
+- public HTTP supports only explicitly designed routes/methods/headers;
+- provider credentials, provider absolute paths, raw provider errors and private metadata never enter public responses/routine logs;
+- no endpoint may turn an arbitrary provider asset ID into bytes without current policy evaluation.
 
-Tests must include attempts to request known private assets and malformed/crafted paths and must prove fail-closed behavior.
+Tests must include known-private assets, outside-root/near-match paths, lifecycle revocation and malformed/crafted route/path/header attempts.
 
 ## Publication policy
 
-The motivating policy uses provider-indexed path metadata beneath explicitly configured allowed roots.
+### Accepted V0
 
-Conceptually:
+Current main uses flat `policy.allowed_roots` plus globally applied exact `policy.rules`.
 
-```text
-allowed root: /media/archive       # deployment-specific example
+### #37 target
 
-.../public/...          image/video eligible
-.../public-images/...   image eligible
-.../public-videos/...   video eligible
-anything else           private
+#38 replaces that model with named roots and global/root-scoped rules:
+
+```toml
+[[policy.roots]]
+name = "images"
+path = "/media/archive/Images"
+
+[[policy.roots]]
+name = "art"
+path = "/media/archive/ART"
+
+[[policy.rules]]
+segment = "public"
+media = ["image", "video"]
+
+[[policy.rules]]
+segment = "post"
+media = ["image"]
+roots = ["images"]
 ```
 
-Neither `/media/archive` nor the example segment names are hard-coded product requirements. Operators may configure different provider-visible roots and different literal publication segment names. Security semantics remain fixed: roots are normalized/path-aware, segments are exact components, and invalid/ambiguous policy fails startup.
+Root paths are canonical provider-reported POSIX metadata paths, never local mount paths. Root names are stable logical identifiers. Omitted rule roots mean global; explicit root lists cage a convention. Configured roots must not overlap.
 
-V0 production delivery may intentionally support only a subset of the media types declared by policy, such as images first. Unsupported media must fail closed even if its directory would otherwise be eligible.
+A matching segment may occur at any descendant depth but must be exact component equality (`post` never matches `post process`).
 
-Treat the path as metadata for authorization. Do not expose provider paths in public URLs and do not depend on host NAS mount paths.
+Policy evaluation should produce enough matched logical-root context for the trusted catalogue without exposing provider absolute paths.
 
 ## Public and private surfaces
 
-The service may expose public delivery routes and localhost-only consumer/control routes from the same process, but nginx must publish only the public delivery surface.
+The same process may host public delivery and localhost-only consumer routes, but nginx publishes only the explicit public media surface.
 
-Do not expose search, diagnostics containing provider data, configuration, provider metadata, or control operations through the public vhost.
+Never expose `/internal/`, provider search/API/UI, configuration, diagnostics containing provider data or control operations through the public vhost.
 
-Keep health endpoints minimal and free of secrets/provider topology.
+No public health/readiness surface is required merely for convention.
+
+### Product-complete public routes
+
+#37 requires fixed gateway representations:
+
+```text
+GET/HEAD /media/<id>/preview
+GET/HEAD /media/<id>/original
+```
+
+`preview` is a provider-generated browse/picker/poster representation.
+
+`original` means provider original bytes after current authorization. It must never silently mean preview, transcoded playback or another derivative. Original delivery does not imply metadata stripping; source EXIF/GPS/etc. are part of authorized original bytes.
+
+#30 may later add additional explicit browser-safe derivatives, but it is not a substitute for `/original`.
+
+## Trusted consumer catalogue
+
+#39 owns the target generic loopback catalogue:
+
+```text
+GET /internal/collections?limit=<n>&cursor=<opaque>
+GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /internal/assets/<id>
+```
+
+Large collections must be paginated. Keep a small default page and hard maximum; internal provider scanning/filling must itself be bounded.
+
+Safe projection may include logical root name, root-relative collection path, filename, image/video type, dimensions/duration, times, validated nullable coordinates and stable preview/original gateway paths.
+
+Never expose provider absolute paths, provider URLs, credentials, raw EXIF or provider JSON.
+
+Coordinates are target normal trusted metadata, not publication authority. Preserve strict pair/range validation and never log them.
+
+Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
 ## Provider integration
 
-Immich access belongs behind a small provider boundary. Verify the current supported Immich API immediately before implementing or changing endpoints; do not encode assumptions from old API examples.
+Immich access belongs behind a small provider boundary. **Verify the currently supported/deployed Immich API immediately before implementing or changing endpoints/search/representation/range behavior.** Do not encode assumptions from old examples or previous chats.
 
-Use bounded HTTP clients with explicit connect/request timeouts and body limits where applicable. Provider failures must become bounded gateway failures, not hanging public requests.
+Use fixed configured provider authority and dedicated least-privilege credential. Do not use administrator credentials when narrower permissions suffice.
 
-Do not use an administrator credential when a narrower provider credential can satisfy the required read operations.
+Use bounded connect/header/metadata operations and explicit response validation. Provider failures become sanitized gateway failures, never arbitrary provider responses.
 
-## Delivery
+## Original and video delivery
 
-Prefer existing safe provider-generated previews for the first image-delivery slice if they meet quality and metadata/privacy requirements. Prove this with representative files before relying on it.
+#40 owns original image delivery. #41 owns video preview/original, byte ranges and long-media streaming.
 
-Do not expose original files by default. If originals or additional transcoding/resizing are introduced later, require an explicit issue with privacy, cache, size, and failure semantics.
+Do not smuggle either into unrelated policy/catalogue changes.
 
-Video/range delivery is separate work and must not be smuggled into the image slice.
+For video, practical single-byte-range semantics must be deliberate (`Range`, `206`, `Content-Range`, `Accept-Ranges`, HEAD/416 behavior). Do not blindly proxy arbitrary range/provider headers.
+
+If provider original download cannot satisfy browser video range needs, do not redefine `/original`; design any separate playback representation explicitly.
+
+### Streaming lifetime
+
+The V0 preview-oriented short absolute request/write lifetime must not be copied blindly into original/video streaming.
+
+Authorization, provider connect/header acquisition and metadata work remain hard-bounded. Once an authorized media stream is established, longer transfer lifetime should be bounded by I/O inactivity, client disconnect, provider transport safety and bounded shutdown rather than a short absolute wall-clock deadline. Stalled connections must still be finite.
+
+nginx must mirror only the accepted public route/header semantics and retain fixed gateway upstream/no storage fallback.
 
 ## Logging
 
 Follow `docs/logging.md`.
 
 - nginx owns public request/access and proxy-transport logging;
-- the Go service uses `log/slog` for lifecycle, sanitized startup state and exceptional provider/runtime/security diagnostics;
-- write application logs to stderr/stdout and let systemd/journald own persistence/rotation in the reference deployment;
-- do not add an application-managed logfile/rotation subsystem or duplicate a full nginx-style access log;
-- routine denied/malformed Internet traffic must not become an unbounded high-severity log-flood path;
-- never log credentials, authorization headers, full private provider/NAS paths, GPS/EXIF data or provider error bodies.
+- Go uses `log/slog` for lifecycle, sanitized startup/provider/runtime/security diagnostics;
+- journald owns reference application log persistence/rotation;
+- do not add an application-managed logfile or duplicate access log;
+- denied/malformed Internet traffic must not become an unbounded warning/error flood;
+- never log credentials, auth headers, full provider/NAS paths, GPS/EXIF or provider error bodies.
 
 ## Configuration and secrets
 
-Configuration must be human-readable and reviewable. TOML is the V0 format.
+Configuration remains human-readable TOML with strict unknown-field rejection. Invalid/ambiguous authorization config fails startup.
 
-Committed operator-facing configuration examples (`*.toml`, nginx, systemd and similar deployment assets) must contain useful inline comments explaining deployment-specific values, trust boundaries and non-obvious hardening choices. Do not leave security-sensitive sample directives unexplained merely because equivalent prose exists elsewhere.
+Committed operator examples must comment deployment-specific values, trust boundaries and non-obvious hardening choices.
 
-Do not commit credentials. Example configuration uses placeholder paths/values only. Secrets must live outside the repository with restrictive host permissions.
+Never commit credentials. Secrets live outside the repository with restrictive host permissions.
 
-Use strict TOML decoding and reject unknown fields. Invalid or ambiguous policy configuration must prevent startup rather than silently broaden access.
+Configuration is startup state. Do not add hot reload unless a later issue establishes a real need.
 
 ## Operations
 
-The service should run as an unprivileged dedicated account and bind only to loopback. nginx is the Internet-facing reverse-proxy boundary.
+Run as a dedicated unprivileged account bound only to numeric loopback. nginx is the Internet-facing boundary.
 
-Deployment examples under `deploy/` are templates, not a license to weaken host-specific controls. Preserve existing host services and validate nginx/systemd configuration before reload/restart.
+Deployment examples are templates; preserve unrelated host services and validate systemd/nginx before restart/reload.
+
+The accepted V0 bundle/smoke/upgrade/rollback discipline remains the baseline for #42 final product qualification.
 
 ## Scope and issue execution
 
-Use tracker #1 and explicit issue dependencies as execution authority. When a coarse epic has bounded child implementation issues, hand the child issue to Codex rather than the epic.
+Historical V0 tracker #1 is closed and should remain closed as the accepted security/deployment milestone.
 
-Foundation #2, authorization #3, public delivery #4 and consumer lane #6 are accepted.
-Deployment children #31/#32 are accepted; #33 acceptance is the remaining #5 gate.
-Consult live tracker state before selecting subsequent work. #30 is post-V0 and
-must not be folded into deployment. Keep implementation issues bounded.
+Current product-completion authority is #37 with bounded children:
 
-Documentation is part of completion when public routes, policy semantics, configuration, deployment, logging, toolchain/dependencies, or security behavior changes.
+```text
+#38 -> #39 -> #40 -> #41 -> #42 -> close #37
+```
+
+- #38 named roots + global/root-scoped policy
+- #39 paginated image/video collections/catalogue
+- #40 original image delivery
+- #41 video preview/original, ranges and long streaming
+- #42 final docs/config/bundle/smoke/real-host qualification
+
+Do not hand #37 wholesale to an implementation agent while these children exist. Consult live issue state before choosing the next unit.
+
+#30 remains optional later derivative-profile work and must not replace or delay required `/original` semantics without concrete evidence.
+
+The real `media.stefk.me`/Cloudflare cutover in `stef-k/server-migration#10` should wait for #37 completion.
+
+Documentation is part of completion whenever policy/configuration, public/consumer contracts, provider endpoints, delivery/streaming, deployment, logging, toolchain/dependencies or security behavior changes.
