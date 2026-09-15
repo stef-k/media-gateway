@@ -161,3 +161,6 @@ func decodeMetadata(body []byte, requested string) (Metadata, error) {
 	}
 	return Metadata{ID: id, OriginalPath: originalPath, Media: media}, nil
 }
+
+// ValidAssetID recognizes the reviewed UUIDv4 route identity before provider I/O.
+func ValidAssetID(id string) bool { return uuidV4.MatchString(id) }

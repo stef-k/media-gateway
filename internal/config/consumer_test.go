@@ -1,36 +1,27 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
 
-// TestConsumerConfiguration proves default-off behavior and strict typed decoding.
-func TestConsumerConfiguration(t *testing.T) {
+// TestConsumerMigration rejects stale settings without returning private partial state.
+func TestConsumerMigration(t *testing.T) {
 	base, _ := fixture(t)
-	// Remove the documented section to independently exercise its omission.
-	base = strings.Split(base, "[consumer]")[0]
-	for _, tc := range []struct {
-		name, section    string
-		enabled, invalid bool
-	}{
-		{"omitted", "", false, false},
-		{"empty", "[consumer]", false, false},
-		{"disabled", "[consumer]\nexpose_coordinates = false", false, false},
-		{"enabled", "[consumer]\nexpose_coordinates = true", true, false},
-		{"unknown", "[consumer]\nexpose_exif = true", false, true},
-		{"string", "[consumer]\nexpose_coordinates = 'private-marker'", false, true},
-		{"number", "[consumer]\nexpose_coordinates = 1", false, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			c, key, err := loadText(t, base+"\n"+tc.section)
-			if tc.invalid {
-				if err == nil || key != "" || strings.Contains(err.Error(), "private-marker") {
-					t.Fatal("invalid configuration was not rejected safely")
-				}
-			} else if err != nil || c.Consumer.ExposeCoordinates != tc.enabled {
-				t.Fatalf("consumer configuration: %v", err)
-			}
-		})
+	for _, section := range []string{"[consumer]\nexpose_coordinates = false", "[consumer]\nexpose_coordinates = 'private-marker'", "consumer.expose_coordinates = true"} {
+		c, key, err := loadText(t, section+"\n"+base)
+		if err == nil || !strings.Contains(err.Error(), "coordinates are now always included") || strings.Contains(err.Error(), "private-marker") || key != "" || !reflect.DeepEqual(c, Config{}) {
+			t.Fatalf("migration: %v", err)
+		}
+	}
+	for _, section := range []string{"[consumer]", "[consumer]\nexpose_exif=true", "[unknown]\nvalue=true"} {
+		_, key, err := loadText(t, base+"\n"+section)
+		if err == nil || key != "" {
+			t.Fatal("unknown config accepted")
+		}
+	}
+	if _, _, err := loadText(t, base); err != nil {
+		t.Fatal(err)
 	}
 }

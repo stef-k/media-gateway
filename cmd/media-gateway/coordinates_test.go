@@ -47,28 +47,28 @@ func TestConsumerCoordinates(t *testing.T) {
 		{"wrong exif shape", `"exif-marker"`, nil, nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, enabled := range []bool{false, true} {
-				checkCoordinateResponse(t, tc.exif, enabled, tc.invalid, tc.lat, tc.lon)
-			}
+			checkCoordinateResponse(t, tc.exif, tc.invalid, tc.lat, tc.lon)
 		})
 	}
 }
 
 // checkCoordinateResponse asserts the complete fixed search and consumer allowlist.
-func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, lat, lon any) {
+func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon any) {
 	t.Helper()
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var query map[string]any
 		if json.NewDecoder(r.Body).Decode(&query) != nil {
 			t.Error("invalid request")
 		}
-		filter := map[string]any{"type": map[string]any{"eq": "IMAGE"}}
+		filter := map[string]any{"type": map[string]any{"in": []any{"IMAGE", "VIDEO"}}, "isOffline": map[string]any{"eq": false}, "trashedAt": map[string]any{"eq": nil}}
+		filter["originalPath"] = map[string]any{"startsWith": "/external/photos/website/"}
 		size := float64(25)
 		if query["size"] == float64(1) {
+			delete(filter, "originalPath")
 			filter["id"] = map[string]any{"eq": testAsset}
 			size = 1
 		}
-		want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": size, "withExif": enabled, "withPeople": false, "withStacked": false}
+		want := map[string]any{"filter": filter, "orderBy": map[string]any{"field": "fileCreatedAt", "direction": "desc"}, "size": size, "withExif": true, "withPeople": false, "withStacked": false}
 		if !reflect.DeepEqual(query, want) {
 			t.Errorf("unexpected request: %v", query)
 		}
@@ -81,8 +81,8 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, enabled)
-	for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
+	gateway := gatewayFor(t, provider, &logs, time.Second)
+	for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 		logs.Reset()
 		resp, err := gateway.Client().Get(gateway.URL + route)
 		if err != nil {
@@ -91,7 +91,7 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		assertPublicHeaders(t, resp)
-		if enabled && invalid {
+		if invalid {
 			if resp.StatusCode != 502 || string(body) != "media unavailable\n" {
 				t.Fatalf("invalid coordinates: %d %s", resp.StatusCode, body)
 			}
@@ -107,13 +107,11 @@ func checkCoordinateResponse(t *testing.T, exif string, enabled, invalid bool, l
 			if resp.StatusCode != 200 || json.Unmarshal(body, &asset) != nil {
 				t.Fatalf("response: %d %s", resp.StatusCode, body)
 			}
-			if route == "/internal/assets" {
+			if route == "/internal/assets?root=images&collection=website" {
 				asset = asset["assets"].([]any)[0].(map[string]any)
 			}
-			want := map[string]any{"id": testAsset, "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
-			if enabled {
-				want["latitude"], want["longitude"] = lat, lon
-			}
+			want := map[string]any{"id": testAsset, "media_type": "image", "root": "images", "collection_path": "website", "filename": "a.jpg", "duration_ms": nil, "original_path": nil, "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
+			want["latitude"], want["longitude"] = lat, lon
 			if !reflect.DeepEqual(asset, want) {
 				t.Fatalf("allowlist mismatch: %v", asset)
 			}
@@ -151,19 +149,19 @@ func TestCoordinatesDeniedCandidates(t *testing.T) {
 				if state == "missing" {
 					items = []map[string]any{}
 				}
-				candidateResponse(w, items, "next-page")
+				candidateResponse(w, items, nil)
 			}))
 			defer provider.Close()
 			var logs bytes.Buffer
-			gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, true)
-			for _, route := range []string{"/internal/assets", "/internal/assets/" + testAsset} {
+			gateway := gatewayFor(t, provider, &logs, time.Second)
+			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
 					t.Fatal(err)
 				}
 				body, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
-				status, want := 200, `{"assets":[],"next_cursor":"next-page"}`
+				status, want := 200, `{"assets":[],"next_cursor":null}`
 				if strings.HasSuffix(route, testAsset) {
 					status, want = 404, "not found\n"
 				}
@@ -189,8 +187,8 @@ func TestCoordinatesMalformedJSON(t *testing.T) {
 			raw = bytes.Replace(raw, []byte(`"LATITUDE"`), []byte(payload), 1)
 			fmt.Fprintf(w, `{"assets":{"items":[%s],"count":1,"nextCursor":null}}`, raw)
 		}))
-		gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets")
+		gateway := gatewayFor(t, provider, io.Discard, time.Second)
+		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +205,7 @@ func TestCoordinatesMalformedJSON(t *testing.T) {
 func TestCoordinateMixedPage(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var query map[string]any
-		if json.NewDecoder(r.Body).Decode(&query) != nil || query["cursor"] != "next-page" || query["withExif"] != true {
+		if json.NewDecoder(r.Body).Decode(&query) != nil || query["withExif"] != true {
 			t.Error("lost configured search or cursor")
 		}
 		items := make([]map[string]any, 4)
@@ -217,11 +215,11 @@ func TestCoordinateMixedPage(t *testing.T) {
 		}
 		items[0]["isTrashed"] = true
 		items[1]["originalPath"] = "/external/photos/private/a.jpg"
-		candidateResponse(w, items, "last-page")
+		candidateResponse(w, items, nil)
 	}))
 	defer provider.Close()
-	gateway := gatewayWithCoordinates(t, provider, io.Discard, time.Second, true)
-	resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?cursor=next-page")
+	gateway := gatewayFor(t, provider, io.Discard, time.Second)
+	resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +228,7 @@ func TestCoordinateMixedPage(t *testing.T) {
 		Assets []map[string]any
 		Next   string `json:"next_cursor"`
 	}
-	if json.NewDecoder(resp.Body).Decode(&page) != nil || resp.StatusCode != 200 || len(page.Assets) != 2 || page.Next != "last-page" {
+	if json.NewDecoder(resp.Body).Decode(&page) != nil || resp.StatusCode != 200 || len(page.Assets) != 2 || page.Next != "" {
 		t.Fatal("mixed page lost active items or cursor")
 	}
 	for i, asset := range page.Assets {

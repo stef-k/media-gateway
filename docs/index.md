@@ -9,8 +9,8 @@ The initial provider is Immich. V0 proved the image-preview security/deployment 
 - [Product completion](product-completion.md) — authoritative target contract for named/scoped publication roots, paginated image/video browsing, originals and video ranges.
 - [Architecture](architecture.md) — accepted components, trust boundaries, policy model and request flow.
 - [Security](security.md) — threats, non-negotiable invariants and fail-closed behavior.
-- [Private consumer API](consumer-api.md) — current accepted V0 consumer contract; #39 owns the generic paginated replacement.
-- [Configuration](configuration.md) — current accepted V0 schema; #38 owns the named-root/scoped-rule replacement.
+- [Private consumer API](consumer-api.md) — current paginated image/video collections, signed cursors and safe nullable metadata.
+- [Configuration](configuration.md) — current Policy v2 schema and strict coordinate-setting migration.
 - [Toolchain](toolchain.md) — Go version, dependency policy and CI/build baseline.
 - [Logging](logging.md) — nginx access logging versus application/journald diagnostics.
 - [Deployment](deployment.md) — systemd/nginx/release host integration baseline.
@@ -36,12 +36,8 @@ The service is intentionally not a media-management UI, NAS browser or generic p
 
 ## Current versus target
 
-Current accepted V0 publicly delivers image `/preview` and exposes an image-only trusted browse/detail seam. The target #37 product adds:
+The current service publicly delivers image `/preview` and provides paginated trusted image/video collections and assets. Original/video delivery remains in the #37 lane:
 
-- named provider roots;
-- global and root-scoped publication conventions;
-- paginated public-collection discovery and paginated image/video assets;
-- normal validated nullable coordinates on the trusted catalogue;
 - policy-checked provider-original image/video delivery;
 - range-capable video and long-media streaming semantics.
 

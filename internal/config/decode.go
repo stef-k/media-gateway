@@ -20,9 +20,17 @@ func decode(data []byte, c *Config) error {
 		} `toml:"provider"`
 		Policy   Policy   `toml:"policy"`
 		Delivery Delivery `toml:"delivery"`
-		Consumer Consumer `toml:"consumer"`
 	}
 	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&raw); err != nil {
+		// Inspect only the obsolete key after a failed strict decode; never return raw input.
+		var legacy map[string]any
+		if toml.Unmarshal(data, &legacy) == nil {
+			if consumer, ok := legacy["consumer"].(map[string]any); ok {
+				if _, present := consumer["expose_coordinates"]; present {
+					return errors.New("config: obsolete consumer.expose_coordinates; remove it, trusted catalogue coordinates are now always included")
+				}
+			}
+		}
 		var missing *toml.StrictMissingError
 		if errors.As(err, &missing) {
 			for _, field := range missing.Errors {
@@ -42,7 +50,6 @@ func decode(data []byte, c *Config) error {
 		Server:   raw.Server,
 		Provider: Provider{Type: raw.Provider.Type, BaseURL: raw.Provider.BaseURL, APIKeyFile: raw.Provider.APIKeyFile, RequestTimeout: timeout},
 		Policy:   raw.Policy, Delivery: raw.Delivery,
-		Consumer: raw.Consumer,
 	}
 	return nil
 }

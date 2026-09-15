@@ -410,96 +410,55 @@ and run provider/policy smoke tests when upgrading Immich.
 
 ### Reviewed candidate search contract
 
-Re-verified on **2026-09-13** against official Immich OpenAPI **3.2.0** at
-[commit `0f901eea5ec2d3ebf85188b8c1dd193ae3619966`](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/open-api/immich-openapi-specs.json).
-`searchAssets` uses only `POST /api/search/metadata`, `x-api-key`, permission
-`asset.read`, and a direct HTTP 200 `application/json` response. The
-[controller](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/controllers/search.controller.ts)
-and [service](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/services/search.service.ts)
-confirm the structured request and cursor response path.
+Re-verified on **2026-09-15** against Immich **v3.2.1**, with the unchanged
+v3.2.x structured-search/asset schema reviewed by #39. Deployed evidence remains
+v3.2.0; this source review does not claim an upgrade or real-host #39 qualification.
 
-`Client.SearchCandidates(ctx, CandidateQuery{Limit: 25})` constructs:
+Use only `POST /api/search/metadata`, `x-api-key`, permission **asset.read**, and
+HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/search.dto.ts),
+[query builder](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/database.ts),
+[search repository](https://github.com/immich-app/immich/blob/v3.2.1/server/src/repositories/search.repository.ts)
+and [asset mapper/schema](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/asset-response.dto.ts)
+define the reviewed request and response contract.
 
-```json
-{
-  "filter": {"type": {"eq": "IMAGE"}},
-  "orderBy": {"field": "fileCreatedAt", "direction": "desc"},
-  "size": 25,
-  "withExif": false,
-  "withPeople": false,
-  "withStacked": false
-}
-```
+Gateway-generated filters always include `type.in` with eligible IMAGE/VIDEO media,
+`isOffline.eq=false` and `trashedAt.eq=null`. Discovery adds a configured root
+`originalPath.startsWith` and segment-shaped `like` filter; collection assets add
+a prefix resolved from the configured root plus validated relative selector.
+SQL wildcard characters in these literals are escaped. Immich wraps `like` with
+wildcards itself; both path operators are case/accent-insensitive, so every
+candidate still requires exact lifecycle/path/media/Policy v2 evaluation.
+An exact UUIDv4 detail adds `id.eq`; no caller filter tree or provider URL is accepted.
 
-The gateway fixes all filter/operator/order fields; there is no caller-selected
-path, URL, type, sort or arbitrary search tree. It uses no deprecated flat search
-fields. An optional `ID` adds only `filter.id.eq` after UUIDv4 validation, requires
-no cursor, and permits at most one matching result (case-insensitive UUID match).
-An absent exact candidate is a successful empty page. `Limit` must be 1–100,
-smaller than Immich's schema maximum of 1000. No retries or automatic page scans
-occur. Ordering is newest `fileCreatedAt` first; the reviewed
-[ordering implementation](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/server/src/utils/database.ts)
-uses asset ID as its deterministic tie-break. Pagination is not a stable snapshot
-of a changing provider library.
+Ordering is fixed `fileCreatedAt desc` with the provider's ID tie-break. Offset
+cursors are not a changing-library snapshot. Provider pages are 1–100 candidates,
+never larger than remaining consumer slots. Up to eight calls fill one consumer
+request, under a 30-second overall deadline plus the configured per-call timeout.
+No retries occur. Gateway-signed consumer cursors wrap bounded internal provider
+continuation; callers cannot submit raw provider cursors.
 
-A nonempty `Cursor` is passed only in the JSON body's `cursor` field. Both input
-and returned cursors must be valid UTF-8, at most 1024 bytes, and contain no Unicode
-control characters. They remain opaque and must not be logged. The adapter
-requires `assets.items`, matching `assets.count`, and `assets.nextCursor` (a
-nonempty bounded string or explicit `null` for completion). It returns
-`CandidatePage.Items` and `NextCursor`; terminal `null` maps to an empty string.
+`withPeople=false` and `withStacked=false` are fixed. Discovery requests
+`withExif=false` and decodes only policy facts, ignoring unrelated malformed
+projection fields. Asset lists/details request `withExif=true`. They require
+explicit nullable nonnegative safe-integer width/height/duration, validated
+RFC3339 capture/local time strings, and only a validated nullable coordinate pair.
+Immich duration is integer **milliseconds**, exposed as `duration_ms`. Local wall
+time strings are preserved without timezone conversion. Filename comes from the
+validated path basename, never arbitrary provider filename metadata.
 
-Lifecycle/search behavior was re-verified on **2026-09-14** against the v3.2.0
-[search service](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/search.service.ts),
-[repository](https://github.com/immich-app/immich/blob/v3.2.0/server/src/repositories/search.repository.ts)
-and [structured query builder](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/database.ts).
-The structured search used here does **not** automatically exclude trashed/offline
-records. Its response uses the same asset mapper, so the adapter applies the
-same required lifecycle booleans and omits unavailable items locally. The fixed
-request remains unchanged; no extra lookups or page scans are added. Provider
-count validation precedes filtering and the cursor is preserved, including on
-empty pages. Exact unavailable lookups therefore return an empty page and a
-consumer 404; a search-endpoint HTTP 404 remains an operational failure.
+The adapter requires explicit active lifecycle booleans independently of filters.
+Unavailable candidates are omitted. Missing/null/invalid lifecycle fields or
+malformed consumed projection metadata fail the request. Full JSON, including
+ignored EXIF, is bounded to 1 MiB. The response must include `assets.items`, matching
+`assets.count`, and `assets.nextCursor` as a nonempty bounded string or explicit null.
+Internal provider cursors are valid UTF-8, at most 1024 bytes, without controls.
+No provider cursor, path, coordinates, raw body or credential is logged.
 
-Every active item requires a UUIDv4 ID, nonempty unchanged `originalPath`, exact `IMAGE`
-type (mapped to `image`), `width`, `height`, `fileCreatedAt` and `localDateTime`.
-Dimensions use the schema's nullable nonnegative integer range through
-9007199254740991: `null` means unknown, and zero is preserved. Times must parse
-as RFC3339 with optional fractional seconds and are preserved as strings.
-`fileCreatedAt` represents capture time; `localDateTime` retains the provider's
-local wall-clock semantics and is not converted into another timezone. By default
-no EXIF/GPS enters the candidate result; people and unrelated metadata never do.
-
-Coordinate support was re-verified on **2026-09-14** against the exact v3.2.0 tag,
-[commit `1b6098c9dbfffe978bec2d414606ed7a4c8e019a`](https://github.com/immich-app/immich/tree/1b6098c9dbfffe978bec2d414606ed7a4c8e019a).
-The [search DTO](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/search.dto.ts)
-and [service](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/services/search.service.ts)
-pass the fixed `withExif` boolean to structured search.
-The [query builder](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/utils/database.ts)
-selects left-joined EXIF when enabled; there is no coordinate-only response selector.
-The [asset mapper](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/asset-response.dto.ts)
-omits `exifInfo` when unavailable, and the
-[EXIF schema/mapper](https://github.com/immich-app/immich/blob/1b6098c9dbfffe978bec2d414606ed7a4c8e019a/server/src/dtos/exif.dto.ts)
-provides nullable numeric `latitude` and `longitude`. This confirms #26's expected
-request change: only `withExif=true` when configured. Full upstream EXIF still
-counts toward the unchanged 1 MiB body bound, but the adapter decodes only the
-coordinate pair and validates completeness, finiteness and geographic ranges.
-Disabled mode keeps `withExif=false` and never decodes EXIF. Coordinates grant no
-publication authority and never affect public preview retrieval.
-
-The existing fixed origin, credential-safe transport, redirect rejection,
-timeouts and cancellation apply. The entire JSON body, including ignored fields,
-is capped at 1 MiB before decoding; excess candidates, invalid shapes, unsupported
-media and malformed fields (including lifecycle flags) reject the whole page. Search uses the existing fixed
-error classes plus `ErrSearchQuery` for invalid pagination/query inputs. It emits
-no logs and exposes no provider values through errors.
-
-**Candidate discovery is not authorization.** Private, outside-root and crafted
-paths can be returned unchanged for later `publication.Evaluate` evaluation.
-Every item must pass that evaluation before a consumer receives it; provider
-search filters and consumer references never grant permission. Accepted #21 wires
-the private consumer API; #26 adds default-off eligible coordinates. Source review
-and fake-provider tests remain distinct from accepted #18 real-provider evidence.
+Collection discovery is at least once, with only in-page identity deduplication.
+No folder-view endpoint is used: those endpoints are unpaginated and restricted
+to timeline visibility. There is no persistent catalogue/cursor state. See the
+[consumer API](consumer-api.md) for exact selectors, signatures, capabilities and
+failure semantics. Public preview behavior and permissions remain unchanged.
 
 ### Reviewed preview contract
 

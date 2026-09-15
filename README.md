@@ -95,11 +95,11 @@ roots = ["images"]
 
 Root paths are provider-visible absolute POSIX metadata paths, not Windows UNC/NAS paths and not local filesystem mounts. Root names are stable logical identifiers. Omitted rule `roots` means global; an explicit list scopes that convention to the named roots.
 
-### Target trusted catalogue
+### Current trusted catalogue
 
-Trusted same-host consumers will page through publication collections and then page through assets inside a selected collection. Large directories must never be returned unbounded.
+Trusted same-host consumers page through publication collections and then page through assets inside a selected collection. Large directories must never be returned unbounded.
 
-Conceptual routes:
+Routes:
 
 ```text
 GET /internal/collections?limit=<n>&cursor=<opaque>
@@ -107,7 +107,7 @@ GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cu
 GET /internal/assets/<asset-id>
 ```
 
-Safe catalogue items include logical root, root-relative collection path, filename, image/video type, dimensions, duration where applicable, capture/local time, validated nullable coordinates and stable preview/original gateway paths. Absolute provider/NAS paths, provider URLs, credentials and raw EXIF remain private.
+Safe catalogue items include logical root, root-relative collection path, filename, image/video type, nullable dimensions and `duration_ms` (milliseconds), validated capture/local time and always-present nullable coordinates. Image previews have gateway paths; video previews and all originals are currently null capabilities. Collection pagination is at least once with in-page deduplication; consumers merge by `(root, collection_path)`. Gateway-signed cursors bind the query/policy and expire on process restart. Absolute provider/NAS paths, provider URLs, credentials and raw EXIF remain private.
 
 Consumer selection never makes an asset public. Every delivery request independently reauthorizes current provider state.
 
@@ -134,7 +134,7 @@ bin/media-gateway -version
 bin/media-gateway -config /etc/media-gateway/config.toml
 ```
 
-The current service uses Policy v2 with the accepted image-preview delivery and image-only consumer contract. Catalogue/original/video expansion remains in #39–#42. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Target catalogue and original/video routes remain unimplemented.
+The current service uses Policy v2, paginated image/video collections and assets, and the accepted image-preview delivery. Original/video delivery and final qualification remain in #40–#42. See [Configuration](docs/configuration.md) and [Private consumer API](docs/consumer-api.md) for current behavior; see [Product completion](docs/product-completion.md) for the target contract. Original and video public routes remain unimplemented. There is no `[consumer]` config section; stale `consumer.expose_coordinates` fails with migration guidance. Catalogue search uses structured Immich metadata search, never folder view.
 
 See [Release and smoke procedure](docs/release.md) for bundles and rollback, [Deployment](docs/deployment.md) for operational bounds, and [Toolchain](docs/toolchain.md) for local/CI validation.
 

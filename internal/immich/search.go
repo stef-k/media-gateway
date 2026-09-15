@@ -23,15 +23,17 @@ const (
 // ErrSearchQuery is a fixed, log-safe input validation outcome.
 var ErrSearchQuery = errors.New("immich: invalid candidate query")
 
-// CandidateQuery exposes no provider URL, path, filter tree or ordering controls.
-// Limit must be 1..MaxCandidates. An optional UUIDv4 ID selects one exact image;
+// CandidateQuery carries only concrete gateway-owned selectors, never a provider
+// URL, raw filter tree or ordering control. Root paths come from validated config.
+// Limit must be 1..MaxCandidates. An optional UUIDv4 ID selects one exact asset;
 // ID and Cursor cannot be combined. Empty Cursor starts a new search.
 type CandidateQuery struct {
 	Limit  int
 	Cursor string
 	ID     string
-	// ExposeCoordinates is set only from trusted consumer configuration.
-	ExposeCoordinates bool
+	// Discovery decodes only policy facts; Collection narrows exact browsing candidates.
+	Discovery  *DiscoveryStream
+	Collection *CollectionSelector
 }
 
 // Candidate is untrusted for publication. OriginalPath is unchanged private
@@ -42,6 +44,7 @@ type Candidate struct {
 	Metadata
 	Width         *int64
 	Height        *int64
+	DurationMS    *int64
 	FileCreatedAt string
 	LocalDateTime string
 	// Coordinates are a validated nullable pair, never publication authority.
@@ -58,23 +61,23 @@ type CandidatePage struct {
 }
 
 // SearchCandidates makes one bounded request, with no retries or automatic paging.
-// Search narrows to images, but grants no publication authority. Every failure
+// Search narrows to image/video candidates, but grants no publication authority. Every failure
 // returns a zero page and a sanitized sentinel; no per-request logs are emitted.
 func (c *Client) SearchCandidates(ctx context.Context, query CandidateQuery) (CandidatePage, error) {
 	if query.ID != "" && !uuidV4.MatchString(query.ID) {
 		return CandidatePage{}, ErrInvalidID
 	}
-	if query.Limit < 1 || query.Limit > MaxCandidates || !validCandidateCursor(query.Cursor) || (query.ID != "" && query.Cursor != "") {
+	if query.Limit < 1 || query.Limit > MaxCandidates || !validCandidateCursor(query.Cursor) || (query.ID != "" && (query.Cursor != "" || query.Discovery != nil || query.Collection != nil)) || (query.Discovery != nil && query.Collection != nil) {
 		return CandidatePage{}, ErrSearchQuery
 	}
 	// Only gateway-owned keys/operators can appear in the structured search body.
-	filter := map[string]any{"type": map[string]string{"eq": "IMAGE"}}
+	filter := candidateFilter(query)
 	if query.ID != "" {
 		filter["id"] = map[string]string{"eq": query.ID}
 	}
 	payload := map[string]any{
 		"filter": filter, "orderBy": map[string]string{"field": "fileCreatedAt", "direction": "desc"},
-		"size": query.Limit, "withExif": query.ExposeCoordinates, "withPeople": false, "withStacked": false,
+		"size": query.Limit, "withExif": query.Discovery == nil, "withPeople": false, "withStacked": false,
 	}
 	if query.Cursor != "" {
 		payload["cursor"] = query.Cursor
@@ -149,7 +152,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	}
 	page := CandidatePage{Items: make([]Candidate, 0, len(assets.Items)), NextCursor: cursor}
 	for _, raw := range assets.Items {
-		item, err := decodeCandidate(raw, query.ID, query.ExposeCoordinates)
+		item, err := decodeCandidate(raw, query.ID, query.Discovery != nil)
 		// Structured Immich search can return lifecycle-unavailable records.
 		// Omit them without losing the provider cursor or failing active siblings.
 		if errors.Is(err, ErrMissing) {
@@ -163,8 +166,8 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	return page, nil
 }
 
-// decodeCandidate retains policy facts, dimensions/times and opt-in coordinates.
-func decodeCandidate(raw []byte, requested string, exposeCoordinates bool) (Candidate, error) {
+// decodeCandidate separates discovery facts from the full safe asset projection.
+func decodeCandidate(raw []byte, requested string, discovery bool) (Candidate, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
 		return Candidate{}, ErrMetadata
@@ -177,11 +180,11 @@ func decodeCandidate(raw []byte, requested string, exposeCoordinates bool) (Cand
 	if err != nil {
 		return Candidate{}, err
 	}
-	if metadata.Media != "image" {
-		return Candidate{}, ErrUnsupported
-	}
 	item := Candidate{Metadata: metadata}
-	for name, target := range map[string]**int64{"width": &item.Width, "height": &item.Height} {
+	if discovery {
+		return item, nil
+	}
+	for name, target := range map[string]**int64{"width": &item.Width, "height": &item.Height, "duration": &item.DurationMS} {
 		if json.Unmarshal(fields[name], target) != nil {
 			return Candidate{}, ErrMetadata
 		}
@@ -197,11 +200,9 @@ func decodeCandidate(raw []byte, requested string, exposeCoordinates bool) (Cand
 			return Candidate{}, ErrMetadata
 		}
 	}
-	if exposeCoordinates {
-		item.Latitude, item.Longitude, err = decodeCoordinates(fields["exifInfo"])
-		if err != nil {
-			return Candidate{}, err
-		}
+	item.Latitude, item.Longitude, err = decodeCoordinates(fields["exifInfo"])
+	if err != nil {
+		return Candidate{}, err
 	}
 	return item, nil
 }

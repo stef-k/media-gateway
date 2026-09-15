@@ -114,8 +114,7 @@ Root paths are canonical provider-reported POSIX metadata paths, never local mou
 A matching segment may occur at any descendant depth but must be exact component equality (`post` never matches `post process`).
 
 The canonical `publication.Evaluate` returns eligibility plus logical root name and
-root-relative parent collection path; denial returns zero context. Current HTTP
-callers discard context; #39 owns consumer JSON expansion. Root names are unique
+root-relative parent collection path; denial returns zero context. The trusted catalogue projects this context only after eligibility succeeds. Root names are unique
 1..64 lowercase ASCII letters/digits/hyphens with alphanumeric ends. `/` and
 overlapping root paths are invalid. Explicit empty scopes and duplicate
 segment/unordered-scope pairs fail startup; distinct scopes combine with OR semantics.
@@ -145,7 +144,7 @@ GET/HEAD /media/<id>/original
 
 ## Trusted consumer catalogue
 
-#39 owns the target generic loopback catalogue:
+#39 implements the generic loopback catalogue:
 
 ```text
 GET /internal/collections?limit=<n>&cursor=<opaque>
@@ -162,6 +161,8 @@ Never expose provider absolute paths, provider URLs, credentials, raw EXIF or pr
 Coordinates are target normal trusted metadata, not publication authority. Preserve strict pair/range validation and never log them.
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
+
+Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Only image preview capabilities are non-null in #39; originals and video previews await #40/#41. Use structured metadata search, never Immich folder view.
 
 ## Provider integration
 

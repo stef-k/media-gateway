@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
@@ -55,9 +56,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	logger.Info("configuration loaded", "listen", cfg.Server.Listen)
+	cursorSigningKey, err := newCursorKey(rand.Reader)
+	if err != nil {
+		logger.Error("cursor signing key unavailable")
+		return 1
+	}
 	client := immich.New(cfg.Provider, key)
 	defer client.CloseIdleConnections()
-	if err := serve(ctx, cfg.Server.Listen, gatewayHandler(client, cfg.Policy, cfg.Consumer, logger), logger); err != nil {
+	if err := serve(ctx, cfg.Server.Listen, gatewayHandler(client, cfg.Policy, cursorSigningKey, logger), logger); err != nil {
 		logger.Error("service failed", "error", err)
 		return 1
 	}

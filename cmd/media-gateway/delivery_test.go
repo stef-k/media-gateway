@@ -24,17 +24,11 @@ const testKey = "provider-secret-marker"
 // gatewayFor uses the real client, policy evaluator, handler and server bounds.
 func gatewayFor(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration) *httptest.Server {
 	t.Helper()
-	return gatewayWithCoordinates(t, provider, logs, timeout, false)
-}
-
-// gatewayWithCoordinates exercises the same startup wiring with an explicit capability.
-func gatewayWithCoordinates(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration, enabled bool) *httptest.Server {
-	t.Helper()
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: timeout}, testKey)
 	t.Cleanup(client.CloseIdleConnections)
 	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
-	server.Config = newServer(gatewayHandler(client, policy, config.Consumer{ExposeCoordinates: enabled}, slog.New(slog.NewJSONHandler(logs, nil))))
+	server.Config = newServer(gatewayHandler(client, policy, cursorKey{1}, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()
 	t.Cleanup(server.Close)
 	return server
@@ -49,13 +43,6 @@ func metadata(w http.ResponseWriter, path, media string) {
 // TestDeliveryRevalidation proves exact bytes, HEAD parity, fixed upstream targets,
 // credential isolation, ignored caller selectors and immediate metadata revocation.
 func TestDeliveryRevalidation(t *testing.T) {
-	t.Run("coordinates disabled", func(t *testing.T) { testDeliveryRevalidation(t, false) })
-	t.Run("coordinates enabled", func(t *testing.T) { testDeliveryRevalidation(t, true) })
-}
-
-// testDeliveryRevalidation proves the same public contract under either setting.
-func testDeliveryRevalidation(t *testing.T, enabled bool) {
-	t.Helper()
 	var private atomic.Bool
 	var assets, previews atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +72,7 @@ func testDeliveryRevalidation(t *testing.T, enabled bool) {
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayWithCoordinates(t, provider, &logs, time.Second, enabled)
+	gateway := gatewayFor(t, provider, &logs, time.Second)
 	var getHeaders http.Header
 	for i, method := range []string{"GET", "HEAD", "GET", "HEAD"} {
 		private.Store(i >= 2)
