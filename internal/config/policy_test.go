@@ -46,7 +46,7 @@ func TestNamedRoots(t *testing.T) {
 	end := strings.Index(base, "# Publication rules")
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			text := base[:start] + "[[policy.roots]]\n" + tc.roots + "\n" + base[end:]
+			text := base[:start] + "[[policy.roots]]\n" + tc.roots + "\n[[policy.rules]]\nsegment='public'\nmedia=['image','video']\n"
 			c, key, err := loadText(t, text)
 			if (err == nil) != tc.valid {
 				t.Fatalf("valid=%v, error=%v", tc.valid, err)
@@ -66,8 +66,6 @@ func TestNamedRoots(t *testing.T) {
 func TestRuleScopes(t *testing.T) {
 	base, _ := fixture(t)
 	start := strings.Index(base, "[[policy.rules]]")
-	base = base[:start] + "[[policy.roots]]\nname='art'\npath='/art'\n" + base[start:]
-	start = strings.Index(base, "[[policy.rules]]")
 	rule := "[[policy.rules]]\nsegment='post'\nmedia=['image']\n"
 	cases := []struct {
 		name, rules string

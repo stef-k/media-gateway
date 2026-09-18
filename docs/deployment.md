@@ -1,3 +1,7 @@
+---
+title: "Deployment"
+---
+
 # Deployment
 
 This document describes the reference deployment shape. The files under `deploy/` are templates, not unattended installers.
@@ -89,7 +93,7 @@ management policy; never broaden permissions to troubleshoot startup.
 
 ## Configuration
 
-Start from [`deploy/config.toml.example`](../deploy/config.toml.example) and follow
+Start from [`deploy/config.toml.example`](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and follow
 [the configuration contract](configuration.md). Adapt the numeric loopback listener,
 private provider origin, provider-visible roots and literal publication segments.
 Use an unprivileged port such as `2290`; the unit supplies no capability to bind
@@ -126,8 +130,8 @@ on timeout the process closes connections and exits with failure. This fits insi
 
 Only image/video `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
 public metadata/control routes and unsupported methods remain fixed denials.
-The [consumer API](consumer-api.md) adds only loopback `/internal/assets` browse
-and detail routes; nginx must never publish `/internal/`. There is
+The [consumer API](consumer-api.md) adds loopback `/internal/collections` and `/internal/assets` browse
+and asset detail routes; nginx must never publish `/internal/`. There is
 no startup provider probe: `listening` means the loopback listener was acquired,
 not that previews are qualified or available. HTTP limits are 5 seconds for
 headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds
@@ -185,7 +189,7 @@ behavior and final SIGKILL bound stop to 30 seconds around the 10-second Go drai
 
 ### Sandbox and real-host qualification
 
-Every directive is explained in the [unit](../deploy/media-gateway.service).
+Every directive is explained in the [unit](https://github.com/stef-k/media-gateway/blob/main/deploy/media-gateway.service).
 The static Go process has no JIT, child-process, device, clock, kernel administration
 or filesystem-write requirement. Retain `MemoryDenyWriteExecute`, empty bounding
 and ambient capabilities, `NoNewPrivileges`, SUID/SGID and personality restrictions,
@@ -219,7 +223,7 @@ checks must not be represented as installed-host execution.
 
 nginx is the only public HTTP boundary. The gateway stays on numeric loopback,
 conventionally `127.0.0.1:2290`; neither the edge nor nginx may target Immich/storage.
-The [template](../deploy/nginx.conf) is included **once inside `http {}`**, with
+The [template](https://github.com/stef-k/media-gateway/blob/main/deploy/nginx.conf) is included **once inside `http {}`**, with
 its map/log format and two servers intact. Choose a free dedicated loopback origin
 port (example `8089`), replace `media.example.com` and adapt log paths. The local
 edge must send that Host. Unknown/missing Host selects the explicit default deny
@@ -504,7 +508,7 @@ Reverified on 2026-09-15 against official Immich **v3.2.1**:
 [service](https://github.com/immich-app/immich/blob/v3.2.1/server/src/services/asset-media.service.ts),
 [file response](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/file.ts)
 and [MIME mappings](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/mime-types.ts).
-Deployed evidence remains v3.2.0 until M6 qualification; source review does not prove an upgrade.
+Accepted deployed evidence is v3.2.0; source review does not prove an upgrade.
 
 The sole operation is GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and
 `asset.download`. No provider query is sent: optional `edited` defaults false, so
@@ -538,7 +542,7 @@ Original does **not** strip EXIF/GPS or inspect embedded metadata.
 Remove stale `[delivery]` configuration before startup; fixed image representations
 have no feature gate. Update the dedicated key union without adding write/admin
 permissions. See [the required M6 checks](release.md#40-original-image-qualification)
-for the accepted image baseline. The #41 video gate below remains pending.
+for the accepted image baseline. The #41 video gate below is accepted.
 
 ### Reviewed video contract (#41)
 
@@ -579,11 +583,10 @@ provider request is made. A second
 404 remains public 404; probe auth/transport/status/framing failures produce 502.
 Normal 206 performs no probe. No loops or playback substitution are introduced.
 
-This revised software still requires exact-head qualification. Follow the bounded
-[#41 qualification checklist](video-qualification.md) against the exact PR head.
-M6 poster privacy, original-range identity, >65-second active transfer, authorization,
-ingress and mandatory temporary-instance cleanup must pass before merge. No
-persistent deployment or public hostname cutover belongs to #41.
+PR #47 / #41 was accepted at `7053ac1f297b97be6daacca7ff450b442cb689e7`
+after exact-head M6 qualification and cleanup. The [video worksheet](video-qualification.md)
+remains reusable for #42 final disposable qualification after software review.
+No persistent installation or public cutover belongs to that qualification.
 
 ## Host firewall
 

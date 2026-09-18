@@ -1,6 +1,42 @@
+---
+title: "Trusted consumer API"
+---
+
 # Trusted consumer API
 
 The #39 catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
+
+## Integration walkthrough
+
+Call the numeric loopback gateway directly from the trusted application, never
+through the public vhost. The following uses synthetic IDs and logical selectors:
+
+```sh
+# Browse a small page; URL-encode each subsequent opaque cursor unchanged.
+curl --fail --get 'http://127.0.0.1:2290/internal/collections' \
+  --data-urlencode 'limit=25'
+```
+
+Select one returned collection; descendants are separate collections. Use the query
+key `collection` (the JSON response calls the field `collection_path`):
+
+```sh
+curl --fail --get 'http://127.0.0.1:2290/internal/assets' \
+  --data-urlencode 'root=images' --data-urlencode 'collection=2023/Trip/public' \
+  --data-urlencode 'limit=25'
+curl --fail 'http://127.0.0.1:2290/internal/assets/12345678-1234-4234-8234-123456789abc'
+```
+
+Consume each page, then repeat the same operation/selectors with
+`--data-urlencode "cursor=$NEXT_CURSOR"` until `next_cursor` is null. A short or
+empty page can still have continuation. Restart browsing after gateway restart
+invalidates a cursor; merge collections by `(root, collection_path)` and avoid
+assuming a provider snapshot. Never print real catalogue responses into public logs.
+
+Use the returned preview/original paths with your configured public gateway origin
+for public media, or loopback for trusted local use. Do not infer authorization
+from a stored URL. Handle 404 revocation and sanitized 502 failures at delivery.
+Your application owns selection persistence, captions and presentation.
 
 ## Routes and selectors
 
@@ -79,6 +115,31 @@ Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one 
 
 `media_type` is `image` or `video`. `filename` is the basename of the validated provider path, never an arbitrary provider display filename. Width, height and `duration_ms` are explicit nullable nonnegative safe JSON integers (maximum 9007199254740991). Duration is **milliseconds**, so a 23.8-second video has `duration_ms: 23800`. Zero is valid; null means unknown. Both required time strings are validated as RFC3339 with optional fractional seconds and preserved; local wall time is not converted to another timezone.
 
+An example video page (synthetic values) uses the same schema. A detail request
+returns the asset object directly, without the page envelope:
+
+```json
+{
+  "assets": [{
+    "id": "12345678-1234-4234-8234-123456789abd",
+    "media_type": "video",
+    "root": "images",
+    "collection_path": "2023/Trip/public",
+    "filename": "clip.mp4",
+    "width": 1920,
+    "height": 1080,
+    "duration_ms": 23800,
+    "file_created_at": "2023-06-01T10:00:00Z",
+    "local_date_time": "2023-06-01T12:00:00Z",
+    "latitude": null,
+    "longitude": null,
+    "preview_path": "/media/12345678-1234-4234-8234-123456789abd/preview",
+    "original_path": "/media/12345678-1234-4234-8234-123456789abd/original"
+  }],
+  "next_cursor": null
+}
+```
+
 ### Current representation capabilities
 
 | Media | `preview_path` | `original_path` |
@@ -88,7 +149,7 @@ Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one 
 
 All capability fields are present and non-null for eligible images and videos. They advertise implemented representations, not existence guarantees or authorization grants. Projection makes no representation probes. A derivative can disappear; every subsequent delivery independently re-fetches current metadata/lifecycle and re-evaluates policy. The metadata schema and millisecond duration units are unchanged.
 
-`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. M6 video poster/original-range and long-stream qualification remains pending for #41.
+`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. #41 video qualification is accepted; final bundle qualification remains in #42.
 
 ### Coordinates and privacy
 

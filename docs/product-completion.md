@@ -1,10 +1,16 @@
+---
+title: "Product completion: convention-driven media publication"
+---
+
 # Product completion: convention-driven media publication
 
 This document defines the product-completion contract tracked by [#37](https://github.com/stef-k/media-gateway/issues/37).
 
-It deliberately distinguishes the **accepted V0 security/deployment baseline** from the **original product requirement that still needs completion**. V0 remains valid evidence: it proved a fail-closed provider/policy boundary, real-provider lifecycle revocation, hardened systemd/nginx deployment, bundle/rollback and a trusted loopback consumer seam. Product completion extends that foundation from image-preview delivery to the convention-driven image/video gateway originally intended.
+It deliberately distinguishes the **accepted V0 security/deployment baseline** from the **original product requirement implemented by #38–#41**. V0 remains valid evidence: it proved a fail-closed provider/policy boundary, real-provider lifecycle revocation, hardened systemd/nginx deployment, bundle/rollback and a trusted loopback consumer seam. Product completion extends that foundation from image-preview delivery to the convention-driven image/video gateway originally intended.
 
-Accepted baseline entering #37: `d3948b7e2e9de9135fbd353a10b371fb727e9be3`.
+Feature children #38–#41 are accepted through `7053ac1f297b97be6daacca7ff450b442cb689e7`. #42 is the final docs/bundle/disposable qualification and Pages acceptance child.
+
+Historical baseline entering #37: `d3948b7e2e9de9135fbd353a10b371fb727e9be3`.
 
 ## Product statement
 
@@ -57,9 +63,9 @@ Consumer applications do not make an asset public. They may retain an asset ID o
 
 ## Policy v2: named roots and scoped conventions
 
-The current V0 model has a list of `allowed_roots` and one global set of rules. Product completion replaces that with named roots plus rules that may apply globally or only to selected roots.
+Policy v2 replaced the historical V0 `allowed_roots` list with named roots and global/root-scoped rules. Obsolete configuration is rejected with migration guidance.
 
-Target configuration:
+Accepted configuration:
 
 ```toml
 [policy]
@@ -115,7 +121,7 @@ Segments continue to match at any descendant depth and remain exact literals, no
 
 ## Trusted consumer catalogue
 
-The loopback-only consumer plane becomes a generic eligible-media catalogue. It does not browse the NAS directly and must never be published by nginx.
+The loopback-only consumer plane is a generic eligible-media catalogue. It does not browse the NAS directly and must never be published by nginx.
 
 The desired experience has two paginated levels:
 
@@ -125,7 +131,7 @@ GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cu
 GET /internal/assets/<asset-id>
 ```
 
-The exact hardened route/query contract belongs to #39, but these requirements are authoritative.
+The exact accepted route/query contract is documented in the [consumer guide](consumer-api.md).
 
 ### Collections
 
@@ -156,7 +162,7 @@ Media Gateway still remains stateless; this is derived authorization/catalogue d
 
 A collection may contain thousands of files. Asset browsing must always be bounded and paginated.
 
-- retain a small default page size around the current 25;
+- retain a small default page size of 25;
 - hard maximum 100;
 - cursors remain opaque and bounded;
 - consumers never receive an unbounded directory dump;
@@ -166,11 +172,11 @@ A collection may contain thousands of files. Asset browsing must always be bound
 
 Consumer-visible pagination should describe the **eligible** browse operation rather than forcing clients to understand private candidates skipped by policy. If a bounded internal scan cannot fill a requested page before its work budget is exhausted, return safe continuation state rather than scan indefinitely.
 
-Immediately before #39 implementation, re-verify the supported Immich structured-search contract and determine whether it can narrow candidate discovery efficiently by path/root/collection. `publication` policy remains authoritative regardless.
+Accepted #39 uses bounded structured metadata search to narrow candidates by root/collection. Provider API changes require renewed verification; publication policy remains authoritative.
 
 ### Asset projection
 
-The target trusted asset projection contains only safe consumer data:
+The accepted trusted asset projection contains only safe consumer data:
 
 ```text
 id
@@ -183,13 +189,13 @@ duration_ms                   nullable nonnegative integer milliseconds
 file_created_at
 local_date_time
 latitude / longitude          validated nullable pair
-preview_path                  nullable gateway capability
-original_path                 nullable gateway capability
+preview_path                  non-null gateway capability
+original_path                 non-null gateway capability
 ```
 
 Do not serialize absolute provider/NAS paths, provider URLs, credentials, library/owner identifiers, people/albums, raw EXIF or raw provider JSON.
 
-After #40, images advertise `/media/<id>/preview` and `/media/<id>/original`; both video capabilities remain null until #41. All capability and coordinate fields are always present. Duration units are milliseconds, not seconds.
+Images and videos advertise `/media/<id>/preview` and `/media/<id>/original` without representation probes. All capability and coordinate fields are always present. Duration units are milliseconds, not seconds.
 
 ### Coordinates
 
@@ -208,7 +214,7 @@ GET  /media/<asset-id>/preview
 HEAD /media/<asset-id>/preview
 ```
 
-Preview is a provider-generated representation used for browse/picker/grid/poster UX. The accepted image preview contract remains useful. Video preview/poster behavior must be re-verified and qualified in #41.
+Preview is a provider-generated representation used for browse/picker/grid/poster UX. The accepted image preview contract remains useful. Video preview/poster behavior was qualified and accepted in #41.
 
 Preview is **not** the definition of the published asset and is not a permanent quality ceiling.
 
@@ -225,11 +231,14 @@ In the completed #37 product, if a deliberately published original is JPEG, HEIC
 
 Original delivery does not claim metadata sanitization. An original file's EXIF/GPS/etc. are part of those bytes. Operators who require metadata-minimal browser representations should use a qualified derivative such as preview or later #30 profiles.
 
-### Current #40 image slice
+### Accepted image originals
 
 Image originals now use fixed provider GET `/api/assets/<UUIDv4>/original` with no query and `asset.download`. Omitting `edited` preserves provider source bytes. GET and HEAD both validate a provider GET; HEAD immediately closes its body. Only direct 200 with one parameter-free `image/*` type and one explicit positive int64 length is accepted, without transfer/content encoding or Content-Range. No image-size ceiling, conversion, buffering or fallback exists.
 
-`[delivery]` is removed; stale configuration fails with targeted migration guidance. #40 retains the 60-second handler/65-second write/70-second nginx bounds while removing the shorter provider client body timeout for originals. Range and conditional headers remain unforwarded; no 206/416/Accept-Ranges or video delivery exists in this slice. M6 real-provider qualification is pending and blocks #40 acceptance/merge.
+`[delivery]` is removed; stale configuration fails with targeted migration guidance.
+#41 extends this same original seam to video and inactivity-bounded streaming.
+Image originals ignore Range and retain full 200 with no Accept-Ranges; all
+conditional headers remain unsupported. #40–#41 real-provider gates are accepted.
 
 ## Authorization on every public request
 
@@ -257,22 +266,27 @@ The final product must provide:
 - original video delivery;
 - practical byte-range behavior for browsers/players.
 
-At minimum original video must deliberately handle single byte ranges with correct `206 Partial Content`, `Accept-Ranges`, `Content-Range`, partial `Content-Length`, HEAD and unsatisfiable-range behavior. Multiple/malformed ranges must be explicitly supported or rejected rather than accidentally proxied.
+Original video accepts one bounded explicit, open-ended or positive suffix byte
+range after authorization. Malformed/multiple ranges return fixed 400; denied assets
+remain 404 first. Validated 206 responses carry exact interval/total/length;
+unsatisfiable ranges yield zero-body 416. HEAD validates the same provider GET
+and closes the body. Provider 200 for Range is sanitized 502.
 
-Before #41 implementation, re-verify the supported/deployed Immich version for original download, video preview/poster, range behavior, permissions, redirects and any playback endpoint. A provider playback/transcoding route may become a separate explicit representation if evidence requires it, but it must never redefine `/original` silently.
+Immich 3.2.0 range 404 triggers exactly one fixed no-Range original GET. Its validated
+positive length resolves unsatisfiable ranges to public 416 and oversized/equal
+suffixes to full-representation 206 using that source body. Other satisfiable
+contradictions yield 502; a second 404 stays 404. No third request or playback
+fallback exists. See [exact range behavior](architecture.md#video-delivery).
 
 ## Large-media streaming lifetime
 
-The current #40 image slice retains the V0 short absolute request/write lifetime. #41 owns the following different model for product-complete large originals and videos.
-
-Separate:
-
-- hard-bounded route/authorization/provider-connect/header work; from
-- body transfer that may legitimately exceed the old ~60/65 second limits.
-
-Once an authorized stream is open, lifetime should be controlled by I/O inactivity, provider/transport safety bounds, client disconnect and bounded service shutdown rather than a short absolute wall-clock deadline. nginx must mirror the accepted model and forward only explicitly supported headers such as Range.
-
-Long streaming must not become infinite stalled streaming.
+Authorization/connect/header acquisition remain hard-bounded. Established image
+and video originals refresh fixed 60-second upstream read and downstream write
+inactivity deadlines per I/O, allowing active transfers beyond 65 seconds.
+Client disconnect cancels upstream work; shutdown drains for 10 seconds then
+force-closes remaining streams. Ordinary responses retain the finite 65-second
+write default; nginx read/send inactivity limits remain 70/65 seconds.
+Long streaming does not permit indefinitely stalled I/O.
 
 ## Security/deployment invariants retained from V0
 
@@ -324,7 +338,7 @@ The deterministic product-completion lane is:
 
 ## Deployment boundary
 
-The accepted V0 installation on M6 is valuable qualification infrastructure, but the motivating `media.stefk.me`/Cloudflare production cutover in `stef-k/server-migration#10` should wait for #37. Deploying the preview-only slice now would reproduce the product drift this design is correcting.
+M6 qualification is disposable: exact unmerged PR head and retained CI bundle, temporary isolated gateway/config/key/nginx, then mandatory cleanup. No persistent gateway installation or :2290/:8089 listeners may remain. The `media.stefk.me`/Cloudflare production cutover belongs to `stef-k/server-migration#10` after #37 acceptance.
 
 ## Explicit non-goals
 

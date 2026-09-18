@@ -1,3 +1,7 @@
+---
+title: "Security model"
+---
+
 # Security model
 
 ## Security goal
@@ -163,7 +167,7 @@ case and accent overmatches do not grant access. Detail reauthorizes independent
 
 Only the fixed safe projection leaves this boundary: logical context, path basename,
 media type, nullable dimensions/duration in milliseconds, validated time strings,
-always-present nullable coordinates and implemented nullable gateway capabilities.
+always-present nullable coordinates and implemented non-null gateway capabilities.
 Provider absolute paths, URLs, owner/library IDs and raw EXIF remain private.
 There is no coordinate opt-in or `[consumer]` configuration table.
 
@@ -224,7 +228,7 @@ Original image GET/HEAD independently require current active metadata, exact pol
 
 Video originals use the same fixed endpoint and accept only parameter-free `video/*` or `application/mxf`. After current authorization, one bounded parsed byte range can reach the provider as canonical numeric syntax. Invalid/multiple ranges produce fixed 400; private/lifecycle/policy denials remain 404 before parsing. Validate provider 206 interval/total/length against the requested range, and provider 416 unsatisfiability/positive total before returning a zero-body 416. Only provider 404 for an authorized valid video Range triggers one fixed no-Range original GET without query/caller headers. Validate its normal video 200 headers: an unsatisfiable range against the positive full length closes the body and produces public zero-body 416. Only a suffix length greater than or equal to the total reuses that exact validated original body as full-representation 206, with constructed `Content-Range: bytes 0-(total-1)/total` and full length. Other satisfiable ranges close the body and produce sanitized 502. A second 404 remains public 404; probe auth/transport/status/framing failures become sanitized 502. The recovered suffix body retains exact-length/inactivity/cancellation enforcement; HEAD closes it unread. No third provider request is made. A provider 200 for Range is 502, never full-body or playback fallback. HEAD uses the identical provider GET and closes it. No arbitrary header forwarding or validator semantics are enabled. Source metadata remains part of authorized original bytes.
 
-Both original kinds use fixed 60-second read/write inactivity deadlines, client cancellation and a 10-second shutdown drain; metadata/connect/header work remains hard-bounded. Stream failures abort without a plaintext suffix and emit at most one fixed warning; canceled clients stay quiet. M6 Immich 3.2.0 poster privacy/original-range/long-stream qualification and temporary-deployment cleanup block #41 merge.
+Both original kinds use fixed 60-second read/write inactivity deadlines, client cancellation and a 10-second shutdown drain; metadata/connect/header work remains hard-bounded. Stream failures abort without a plaintext suffix and emit at most one fixed warning; canceled clients stay quiet. M6 Immich 3.2.0 poster privacy/original-range/long-stream qualification and cleanup passed for #41; final exact-bundle qualification remains in #42.
 
 ## Logging
 
