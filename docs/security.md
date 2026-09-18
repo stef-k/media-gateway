@@ -66,7 +66,7 @@ metadata, not local filesystem locations.
 
 ### Exact publication segments
 
-Policy v2 matches exact directory segments only:
+Publication policy matches exact directory segments only:
 
 ```text
 public
@@ -166,10 +166,11 @@ require exact logical root and parent-collection equality; descendants, near-pre
 case and accent overmatches do not grant access. Detail reauthorizes independently.
 
 Only the fixed safe projection leaves this boundary: logical context, path basename,
-media type, nullable dimensions/duration in milliseconds, validated time strings,
-always-present nullable coordinates and implemented non-null gateway capabilities.
+media type, nullable dimensions/duration in milliseconds, privacy-controlled time strings,
+always-present nullable coordinates and gateway capabilities.
 Provider absolute paths, URLs, owner/library IDs and raw EXIF remain private.
-There is no coordinate opt-in or `[consumer]` configuration table.
+Sensitive timestamps, coordinates and original capability are null by default.
+Only `privacy.expose_source_metadata=true` enables them; preview remains available.
 
 Gateway HMAC-SHA256 cursors bind query/policy; invalid signatures, versions, kinds
 and cross-query tokens deny before provider I/O. A random ephemeral startup key
@@ -229,11 +230,21 @@ or inspect complete image contents.
 
 If provider previews retain unsafe metadata, public preview delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
 
-Operators must account for original-source metadata when choosing publication conventions: `/original` exposes exact authorized source bytes, including EXIF/GPS, without inspection or rewriting. Use `/preview`, a separately qualified provider-generated web representation, when metadata-minimal delivery is required. RAW/HEIC source preservation does not imply browser display support.
-Trusted catalogue coordinates do not change public preview routes or bytes,
-embed GPS, add public metadata endpoints, or permit coordinates in logs. GPS is
-deliberately exposed as nullable metadata only on the trusted eligible consumer
-plane; public derivatives must remain metadata-minimal.
+The optional `privacy.expose_source_metadata` setting defaults to false. Trusted
+capture/local timestamps, coordinates and original paths remain present as null;
+search does not request EXIF and ignores hidden sensitive fields even if malformed.
+Dimensions and duration still validate. Canonical image/video originals return
+fixed 404 before any provider I/O or Range parsing, without metadata-dependent
+error distinctions. Qualified previews/posters remain unchanged.
+
+Enabling the setting deliberately exposes validated approved source-sensitive
+fields and exact source bytes, potentially containing arbitrary EXIF/GPS or
+container metadata. Provider coordinate absence cannot prove original safety.
+There is no stripping, re-encoding, remuxing or metadata-clean original variant.
+This is not anonymity: filename and collection identity remain visible. No public
+metadata endpoint or coordinate/EXIF logging is introduced.
+
+The following original contracts apply only when source metadata is enabled.
 
 Original image GET/HEAD independently require current active metadata, exact policy and image type before fixed provider GET with no query. Only direct 200, one parameter-free `image/*` type and one explicit positive length are accepted, without content/transfer encoding or Content-Range. Source streaming has no arbitrary size ceiling and uses 60-second upstream/downstream per-I/O inactivity bounds. Provider header acquisition remains bounded independently of body reading. Image Range and all conditional headers never reach the provider; image original responses are full 200 with no Accept-Ranges.
 
@@ -261,7 +272,7 @@ Startup validation should reject:
 - empty or malformed named roots, duplicate names/paths, `/`, or overlapping paths;
 - relative roots;
 - duplicate segment/unordered-scope pairs, empty scopes or unknown/duplicate root references;
-- obsolete `policy.allowed_roots` (sanitized migration error, no compatibility alias);
+- unsupported/unknown fields (sanitized errors, no compatibility aliases);
 - unsupported configured media types;
 - non-loopback listen addresses unless an explicit future option intentionally supports them;
 - provider URLs with unsupported schemes;

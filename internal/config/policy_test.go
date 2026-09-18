@@ -109,11 +109,11 @@ func TestObsoletePolicy(t *testing.T) {
 		stale := base[:start] + base[end:]
 		text := strings.Replace(stale, "[policy]", "[policy]\n"+field+"=['/sentinel-private']", 1)
 		c, key, err := loadText(t, text)
-		if err == nil || !strings.Contains(err.Error(), "policy.allowed_roots") || !strings.Contains(err.Error(), "Policy v2") {
-			t.Fatalf("missing migration diagnostic: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "policy.allowed_roots") || !strings.Contains(err.Error(), "policy.roots") {
+			t.Fatalf("missing unsupported-field diagnostic: %v", err)
 		}
 		if strings.Contains(err.Error(), "sentinel-private") || !reflect.DeepEqual(c, Config{}) || key != "" {
-			t.Fatal("migration exposed private or partial state")
+			t.Fatal("unsupported-field exposed private or partial state")
 		}
 	}
 }

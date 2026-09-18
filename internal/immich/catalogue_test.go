@@ -36,7 +36,7 @@ func TestDiscoveryStreams(t *testing.T) {
 func TestCatalogueSearchModes(t *testing.T) {
 	for _, discovery := range []bool{false, true} {
 		t.Run(fmt.Sprint(discovery), func(t *testing.T) {
-			query := CandidateQuery{Limit: 1, Collection: &CollectionSelector{Root: config.Root{Name: "images", Path: "/root_%"}, Path: "public_%"}}
+			query := CandidateQuery{IncludeSourceMetadata: true, Limit: 1, Collection: &CollectionSelector{Root: config.Root{Name: "images", Path: "/root_%"}, Path: "public_%"}}
 			pathFilter := map[string]any{"startsWith": `/root\_\%/public\_\%/`}
 			media := []any{"IMAGE", "VIDEO"}
 			if discovery {
@@ -72,7 +72,7 @@ func TestCatalogueSearchModes(t *testing.T) {
 func TestDurationValidation(t *testing.T) {
 	for _, value := range []string{"null", "0", "23800", "-1", "1.5", `"23"`, "9007199254740992"} {
 		raw := strings.Replace(candidateJSON, `"duration":null`, `"duration":`+value, 1)
-		item, err := decodeCandidate([]byte(raw), assetID, false)
+		item, err := decodeCandidate([]byte(raw), assetID, false, true)
 		valid := value == "null" || value == "0" || value == "23800"
 		if (err == nil) != valid {
 			t.Errorf("duration %s: %v", value, err)
@@ -82,7 +82,7 @@ func TestDurationValidation(t *testing.T) {
 		}
 	}
 	raw := strings.Replace(candidateJSON, `"duration":null,`, "", 1)
-	if _, err := decodeCandidate([]byte(raw), assetID, false); err != ErrMetadata {
+	if _, err := decodeCandidate([]byte(raw), assetID, false, true); err != ErrMetadata {
 		t.Fatal("missing duration accepted")
 	}
 }

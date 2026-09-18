@@ -28,10 +28,10 @@ func TestSearchCandidatesContract(t *testing.T) {
 	for _, id := range []string{"", assetID} {
 		t.Run("id="+id, func(t *testing.T) {
 			cursor := `opaque/+?\"filter:VIDEO`
-			query := CandidateQuery{Limit: 2, Cursor: cursor}
+			query := CandidateQuery{IncludeSourceMetadata: true, Limit: 2, Cursor: cursor}
 			filter := map[string]any{"type": map[string]any{"in": []any{"IMAGE", "VIDEO"}}, "isOffline": map[string]any{"eq": false}, "trashedAt": map[string]any{"eq": nil}}
 			if id != "" {
-				query = CandidateQuery{Limit: 1, ID: id}
+				query = CandidateQuery{IncludeSourceMetadata: true, Limit: 1, ID: id}
 				filter["id"] = map[string]any{"eq": id}
 			}
 			client := clientFor(t, func(w http.ResponseWriter, r *http.Request) {

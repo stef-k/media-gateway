@@ -50,10 +50,9 @@ media = ["image", "video"]
 
 One root is sufficient for one provider namespace sharing publication conventions.
 Use multiple non-overlapping named roots when archives have separate namespaces;
-use root-scoped rules when a legacy/special convention should apply only to one
+use root-scoped rules when a root-specific convention should apply only to one
 namespace. The full example includes global `public`, `public-images`,
-`public-videos`, and `post` scoped to `photos`. Originals include source EXIF/GPS;
-choose publication conventions with that consequence in mind.
+`public-videos`, and `post` scoped to `photos`. Exact originals require explicit source-metadata opt-in and include source EXIF/GPS.
 
 Adapt and save the TOML, then start in the foreground:
 
@@ -65,7 +64,7 @@ Adapt and save the TOML, then start in the foreground:
 
 Startup validates TOML/key before binding; it does not probe provider readiness.
 Use the [consumer guide](consumer-api.md#integration-walkthrough) against loopback
-to find an eligible asset, then check its preview and original GET/HEAD. Confirm a
+to find an eligible asset, then check its preview GET/HEAD. Originals return 404 unless source metadata is enabled. Confirm a
 known private asset remains 404. Stop with Ctrl-C; use the
 [deployment guide](deployment.md) for persistent systemd/nginx integration.
 
@@ -93,13 +92,34 @@ Follow [deployment](deployment.md#service-account-and-installation). The referen
 
 TOML and the key are loaded once before binding. **Changes require service restart**. There is no hot reload or `ExecReload`.
 
-## Current delivery and consumer configuration
+## Source-metadata privacy
 
-Image/video `preview` and `original` are fixed product representations. There is no `[delivery]` section or operator-selectable delivery mode. Remove the entire obsolete section, including `allow_original` and `image_variant`, before restart. Any stale section fails with sanitized targeted migration guidance; failure returns zero configuration and an empty credential. No compatibility alias exists. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
+```toml
+[privacy]
+# Privacy-preserving default; the table and field are both optional.
+expose_source_metadata = false
+```
 
-## Current Policy v2
+Omitted or false keeps `file_created_at`, `local_date_time`, `latitude`,
+`longitude` and `original_path` present as null in trusted asset JSON. Catalogue
+requests use `withExif=false`; hidden timestamps and EXIF are not decoded or
+validated, even if unexpectedly returned. Width, height and duration still validate.
+Image/video original GET/HEAD returns fixed 404 before provider access or Range
+parsing. Qualified previews/posters remain available.
 
-Policy v2 replaces flat `allowed_roots` with named provider roots and allows rules to be global or scoped to selected roots.
+Set true only to deliberately expose validated capture/local timestamps and
+coordinates and enable exact originals. Original bytes may contain additional
+embedded EXIF/GPS, camera/device or container metadata; they are never sanitized.
+The [consumer matrix](consumer-api.md#source-metadata-privacy) defines the fields.
+This is not an anonymity mode: filenames and collection identity remain visible.
+
+Configuration is immutable until restart. Unknown/unsupported fields and wrong
+types fail strict decoding; failure returns zero configuration and no credential.
+No configuration/schema version or compatibility aliases exist.
+
+## Publication policy
+
+Publication policy uses named provider roots and global or root-scoped publication rules.
 
 Configuration shape:
 
@@ -127,7 +147,7 @@ media = ["image"]
 segment = "public-videos"
 media = ["video"]
 
-# Root-scoped legacy convention.
+# Root-scoped publication convention.
 [[policy.rules]]
 segment = "post"
 media = ["image"]
@@ -173,22 +193,9 @@ For root `/library/photos` and asset
 the basename can match, at any depth. Malformed metadata denies without repair.
 Denial returns zero context. Current consumer JSON exposes both logical fields after successful authorization.
 
-### Migration from the previous configuration format
-
-Replace `policy.allowed_roots` with named `[[policy.roots]]` entries and choose
-unique logical names. Existing global rules can remain global; add `roots` only
-when a convention should apply under selected roots. Nested roots and `/` must be
-replaced with meaningful non-overlapping namespaces.
-
-There is no runtime alias or automatic translation. An obsolete
-`policy.allowed_roots` field fails startup with a sanitized Policy v2 migration
-error that identifies the field without echoing private values. All other unknown
-fields remain strictly rejected. Failure returns no partial configuration or
-credential. Review the new configuration and restart; there is no hot reload.
-
 ## Representation and lifetime boundaries
 
-Image/video originals retain embedded source metadata. Preview is a separately
+When source metadata is enabled, image/video originals retain embedded source metadata. Preview is a separately
 qualified provider-generated web representation; the gateway does not rewrite it.
 Video originals accept single byte ranges; image originals and previews ignore
 Range. All conditionals are unsupported. See [media behavior](architecture.md#video-delivery).

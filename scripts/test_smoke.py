@@ -67,12 +67,23 @@ class ProductOrigin(Origin):
 
     def asset(self, identifier):
         """Use only the shipped catalogue schema and synthetic source metadata."""
-        return {"id": identifier, "media_type": "video" if identifier == VIDEO else "image",
+        item = {"id": identifier, "media_type": "video" if identifier == VIDEO else "image",
                 "root": "images", "collection_path": "trip/public", "filename": "example",
                 "width": None, "height": None, "duration_ms": None,
                 "file_created_at": "2026-01-01T00:00:00Z", "local_date_time": "2026-01-01T00:00:00Z",
-                "latitude": None, "longitude": None,
+                "latitude": 0 if identifier == VIDEO else None, "longitude": 180 if identifier == VIDEO else None,
                 "preview_path": f"/media/{identifier}/preview", "original_path": f"/media/{identifier}/original"}
+
+        if not self.server.expose:
+            for field in ("file_created_at", "local_date_time", "latitude", "longitude", "original_path"):
+                item[field] = None
+        if self.server.defect and self.server.defect.startswith("sensitive:"):
+            item[self.server.defect.split(":")[1]] = "synthetic-private-marker"
+        if self.server.defect == "missing-sensitive":
+            del item["latitude"]
+        if self.server.defect == "coordinate-mismatch":
+            item["latitude"] = 12
+        return item
 
     def do_GET(self):
         if self.path.startswith("/internal/") and self.headers.get("Host") != "smoke.example":
@@ -99,6 +110,9 @@ class ProductOrigin(Origin):
 
     def original(self):
         """Model full, first/suffix, unsatisfiable and malformed video requests."""
+        if not self.server.expose and self.server.defect != "original-leak":
+            self.reply(404, "text/plain; charset=utf-8", b"not found\n")
+            return
         video = VIDEO in self.path
         headers = {"Accept-Ranges": "bytes"} if video else {}
         status, body = 200, SOURCE
@@ -140,19 +154,22 @@ class ProductOrigin(Origin):
 class SmokeContract(unittest.TestCase):
     """The CLI must pass the contract and fail unsafe responses without leaking bytes."""
 
-    def run_smoke(self, defect, product=False, extra=()):
+    def run_smoke(self, defect, product=False, extra=(), expose=True):
         with http.server.ThreadingHTTPServer(("127.0.0.1", 0), ProductOrigin if product else Origin) as server:
             server.defect = defect
+            server.expose = expose
             thread = threading.Thread(target=server.serve_forever)
             thread.start()
             try:
                 options = []
                 if product:
-                    options = ["--image-original", "--video-id", VIDEO,
-                               "--image-sha256", hashlib.sha256(SOURCE).hexdigest(),
-                               "--video-sha256", hashlib.sha256(SOURCE).hexdigest(),
+                    options = ["--video-id", VIDEO,
                                "--gateway-origin", f"http://127.0.0.1:{server.server_port}",
                                "--root", "images", "--collection", "trip/public", "--lifecycle-id", PRIVATE]
+                    if expose:
+                        options += ["--source-metadata", "on", "--image-original",
+                                    "--image-sha256", hashlib.sha256(SOURCE).hexdigest(),
+                                    "--video-sha256", hashlib.sha256(SOURCE).hexdigest()]
                 return subprocess.run([
                     "python3", str(SCRIPT), "--origin", f"http://127.0.0.1:{server.server_port}",
                     "--host", "smoke.example", "--eligible-id", ELIGIBLE, "--private-id", PRIVATE,
@@ -177,6 +194,32 @@ class SmokeContract(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("synthetic-private-marker", result.stdout + result.stderr)
                 self.assertNotIn(VIDEO, result.stdout + result.stderr)
+
+    def test_privacy_modes_and_option_coherence(self):
+        """Default-off catalogue and original denial must match the requested mode."""
+        result = self.run_smoke(None, product=True, expose=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PASS privacy-off original", result.stdout)
+        self.assertIn("PASS bounded collection/asset pages", result.stdout)
+        for field in ("file_created_at", "local_date_time", "latitude", "longitude", "original_path"):
+            with self.subTest(field=field):
+                result = self.run_smoke("sensitive:" + field, product=True, expose=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("synthetic-private-marker", result.stdout + result.stderr)
+        for expose, defect, extra in (
+            (False, "missing-sensitive", ()), (True, "coordinate-mismatch", ()),
+            (False, "original-leak", ()), (True, "sensitive:original_path", ()),
+            (True, "sensitive:file_created_at", ()), (True, "sensitive:local_date_time", ()),
+            (False, None, ("--source-metadata", "on")),
+            (True, None, ("--source-metadata", "off")),
+            (False, None, ("--image-original",)),
+            (False, None, ("--video-sha256", "0" * 64)),
+            (False, None, ("--long-video-rate", "1")),
+        ):
+            with self.subTest(expose=expose, defect=defect, extra=extra):
+                result = self.run_smoke(defect, product=True, expose=expose, extra=extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("synthetic-private-marker", result.stdout + result.stderr)
 
     def test_recovery_deadline_interrupts_stalled_http(self):
         """The total recovery budget interrupts HTTP, not just the retry sleeps."""

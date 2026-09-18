@@ -126,6 +126,17 @@ func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon a
 
 // TestCoordinatesDeniedCandidates retains private and unavailable denial/cursor semantics.
 func TestCoordinatesDeniedCandidates(t *testing.T) {
+	for _, expose := range []bool{false, true} {
+		name := "off"
+		if expose {
+			name = "on"
+		}
+		t.Run(name, func(t *testing.T) { testCoordinatesDeniedCandidates(t, expose) })
+	}
+}
+
+// testCoordinatesDeniedCandidates applies the same security boundary in either privacy mode.
+func testCoordinatesDeniedCandidates(t *testing.T, expose bool) {
 	for _, state := range []string{"private", "outside", "near", "malformed", "trashed", "offline", "missing"} {
 		t.Run(state, func(t *testing.T) {
 			item := candidateFixture(testAsset, "/external/photos/website/a.jpg", "IMAGE")
@@ -153,7 +164,7 @@ func TestCoordinatesDeniedCandidates(t *testing.T) {
 			}))
 			defer provider.Close()
 			var logs bytes.Buffer
-			gateway := gatewayFor(t, provider, &logs, time.Second)
+			gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
 			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {

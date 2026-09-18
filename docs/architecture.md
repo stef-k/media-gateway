@@ -117,6 +117,7 @@ GET or HEAD /media/<asset-id>/original
           |
           v
 validate route/method/identifier/variant
+          | original with source metadata disabled -> fixed 404, no provider I/O
           |
           v
 query Immich for current asset metadata
@@ -146,7 +147,7 @@ validate bounded upstream response
 stream public response
 ```
 
-Every delivery request checks current provider lifecycle availability before evaluating
+Every enabled delivery request checks current provider lifecycle availability before evaluating
 policy. Immich external-library moves can retain an old eligible path on a
 trashed/offline record; that record now denies delivery. An active record at a
 new ineligible path also denies. There is no second publication database to synchronize.
@@ -190,16 +191,17 @@ collection assets, with independently reauthorized detail. The listener and TCP
 peer must be loopback; forwarded headers are not identity. nginx never publishes
 `/internal/`. See the [consumer contract](consumer-api.md) for the full allowlist.
 
-Collection identities come from Policy v2 and are deduplicated within each page,
+Collection identities come from publication policy and are deduplicated within each page,
 with at-least-once discovery across pages. Stateless gateway HMAC cursors bind the
 query/policy and invalidate on restart. Each request has at most eight provider
 calls, a 30-second deadline and 512 KiB buffered JSON output. Provider page sizes
 never exceed remaining output slots. No catalogue database or folder-view API is used.
 
 Assets expose logical root/relative collection, path basename, image/video type,
-nullable dimensions and integer `duration_ms`, validated times and always-present
-nullable coordinates. Images and videos have non-null preview and original
-paths without provider representation probes. Consumer references do not
+nullable dimensions and integer `duration_ms`. Capture/local timestamps, coordinates
+and original paths are present but null by default; immutable
+`privacy.expose_source_metadata=true` enables their validated projection and exact
+original delivery. Preview paths remain non-null without provider representation probes. Consumer references do not
 authorize subsequent detail or public delivery. Raw EXIF remains private.
 
 ## Provider boundary
@@ -219,8 +221,9 @@ from validated configuration and the separately loaded key. See the
 `Client.SearchCandidates` performs one bounded structured metadata search page
 for gateway-owned discovery, collection assets or exact UUIDv4 detail. Discovery
 uses `withExif=false` and decodes only lifecycle/path/media facts. Asset projection
-uses `withExif=true`, validates dimensions/duration/times, and retains only the
-validated nullable coordinate pair. Unavailable candidates are omitted; malformed
+uses `withExif` from the immutable privacy setting and always validates dimensions
+and duration. Only when enabled does it validate capture/local times and the
+nullable coordinate pair; hidden sensitive fields are ignored. Unavailable candidates are omitted; malformed
 consumed metadata fails the request. Provider path/media/lifecycle filters are
 optimizers only: case/accent overmatches still pass exact `publication.Evaluate`.
 The handler fills pages within its finite budget and requires exact root/parent
@@ -262,8 +265,9 @@ A short/failed stream aborts the public connection or HTTP stream; headers alrea
 sent cannot be replaced with a 502. No error text is appended to image bytes.
 
 Representative preview privacy, visual quality and live lifecycle revocation were
-validated against Immich 3.2.0. Additional fixed derivative profiles are optional
-future scope.
+validated against Immich 3.2.0. Consumer-specific derivative and caching strategy
+belongs to consumers; additional gateway representations require a fresh bounded
+issue grounded in a measured need.
 
 A preview derivative may be qualified for production public delivery only after tests prove:
 
@@ -277,7 +281,12 @@ If provider previews do not meet those requirements, an explicit image-transform
 
 ### Original images
 
-`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback.
+The default-off source-metadata guard denies image/video originals with the normal
+fixed 404 before provider I/O or video Range parsing. The following original
+contracts apply only with `privacy.expose_source_metadata=true`; publication
+eligibility itself is unchanged. No original adapter or source bytes are rewritten.
+
+`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, publication policy and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback.
 
 Validate direct 200, exactly one valid parameter-free `image/*` Content-Type and one explicit positive int64 Content-Length. Reject transfer/content encoding and Content-Range. There is no preview-size ceiling. GET streams a shared length-enforcing body; HEAD validates the provider GET then closes it. Both construct the same four public headers described above.
 
@@ -330,7 +339,8 @@ media = ["video"]
 
 ```
 
-The [committed example](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
+The [committed example](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; exact originals require
+`privacy.expose_source_metadata=true`. Unsupported configuration fails strict decoding. `public_base_url` is optional.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not supported.
 
@@ -364,8 +374,6 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 Potential later capabilities include:
 
-- optional local derivative cache;
-- optional image re-encoding/format variants;
 - signed or opaque public URLs if evidence justifies them;
 - additional private consumer integrations;
 - another provider, once a real second provider exists.

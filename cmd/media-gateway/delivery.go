@@ -21,12 +21,12 @@ const deliveryTimeout = 60 * time.Second
 
 // deliveryHandler owns public authorization; the concrete client owns private HTTP.
 // Policy comes from config.Load and remains immutable for the process lifetime.
-func deliveryHandler(client *immich.Client, policy config.Policy, logger *slog.Logger) http.Handler {
+func deliveryHandler(client *immich.Client, policy config.Policy, privacy config.Privacy, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		id, original, ok := mediaRoute(r)
-		if !ok {
+		if !ok || (original && !privacy.ExposeSourceMetadata) {
 			publicError(w, r, http.StatusNotFound)
 			return
 		}

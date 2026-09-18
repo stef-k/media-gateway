@@ -16,12 +16,13 @@ import (
 // Missing/private controls prove the exact same denial headers, body and quiet logs.
 func TestLifecycleRevocation(t *testing.T) {
 	for _, variant := range []string{"preview", "original"} {
-		t.Run(variant, func(t *testing.T) { testLifecycleRevocation(t, variant) })
+		t.Run(variant, func(t *testing.T) { testLifecycleRevocation(t, variant, true) })
 	}
+	t.Run("privacy-off-preview", func(t *testing.T) { testLifecycleRevocation(t, "preview", false) })
 }
 
 // testLifecycleRevocation applies the same active/revoked cases to both image routes.
-func testLifecycleRevocation(t *testing.T, variant string) {
+func testLifecycleRevocation(t *testing.T, variant string, expose bool) {
 	cases := []struct {
 		name             string
 		trashed, offline any
@@ -60,7 +61,7 @@ func testLifecycleRevocation(t *testing.T, variant string) {
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayFor(t, provider, &logs, time.Second)
+	gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
 	for i, tc := range cases {
 		state.Store(int32(i))
 		for _, method := range []string{"GET", "HEAD"} {

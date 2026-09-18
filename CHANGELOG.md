@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add optional `privacy.expose_source_metadata`, default off, guarding source metadata.
+- Keep sensitive trusted timestamps, coordinates and original capability keys present
+  as null while off; exact image/video originals are unavailable without provider fetches.
+- Preserve qualified previews/posters; explicit opt-in enables validated sensitive
+  fields and exact originals, whose bytes may contain further embedded metadata.
+- Make smoke checks verify the intended source-metadata mode, defaulting to off.
+- Simplify public documentation to current product and configuration terminology.
+
 ## 1.0.0 - 2026-09-18
 
 First stable release for Linux amd64.

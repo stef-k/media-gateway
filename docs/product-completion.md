@@ -30,8 +30,7 @@ needed. Moving media outside a matching convention revokes future requests once
 Immich reports the new path or lifecycle state. Revocation cannot recall bytes
 already received or stop an already-authorized response.
 
-See [configuration](configuration.md) for the complete Policy v2 schema, examples
-and migration from obsolete settings.
+See [configuration](configuration.md) for the current publication policy schema and examples.
 
 ## Discovery and delivery
 
@@ -46,7 +45,7 @@ independently rechecks current provider lifecycle and publication policy:
 
 - `GET/HEAD /media/<id>/preview` returns a fixed provider-generated image preview
   or video poster.
-- `GET/HEAD /media/<id>/original` returns authorized provider source bytes,
+- With `privacy.expose_source_metadata=true`, `GET/HEAD /media/<id>/original` returns authorized provider source bytes,
   including embedded EXIF/GPS. No conversion or metadata stripping is implied.
 - Video originals support validated single byte ranges and 206/416 responses.
   Image originals and previews ignore Range; conditional requests are unsupported.
@@ -57,6 +56,10 @@ The [consumer guide](consumer-api.md) defines pagination and projection;
 [architecture](architecture.md#preview-delivery) defines media framing, provider
 failure handling and streaming behavior. Original source formats such as RAW/HEIC
 need not be browser-displayable; consumers own their downstream transformations.
+
+By default, approved source-sensitive timestamps, coordinates and original paths
+are null and originals return fixed 404 without provider fetches. Previews/posters
+remain available. This is not anonymity: filenames and collection names remain.
 
 ## Deployment boundary
 
@@ -78,6 +81,7 @@ publication database, NAS browser, generic URL proxy, public catalogue or identi
 platform. It does not offer arbitrary resize/crop/quality transformations,
 transcoding, HLS/DASH, a cache or a metrics stack.
 
-Additional fixed browser-safe derivatives are optional future scope and would
-remain distinct from original source delivery. See the [roadmap](roadmap.md) for
-other evidence-driven directions.
+Consumers own browsing, selection, presentation and consumer-specific derivative
+or caching strategy. The gateway surface is catalogue, preview/poster and
+privacy-permitted exact original. A measured new need requires a fresh bounded
+issue; see the [roadmap](roadmap.md).

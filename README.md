@@ -14,12 +14,19 @@ Consumer selections never grant publication. Immich and NAS paths stay private;
 the gateway does not mount storage, transform media or provide a gallery UI.
 Originals preserve source bytes, including embedded EXIF/GPS.
 
-- Policy v2 named roots with global and root-scoped exact conventions.
+- Named roots with global and root-scoped exact conventions.
 - Paginated image/video collections and safe metadata on loopback `/internal/`.
 - Public `GET`/`HEAD /media/<id>/preview` and `/media/<id>/original`.
 - Video byte ranges, validated 206/416 framing and inactivity-bounded streaming.
 - One Go binary, strict TOML, separate credential, systemd/nginx templates and
   a checksummed Linux bundle with portable smoke and rollback guidance.
+
+Source-metadata exposure is **off by default**. Capture/local timestamps,
+coordinates and original paths remain present as null; originals return fixed 404
+without provider fetches. Qualified previews/posters remain available. Set
+`privacy.expose_source_metadata=true` deliberately to enable sensitive catalogue
+fields and exact originals, whose bytes may contain embedded metadata. Filenames
+and collection names remain visible in both modes.
 
 ## Getting started
 
