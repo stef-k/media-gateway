@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-09-19
+
 - Add optional `privacy.expose_source_metadata`, default off, guarding source metadata.
 - Keep sensitive trusted timestamps, coordinates and original capability keys present
   as null while off; exact image/video originals are unavailable without provider fetches.
