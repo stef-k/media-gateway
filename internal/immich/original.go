@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -30,7 +31,27 @@ func (c *Client) Original(ctx context.Context, id string) (Original, error) {
 
 // VideoOriginal opens exact video source bytes with a validated optional range.
 func (c *Client) VideoOriginal(ctx context.Context, id string, requested ByteRange) (Original, error) {
-	return c.original(ctx, id, "video", requested)
+	source, err := c.original(ctx, id, "video", requested)
+	if err == ErrMissing && requested.present {
+		return c.disambiguateRangeMissing(ctx, id, requested)
+	}
+	return source, err
+}
+
+// disambiguateRangeMissing handles Immich 3.2.0's pre-header file-send 404.
+// One un-ranged source GET supplies existence/length only; its body is never read.
+func (c *Client) disambiguateRangeMissing(ctx context.Context, id string, requested ByteRange) (Original, error) {
+	probe, err := c.original(ctx, id, "video", ByteRange{})
+	if err != nil {
+		return Original{}, err
+	}
+	probe.Body.Close()
+	if _, _, satisfiable := requested.bounds(probe.Length); satisfiable {
+		return Original{}, ErrOriginal
+	}
+	return Original{Status: http.StatusRequestedRangeNotSatisfiable,
+		ContentRange: "bytes */" + strconv.FormatInt(probe.Length, 10),
+		Body:         io.NopCloser(strings.NewReader(""))}, nil
 }
 
 // original shares the fixed source operation for already-authorized media kinds.

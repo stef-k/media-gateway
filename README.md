@@ -122,7 +122,7 @@ GET/HEAD /media/<asset-id>/original
 
 `preview` is a provider-generated browse/picker/poster representation. `original` means the provider original bytes after current authorization. The gateway does not silently convert RAW/HEIC/video originals or strip metadata from an original file; downstream consumers own resizing/derivatives as needed.
 
-Video originals support one validated byte range with 200/206/416 and HEAD framing. Image originals and all previews ignore Range. Conditional requests remain unsupported. Established image/video originals use 60-second read/write inactivity bounds; authorization and provider connection/header work stay bounded. Exact M6 Immich 3.2.0 range and long-stream qualification remains required before #41 merge.
+Video originals support one validated byte range with 200/206/416 and HEAD framing. Immich 3.2.0's range 404 is disambiguated with one fixed no-Range original GET: validated length proves public 416, while missing originals remain 404 and contradictions fail with 502. The probe body is closed without streaming. Image originals and all previews ignore Range. Conditional requests remain unsupported. Established image/video originals use 60-second read/write inactivity bounds; authorization and provider connection/header work stay bounded. Exact M6 Immich 3.2.0 range and long-stream qualification remains required before #41 merge.
 
 ## Running the current service
 

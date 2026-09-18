@@ -58,12 +58,21 @@ cmp "$evidence/expected.bin" "$evidence/gateway-range.bin"
 curl --silent --show-error --head -H 'Host: media.example.com' \
   -H 'Range: bytes=0-1023' "$gateway/media/$video_id/original"
 
-# Set total to the validated full-source byte count: expect zero-body 416,
+# Set total to the validated full-source byte count. Immich 3.2.0 returns 404
+# for this unsatisfiable Range; keep its error body private, never relay it.
+curl --silent --show-error --config "$provider_curl_config" \
+  -H "Range: bytes=$total-" -D "$evidence/provider-unsatisfied.headers" \
+  -o "$evidence/provider-unsatisfied.body" "$provider/api/assets/$video_id/original"
+
+# Gateway disambiguates with one no-Range original GET, validates its 200
+# length and closes the probe body. Expect gateway zero-body 416,
 # Content-Range: bytes */total, Content-Length: 0 and Accept-Ranges: bytes.
 curl --silent --show-error -H 'Host: media.example.com' \
   -H "Range: bytes=$total-" -D "$evidence/416.headers" \
   -o "$evidence/416.body" "$gateway/media/$video_id/original"
 test ! -s "$evidence/416.body"
+curl --silent --show-error --head -H 'Host: media.example.com' \
+  -H "Range: bytes=$total-" "$gateway/media/$video_id/original"
 
 # Eligible malformed/multiple ranges -> 400; private video -> 404 first.
 curl --silent --show-error -H 'Host: media.example.com' \
@@ -86,7 +95,12 @@ cmp "$evidence/provider.bin" "$evidence/slow.bin"
 ```
 
 Check direct provider and gateway no-range 200, first/middle/tail/open/suffix 206,
-unsatisfiable 416 and HEAD. Validate exact intervals, positive totals, types and
+provider unsatisfiable 404, gateway synthesized 416 and HEAD. Confirm exactly one
+same-endpoint no-Range disambiguation GET for range 404, no extra request for 206,
+and no probe-body streaming. A second provider 404 remains public 404; a valid
+probe length that makes the range satisfiable is a sanitized 502 contradiction.
+Direct strictly validated provider 416 remains supported but is not the expected
+Immich 3.2.0 qualification path. Validate exact intervals, positive totals, types and
 lengths, including clipped ends and suffixes larger than the source. No redirects,
 playback substitutions, provider validators/disposition/cookies or error bodies may
 escape. If Immich original does not satisfy this contract, stop and re-harden #41.
