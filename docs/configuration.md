@@ -6,7 +6,7 @@ title: "Configuration and operator quick start"
 
 ## Get started
 
-Use a reachable private Immich instance (accepted provider evidence: 3.2.0), an
+Use a reachable private Immich instance (deployed validation baseline: 3.2.0), an
 account that can read the intended assets, and a dedicated non-administrator API
 key with `asset.read`, `asset.view`, and `asset.download`. Build with the reviewed
 [Go toolchain](toolchain.md) or verify/extract the [Linux bundle](release.md).
@@ -68,7 +68,6 @@ Use the [consumer guide](consumer-api.md#integration-walkthrough) against loopba
 to find an eligible asset, then check its preview and original GET/HEAD. Confirm a
 known private asset remains 404. Stop with Ctrl-C; use the
 [deployment guide](deployment.md) for persistent systemd/nginx integration.
-The final #42 M6 run instead uses disposable infrastructure only.
 
 Configuration is loaded once; **TOML/key changes require restart**. Unknown fields,
 incorrect types and malformed TOML fail startup. Input is limited to 1 MiB and
@@ -77,7 +76,7 @@ working-directory or home-directory configuration discovery occurs.
 
 ## Connectivity and credential
 
-These requirements remain product invariants through #37:
+Connectivity and credential requirements:
 
 - `server.listen`: numeric loopback IP, including IPv6, and port 1..65535. No DNS resolution, wildcard binds, zone identifiers or ephemeral ports.
 - `server.public_base_url`: optional HTTP(S) origin.
@@ -90,15 +89,15 @@ The credential is intentionally separate from `Config`. Never log the credential
 
 ## Installed ownership and startup state
 
-Follow [deployment](deployment.md#service-account-and-installation). The accepted reference contract uses a root-controlled `/etc/media-gateway`, TOML readable but not writable by the service, and a restrictive separate key readable only by the required service/admin identities.
+Follow [deployment](deployment.md#service-account-and-installation). The reference deployment uses a root-controlled `/etc/media-gateway`, TOML readable but not writable by the service, and a restrictive separate key readable only by the required service/admin identities.
 
-TOML and the key are loaded once before binding. **Changes require service restart**. There is no hot reload or `ExecReload`; #37 does not change that requirement.
+TOML and the key are loaded once before binding. **Changes require service restart**. There is no hot reload or `ExecReload`.
 
 ## Current delivery and consumer configuration
 
 Image/video `preview` and `original` are fixed product representations. There is no `[delivery]` section or operator-selectable delivery mode. Remove the entire obsolete section, including `allow_original` and `image_variant`, before restart. Any stale section fails with sanitized targeted migration guidance; failure returns zero configuration and an empty credential. No compatibility alias exists. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
 
-## Current Policy v2 (#38)
+## Current Policy v2
 
 Policy v2 replaces flat `allowed_roots` with named provider roots and allows rules to be global or scoped to selected roots.
 
@@ -174,7 +173,7 @@ For root `/media/archive/Images` and asset
 the basename can match, at any depth. Malformed metadata denies without repair.
 Denial returns zero context. Current consumer JSON exposes both logical fields after successful authorization.
 
-### Breaking migration from V0
+### Migration from the previous configuration format
 
 Replace `policy.allowed_roots` with named `[[policy.roots]]` entries and choose
 unique logical names. Existing global rules can remain global; add `roots` only
@@ -201,7 +200,7 @@ nginx uses 70-second read and 65-second send inactivity bounds.
 
 ## Provider permissions
 
-The dedicated non-administrator key requires `asset.read` (metadata/search), `asset.view` (preview) and `asset.download` (original). No write permission is required. Original uses only GET `/api/assets/<UUIDv4>/original` with no query, preserving Immich source semantics. See the [reviewed provider contract](deployment.md#reviewed-original-image-contract-40). #40–#41 are accepted; #42 retains final bundle qualification.
+The dedicated non-administrator key requires `asset.read` (metadata/search), `asset.view` (preview) and `asset.download` (original). No write permission is required. Original uses only GET `/api/assets/<UUIDv4>/original` with no query, preserving Immich source semantics. See the [reviewed provider contract](deployment.md#reviewed-original-image-contract).
 
 ## Development validation
 
@@ -216,4 +215,4 @@ go build ./cmd/media-gateway
 git diff --check
 ```
 
-Strict TOML decoding and fail-closed startup remain mandatory throughout #37.
+Strict TOML decoding and fail-closed startup are mandatory.

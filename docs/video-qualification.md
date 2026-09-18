@@ -4,17 +4,15 @@ title: "Video qualification worksheet"
 
 # Video qualification worksheet
 
-#41 passed this gate before PR #47 merged at
-`7053ac1f297b97be6daacca7ff450b442cb689e7`. Reuse this worksheet as the
-video portion of [#42 final product qualification](release.md#final-disposable-qualification-42).
-Run only after software/docs review of the exact unmerged PR head and retained
-CI bundle. Synthetic tests do not qualify a host/provider. All infrastructure is
-temporary; production cutover belongs to `stef-k/server-migration#10`.
+Use this worksheet as the video portion of
+[isolated deployment validation](release.md#isolated-deployment-validation).
+Synthetic tests do not qualify a host/provider. Use temporary infrastructure
+and remove it after the run.
 
 ## Prepare an isolated run
 
-- Verify the PR head with `gh pr view <PR> --json headRefOid` and compare
-  `git rev-parse HEAD`, the verified CI bundle revision, and `media-gateway -version`.
+- Compare the reviewed source revision (`git rev-parse HEAD`), the verified
+  bundle revision, and `media-gateway -version`.
 - Use a temporary unprivileged gateway on `127.0.0.1:2290` and isolated nginx on
   `127.0.0.1:8089`, adapting the shipped templates and running `nginx -t` first.
   Inspect existing listeners/services first; preserve unrelated host services.
@@ -150,5 +148,5 @@ systemctl show media-gateway.service -p LoadState -p ActiveState
 ```
 
 Also verify all recorded temporary paths are removed. Record cleanup alongside
-provider/HTTP/lifetime evidence in the PR. No persistent Media Gateway deployment
-or `media.stefk.me`/Cloudflare route may remain from this qualification.
+provider/HTTP/lifetime evidence in the validation record. No persistent service
+or public route may remain from this temporary run.

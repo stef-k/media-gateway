@@ -33,7 +33,7 @@ Assume:
 - operators can make configuration mistakes;
 - the provider or NAS can become unavailable.
 
-V0 does not attempt to defend a fully compromised gateway host/root account from itself.
+Media Gateway does not attempt to defend a fully compromised gateway host/root account from itself.
 
 ## Non-negotiable invariants
 
@@ -124,7 +124,7 @@ This is a hard SSRF boundary.
 
 ### No direct NAS reads
 
-V0 retrieves media through the provider API. The gateway receives no NAS mount and does not parse public requests into local filesystem access.
+Media Gateway retrieves media through the provider API. The gateway receives no NAS mount and does not parse public requests into local filesystem access.
 
 ### No credential leakage
 
@@ -202,12 +202,10 @@ Do not add elaborate rate-limiting infrastructure before evidence. nginx/Cloudfl
 
 The public preview derivative must be tested for metadata leakage before production use.
 
-Issue #17 supplies synthetic HTTP contract tests. Accepted #18 adds real Immich
-3.2.0 representative phone/camera/RAW preview privacy and human visual-quality
-evidence, including live revocation after #27. `/preview` is the first accepted
-representation. MIME/length checks alone do not prove privacy or visual quality;
-repeat representative qualification after provider/settings changes. #30 tracks
-post-V0 fixed safe profiles without implicit original exposure.
+Representative phone/camera/RAW preview privacy, human visual quality and live
+revocation were validated against Immich 3.2.0. MIME/length checks alone do not
+prove privacy or visual quality; repeat representative qualification after
+provider/settings changes.
 
 The preview adapter accepts only direct 200 JPEG/WebP responses of 1 byte through 16 MiB
 with explicit length, no content encoding and no partial/transfer-coded response.
@@ -228,7 +226,7 @@ Original image GET/HEAD independently require current active metadata, exact pol
 
 Video originals use the same fixed endpoint and accept only parameter-free `video/*` or `application/mxf`. After current authorization, one bounded parsed byte range can reach the provider as canonical numeric syntax. Invalid/multiple ranges produce fixed 400; private/lifecycle/policy denials remain 404 before parsing. Validate provider 206 interval/total/length against the requested range, and provider 416 unsatisfiability/positive total before returning a zero-body 416. Only provider 404 for an authorized valid video Range triggers one fixed no-Range original GET without query/caller headers. Validate its normal video 200 headers: an unsatisfiable range against the positive full length closes the body and produces public zero-body 416. Only a suffix length greater than or equal to the total reuses that exact validated original body as full-representation 206, with constructed `Content-Range: bytes 0-(total-1)/total` and full length. Other satisfiable ranges close the body and produce sanitized 502. A second 404 remains public 404; probe auth/transport/status/framing failures become sanitized 502. The recovered suffix body retains exact-length/inactivity/cancellation enforcement; HEAD closes it unread. No third provider request is made. A provider 200 for Range is 502, never full-body or playback fallback. HEAD uses the identical provider GET and closes it. No arbitrary header forwarding or validator semantics are enabled. Source metadata remains part of authorized original bytes.
 
-Both original kinds use fixed 60-second read/write inactivity deadlines, client cancellation and a 10-second shutdown drain; metadata/connect/header work remains hard-bounded. Stream failures abort without a plaintext suffix and emit at most one fixed warning; canceled clients stay quiet. M6 Immich 3.2.0 poster privacy/original-range/long-stream qualification and cleanup passed for #41; final exact-bundle qualification remains in #42.
+Both original kinds use fixed 60-second read/write inactivity deadlines, client cancellation and a 10-second shutdown drain; metadata/connect/header work remains hard-bounded. Stream failures abort without a plaintext suffix and emit at most one fixed warning; canceled clients stay quiet. Immich 3.2.0 validation covered poster privacy, original ranges and long streams. Revalidate relevant behavior when changing the provider or deployment.
 
 ## Logging
 
@@ -258,7 +256,7 @@ Startup validation should reject:
 
 Security-sensitive defaults must be conservative.
 
-## Security tests expected for V0
+## Security test coverage
 
 At minimum automate cases for:
 

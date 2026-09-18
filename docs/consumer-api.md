@@ -4,7 +4,7 @@ title: "Trusted consumer API"
 
 # Trusted consumer API
 
-The #39 catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
+The trusted catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
 
 ## Integration walkthrough
 
@@ -149,7 +149,7 @@ returns the asset object directly, without the page envelope:
 
 All capability fields are present and non-null for eligible images and videos. They advertise implemented representations, not existence guarantees or authorization grants. Projection makes no representation probes. A derivative can disappear; every subsequent delivery independently re-fetches current metadata/lifecycle and re-evaluates policy. The metadata schema and millisecond duration units are unchanged.
 
-`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. #41 video qualification is accepted; final bundle qualification remains in #42.
+`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection.
 
 ### Coordinates and privacy
 
