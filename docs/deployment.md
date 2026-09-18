@@ -642,9 +642,9 @@ cookies and other headers are discarded. `/preview` is a separately qualified
 provider-generated web representation; `/original` is exact authorized source bytes.
 Original does **not** strip EXIF/GPS or inspect embedded metadata.
 
-Remove stale `[delivery]` configuration before startup; fixed image representations
-have no feature gate. Update the dedicated key union without adding write/admin
-permissions. See [original image qualification](release.md#original-image-qualification)
+The current schema uses `privacy.expose_source_metadata` to permit exact originals;
+preview remains available under current authorization. The dedicated key requires
+`asset.read`, `asset.view` and `asset.download`, without write/admin permissions. See [original image qualification](release.md#original-image-qualification)
 for source-identity and privacy checks.
 
 ### Reviewed video contract

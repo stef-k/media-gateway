@@ -215,8 +215,7 @@ python3 scripts/smoke-deployment.py \
   --origin "$LOCAL_NGINX_ORIGIN" --host "$EXPECTED_HOST" \
   --eligible-id "$ELIGIBLE_ID" --private-id "$PRIVATE_ID" \
   --near-match-id "$NEAR_MATCH_ID" --outside-root-id "$OUTSIDE_ROOT_ID" \
-  --lifecycle-id "$REVOKED_ID" --image-original --image-sha256 "$IMAGE_SHA256" \
-  --video-id "$VIDEO_ID" --video-sha256 "$VIDEO_SHA256" \
+  --lifecycle-id "$REVOKED_ID" --source-metadata off --video-id "$VIDEO_ID" \
   --gateway-origin "$LOCAL_GATEWAY_ORIGIN" --root "$LOGICAL_ROOT" \
   --collection "$RELATIVE_COLLECTION"
 ```
@@ -230,8 +229,19 @@ The default original budget is 1 GiB/300 seconds per transfer; increase
 `--max-original-bytes` and `--transfer-timeout` deliberately for larger sources.
 These are smoke limits, not product size or lifetime ceilings. No originals are saved.
 
-The existing preview/route/Host/method checks remain available without new options.
-`--image-original` adds full image GET/HEAD; `--video-id` adds poster, full original,
+`--source-metadata off|on` declares the expected gateway mode; omission means off.
+It never changes configuration. Off requires all five sensitive catalogue keys to
+be present/null and checks eligible image/video original GET/HEAD/Range denial.
+`--video-id` still checks the poster while off. On requires validated timestamps,
+a valid nullable coordinate pair and the exact original capability; neither mode
+silently accepts the other. Preview paths and dimensions/duration retain their
+checks in both modes.
+
+For an explicitly configured `privacy.expose_source_metadata=true` instance, replace
+`--source-metadata off` above with `--source-metadata on` and add
+`--image-original --image-sha256 "$IMAGE_SHA256" --video-sha256 "$VIDEO_SHA256"`.
+Original-download/hash/long-video options are rejected while off before any requests.
+With on, `--image-original` adds full image GET/HEAD; `--video-id` adds poster, full original,
 first/suffix byte comparisons, range HEAD, unsatisfiable 416 and malformed 400.
 Supply SHA256 values calculated privately from independently retrieved provider
 originals to prove source identity; absent hashes are reported as SKIP. Hashes and

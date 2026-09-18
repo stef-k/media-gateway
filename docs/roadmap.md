@@ -33,11 +33,10 @@ and collection names remain visible in both modes.
 
 ## Optional future directions
 
-### Additional fixed image representations
-
-Explicit browser-safe thumbnail/normal/large derivatives may be useful when
-consumer quality or performance requirements justify them. They would complement
-original source delivery without changing what `/original` means.
+The settled surface is catalogue, preview/poster and privacy-permitted exact
+original. Consumers own browsing, selection, presentation and their derivative or
+caching strategy. Additional gateway representations are not standing future work;
+a measured new need requires a fresh bounded issue.
 
 ### Signed or opaque URLs
 

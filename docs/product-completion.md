@@ -81,6 +81,7 @@ publication database, NAS browser, generic URL proxy, public catalogue or identi
 platform. It does not offer arbitrary resize/crop/quality transformations,
 transcoding, HLS/DASH, a cache or a metrics stack.
 
-Additional fixed browser-safe derivatives are optional future scope and would
-remain distinct from original source delivery. See the [roadmap](roadmap.md) for
-other evidence-driven directions.
+Consumers own browsing, selection, presentation and consumer-specific derivative
+or caching strategy. The gateway surface is catalogue, preview/poster and
+privacy-permitted exact original. A measured new need requires a fresh bounded
+issue; see the [roadmap](roadmap.md).

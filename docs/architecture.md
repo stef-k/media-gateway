@@ -265,8 +265,9 @@ A short/failed stream aborts the public connection or HTTP stream; headers alrea
 sent cannot be replaced with a 502. No error text is appended to image bytes.
 
 Representative preview privacy, visual quality and live lifecycle revocation were
-validated against Immich 3.2.0. Additional fixed derivative profiles are optional
-future scope.
+validated against Immich 3.2.0. Consumer-specific derivative and caching strategy
+belongs to consumers; additional gateway representations require a fresh bounded
+issue grounded in a measured need.
 
 A preview derivative may be qualified for production public delivery only after tests prove:
 
@@ -373,8 +374,6 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 Potential later capabilities include:
 
-- optional local derivative cache;
-- optional image re-encoding/format variants;
 - signed or opaque public URLs if evidence justifies them;
 - additional private consumer integrations;
 - another provider, once a real second provider exists.

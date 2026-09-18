@@ -2,6 +2,8 @@
 """Bounded local-origin checks; print classifications, never response or log data."""
 
 import argparse
+import datetime
+import math
 import hashlib
 import http.client
 import ipaddress
@@ -159,7 +161,7 @@ def catalogue_pages(args, path, key, selectors):
             if key == "collections":
                 require(set(item) == {"root", "collection_path"}, "collection projection failed")
             else:
-                catalogue_asset(item)
+                catalogue_asset(item, args.source_metadata == "on")
                 require(item["root"] == args.root and item["collection_path"] == args.collection, "collection selector failed")
         cursor = page["next_cursor"]
         require(cursor is None or isinstance(cursor, str) and 0 < len(cursor) <= 2048, "catalogue cursor failed")
@@ -171,32 +173,66 @@ def catalogue_pages(args, path, key, selectors):
         print("REVIEW catalogue traversal stopped at explicit page budget")
 
 
-def catalogue_asset(item):
+def catalogue_asset(item, expose):
     """Check only the public consumer projection; never print private response values."""
     fields = {"id", "media_type", "root", "collection_path", "filename", "width", "height",
               "duration_ms", "file_created_at", "local_date_time", "latitude", "longitude",
               "preview_path", "original_path"}
     require(set(item) == fields and item["media_type"] in ("image", "video"), "asset projection failed")
     require(isinstance(item["collection_path"], str) and not item["collection_path"].startswith("/"), "absolute collection path exposed")
-    for variant in ("preview", "original"):
-        require(item[variant + "_path"] == f"/media/{item['id']}/{variant}", "asset capability failed")
+    require(item["preview_path"] == f"/media/{item['id']}/preview", "asset preview capability failed")
+    for field in ("width", "height", "duration_ms"):
+        value = item[field]
+        require(value is None or type(value) is int and 0 <= value <= 9007199254740991, "asset dimensions/duration failed")
+    sensitive = ("file_created_at", "local_date_time", "latitude", "longitude", "original_path")
+    if not expose:
+        require(all(item[field] is None for field in sensitive), "source metadata must be null while off")
+        return
+    require(item["original_path"] == f"/media/{item['id']}/original", "asset original capability failed")
+    for field in ("file_created_at", "local_date_time"):
+        value = item[field]
+        require(isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", value), "asset timestamp failed")
+        try:
+            datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            raise RuntimeError("asset timestamp failed") from None
+    lat, lon = item["latitude"], item["longitude"]
+    if lat is None and lon is None:
+        return
+    require(all(type(value) in (int, float) and math.isfinite(value) for value in (lat, lon)) and
+            -90 <= lat <= 90 and -180 <= lon <= 180, "asset coordinate pair failed")
+
+
+def originals_disabled(args, asset):
+    """Require fixed denial for an eligible original, including attempted ranges."""
+    for method in ("GET", "HEAD"):
+        for headers in ({}, {"Range": "bytes=0-1"}, {"Range": "malformed"}):
+            status, response, body = request(args, f"/media/{asset}/original", method, headers=headers)
+            require(status == 404 and media_headers(response) == 10 and
+                    body == (b"not found\n" if method == "GET" else b""), "privacy-off original denial failed")
+    print("PASS privacy-off original GET/HEAD/Range denial")
 
 
 def product_checks(args):
     """Run optional final-product checks while reporting missing evidence explicitly."""
-    if args.image_original:
+    if args.source_metadata == "off":
+        originals_disabled(args, args.eligible_id)
+    elif args.image_original:
         original_check(args, args.eligible_id, "image", args.image_sha256)
     else:
         print("SKIP image original (use --image-original)")
     if args.video_id:
         image_check(argparse.Namespace(**{**vars(args), "eligible_id": args.video_id}))
-        source = original_check(args, args.video_id, "video", args.video_sha256)
-        video_ranges(args, source)
-        if args.long_video_rate:
-            original_check(args, args.video_id, "video", source["sha256"], args.long_video_rate)
-            print("PASS active video transfer exceeds 65 seconds")
+        if args.source_metadata == "off":
+            originals_disabled(args, args.video_id)
         else:
-            print("SKIP long video transfer (use --long-video-rate)")
+            source = original_check(args, args.video_id, "video", args.video_sha256)
+            video_ranges(args, source)
+            if args.long_video_rate:
+                original_check(args, args.video_id, "video", source["sha256"], args.long_video_rate)
+                print("PASS active video transfer exceeds 65 seconds")
+            else:
+                print("SKIP long video transfer (use --long-video-rate)")
     else:
         print("SKIP video representatives")
     if args.gateway_origin:
@@ -208,7 +244,7 @@ def product_checks(args):
                 require(status == 200, "catalogue detail failed")
                 media_headers(headers)
                 item = json.loads(body)
-                catalogue_asset(item)
+                catalogue_asset(item, args.source_metadata == "on")
                 require(item["id"].lower() == asset.lower(), "catalogue detail identity failed")
         print("PASS bounded collection/asset pages and detail")
     else:
@@ -324,12 +360,14 @@ def main():
         parser.add_argument("--" + name)
     parser.add_argument("--host-checks", action="store_true")
     parser.add_argument("--gateway-outage", action="store_true", help="DISRUPTIVE: stop/start supplied gateway unit, then verify recovery")
+    parser.add_argument("--source-metadata", choices=("off", "on"), default="off", help="expected gateway privacy mode; default off")
     parser.add_argument("--image-original", action="store_true")
     parser.add_argument("--max-original-bytes", type=int, default=1024 * 1024 * 1024, help="smoke budget, not a product size limit")
     parser.add_argument("--transfer-timeout", type=int, default=300, help="total smoke transfer budget in seconds")
     parser.add_argument("--long-video-rate", type=int, default=0, help="opt-in paced video read, bytes/second; requires >65s source")
     parser.add_argument("--max-pages", type=int, default=4, help="maximum pages per catalogue operation")
     args = parser.parse_args()
+    require(args.source_metadata == "on" or not (args.image_original or args.image_sha256 or args.video_sha256 or args.long_video_rate), "original download options require --source-metadata on")
     require(args.max_original_bytes > 0 and args.transfer_timeout > 0 and args.long_video_rate >= 0 and 1 <= args.max_pages <= 100, "invalid smoke budget")
     require(not args.long_video_rate or args.video_id, "long video requires video representative")
     for digest in (args.image_sha256, args.video_sha256):

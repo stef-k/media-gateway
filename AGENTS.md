@@ -148,7 +148,9 @@ GET/HEAD /media/<id>/original
 
 `original` means provider original bytes after current authorization. It must never silently mean preview, transcoded playback or another derivative. Original delivery does not imply metadata stripping; source EXIF/GPS/etc. are part of authorized original bytes.
 
-#30 may later add additional explicit browser-safe derivatives, but it is not a substitute for `/original`.
+The settled media surface is catalogue + preview/poster + privacy-permitted exact
+original. Consumers own browsing, selection, presentation and consumer-specific
+derivative/caching strategy.
 
 ## Trusted consumer catalogue
 
@@ -166,7 +168,9 @@ Safe projection may include logical root name, root-relative collection path, fi
 
 Never expose provider absolute paths, provider URLs, credentials, raw EXIF or provider JSON.
 
-Coordinates are normal trusted metadata, not publication authority. Preserve strict pair/range validation and never log them.
+Coordinates are source-sensitive metadata, null by default and validated/projected
+only when `privacy.expose_source_metadata=true`. They never grant publication
+authority and must never enter logs.
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
@@ -255,7 +259,8 @@ Tags are the sole version authority; never add a duplicate version constant/file
 The accepted `v1.0.0` tag/Release is immutable. #60 must not tag, publish or deploy;
 a patch release requires a separate accepted preparation/review step.
 
-#30 remains optional future derivative work and must preserve `/original` semantics.
+#30 is closed as not planned. A measured new representation need requires a fresh
+bounded issue; additional gateway derivatives are not standing backlog.
 Release changes must not alter settled media/provider/policy/HTTP/security or smoke
 semantics without a separate bounded issue. Production deployment is separate.
 Consult live issue state before choosing the next unit.
