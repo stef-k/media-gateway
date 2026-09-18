@@ -58,6 +58,13 @@ its assets. Keep `Unreleased` above dated `## X.Y.Z - YYYY-MM-DD` sections in
 `CHANGELOG.md`; each release needs one nonempty matching section before tagging.
 Entries describe visible changes and compatibility, not commit history.
 
+Before creating any real release tag, a repository administrator must enable
+**release immutability** in the repository Settings. This is a maintainer release
+prerequisite, not an operator installation requirement. The workflow cannot grant
+or configure repository administration policy. With immutability enabled,
+publication locks the release assets and associated tag and GitHub generates a
+signed release attestation. Do not create `v1.0.0` before enabling this setting.
+
 Maintainers first review and merge the release mechanism and changelog to `main`,
 then separately create/push the chosen tag at that accepted commit. The release
 workflow fetches main, checks ancestry/exact-tag clean source and changelog, runs
@@ -74,6 +81,10 @@ Only an explicit new tag push can publish. PR release checks use a disposable
 synthetic-tag clone and read-only permissions; main CI retains revision bundles.
 Only the guarded publication job has `contents: write`. It consumes the validated
 archive/checksum, creates a draft with both assets, then publishes it using `gh`.
+Immediately afterward it queries the published release and requires GitHub to
+report `immutable: true`; any other result or query failure fails the workflow.
+This assertion detects a missing prerequisite after publication; it does not
+retroactively enable immutability or undo publication.
 An existing release causes failure; there is no overwrite or clobber path. A failed
 upload/publication may leave a draft: inspect it and the failed run before recovery.
 Do not rebuild or replace published bytes. Any recovery must consume the exact
@@ -81,6 +92,10 @@ validated archive, checksum and notes from that run, with explicit maintainer re
 
 After publication, independently download both assets and repeat the checks above,
 including tagged-source template comparison, before accepting the distribution.
+As a separate post-merge acceptance step against the actual release, independently
+verify GitHub's signed attestation with `gh release verify v1.0.0` and verify the
+downloaded assets with `gh release verify-asset`. PR validation does not call a
+real release attestation.
 Publication itself performs no host installation, provider qualification or deployment.
 
 ## Build and verify qualification bundles
