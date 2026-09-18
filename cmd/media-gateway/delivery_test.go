@@ -24,11 +24,17 @@ const testKey = "provider-secret-marker"
 // gatewayFor uses the real client, policy evaluator, handler and server bounds.
 func gatewayFor(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration) *httptest.Server {
 	t.Helper()
+	return gatewayWithPrivacy(t, provider, logs, timeout, true)
+}
+
+// gatewayWithPrivacy exercises immutable startup privacy through the real gateway.
+func gatewayWithPrivacy(t *testing.T, provider *httptest.Server, logs io.Writer, timeout time.Duration, expose bool) *httptest.Server {
+	t.Helper()
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: timeout}, testKey)
 	t.Cleanup(client.CloseIdleConnections)
 	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	server := httptest.NewUnstartedServer(nil)
-	server.Config = newServer(gatewayHandler(client, policy, cursorKey{1}, slog.New(slog.NewJSONHandler(logs, nil))))
+	server.Config = newServer(gatewayHandler(client, policy, config.Privacy{ExposeSourceMetadata: expose}, cursorKey{1}, slog.New(slog.NewJSONHandler(logs, nil))))
 	server.Start()
 	t.Cleanup(server.Close)
 	return server

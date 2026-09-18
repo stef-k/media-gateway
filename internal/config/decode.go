@@ -18,27 +18,24 @@ func decode(data []byte, c *Config) error {
 			APIKeyFile     string `toml:"api_key_file"`
 			RequestTimeout string `toml:"request_timeout"`
 		} `toml:"provider"`
-		Policy Policy `toml:"policy"`
+		Policy  Policy  `toml:"policy"`
+		Privacy Privacy `toml:"privacy"`
 	}
 	if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&raw); err != nil {
-		// Inspect only the obsolete key after a failed strict decode; never return raw input.
-		var legacy map[string]any
-		if toml.Unmarshal(data, &legacy) == nil {
-			if _, present := legacy["delivery"]; present {
-				return errors.New("config: obsolete delivery section; preview/original are fixed product representations; remove the delivery section")
+		// Inspect only the unsupported section after a failed strict decode; never return raw input.
+		var unsupported map[string]any
+		if toml.Unmarshal(data, &unsupported) == nil {
+			if _, present := unsupported["delivery"]; present {
+				return errors.New("config: delivery section is not supported; preview/original are fixed product representations; remove the delivery section")
 			}
-			if consumer, ok := legacy["consumer"].(map[string]any); ok {
-				if _, present := consumer["expose_coordinates"]; present {
-					return errors.New("config: obsolete consumer.expose_coordinates; remove it, trusted catalogue coordinates are now always included")
-				}
-			}
+
 		}
 		var missing *toml.StrictMissingError
 		if errors.As(err, &missing) {
 			for _, field := range missing.Errors {
 				key := field.Key()
 				if len(key) == 2 && key[0] == "policy" && key[1] == "allowed_roots" {
-					return errors.New("config: obsolete policy.allowed_roots; migrate to Policy v2 named policy.roots")
+					return errors.New("config: policy.allowed_roots is not supported; use policy.roots")
 				}
 			}
 		}
@@ -52,6 +49,7 @@ func decode(data []byte, c *Config) error {
 		Server:   raw.Server,
 		Provider: Provider{Type: raw.Provider.Type, BaseURL: raw.Provider.BaseURL, APIKeyFile: raw.Provider.APIKeyFile, RequestTimeout: timeout},
 		Policy:   raw.Policy,
+		Privacy:  raw.Privacy,
 	}
 	return nil
 }

@@ -28,9 +28,11 @@ var ErrSearchQuery = errors.New("immich: invalid candidate query")
 // Limit must be 1..MaxCandidates. An optional UUIDv4 ID selects one exact asset;
 // ID and Cursor cannot be combined. Empty Cursor starts a new search.
 type CandidateQuery struct {
-	Limit  int
-	Cursor string
-	ID     string
+	// IncludeSourceMetadata opts into approved timestamps/coordinates, never discovery.
+	IncludeSourceMetadata bool
+	Limit                 int
+	Cursor                string
+	ID                    string
 	// Discovery decodes only policy facts; Collection narrows exact browsing candidates.
 	Discovery  *DiscoveryStream
 	Collection *CollectionSelector
@@ -77,7 +79,7 @@ func (c *Client) SearchCandidates(ctx context.Context, query CandidateQuery) (Ca
 	}
 	payload := map[string]any{
 		"filter": filter, "orderBy": map[string]string{"field": "fileCreatedAt", "direction": "desc"},
-		"size": query.Limit, "withExif": query.Discovery == nil, "withPeople": false, "withStacked": false,
+		"size": query.Limit, "withExif": query.Discovery == nil && query.IncludeSourceMetadata, "withPeople": false, "withStacked": false,
 	}
 	if query.Cursor != "" {
 		payload["cursor"] = query.Cursor
@@ -152,7 +154,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 	}
 	page := CandidatePage{Items: make([]Candidate, 0, len(assets.Items)), NextCursor: cursor}
 	for _, raw := range assets.Items {
-		item, err := decodeCandidate(raw, query.ID, query.Discovery != nil)
+		item, err := decodeCandidate(raw, query.ID, query.Discovery != nil, query.IncludeSourceMetadata)
 		// Structured Immich search can return lifecycle-unavailable records.
 		// Omit them without losing the provider cursor or failing active siblings.
 		if errors.Is(err, ErrMissing) {
@@ -167,7 +169,7 @@ func decodeCandidatePage(body []byte, query CandidateQuery) (CandidatePage, erro
 }
 
 // decodeCandidate separates discovery facts from the full safe asset projection.
-func decodeCandidate(raw []byte, requested string, discovery bool) (Candidate, error) {
+func decodeCandidate(raw []byte, requested string, discovery, includeSourceMetadata bool) (Candidate, error) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
 		return Candidate{}, ErrMetadata
@@ -191,6 +193,9 @@ func decodeCandidate(raw []byte, requested string, discovery bool) (Candidate, e
 		if *target != nil && (**target < 0 || **target > 9007199254740991) {
 			return Candidate{}, ErrMetadata
 		}
+	}
+	if !includeSourceMetadata {
+		return item, nil
 	}
 	for name, target := range map[string]*string{"fileCreatedAt": &item.FileCreatedAt, "localDateTime": &item.LocalDateTime} {
 		if json.Unmarshal(fields[name], target) != nil {

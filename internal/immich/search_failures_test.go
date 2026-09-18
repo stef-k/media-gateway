@@ -60,7 +60,7 @@ func TestSearchResponseFailures(t *testing.T) {
 				w.WriteHeader(tc.status)
 				fmt.Fprint(w, tc.body)
 			}, time.Second)
-			got, err := client.SearchCandidates(context.Background(), CandidateQuery{Limit: 1})
+			got, err := client.SearchCandidates(context.Background(), CandidateQuery{IncludeSourceMetadata: true, Limit: 1})
 			if !errors.Is(err, tc.want) || got.Items != nil || got.NextCursor != "" {
 				t.Fatalf("unexpected failure: %v", err)
 			}
@@ -94,7 +94,7 @@ func TestSearchPageBounds(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprint(w, candidateResponse(tc.items, `null`, tc.count))
 			}, time.Second)
-			got, err := client.SearchCandidates(context.Background(), CandidateQuery{Limit: tc.limit, ID: tc.id})
+			got, err := client.SearchCandidates(context.Background(), CandidateQuery{IncludeSourceMetadata: true, Limit: tc.limit, ID: tc.id})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("unexpected result: %v", err)
 			}

@@ -41,7 +41,7 @@ func TestCollectionStreamTransitions(t *testing.T) {
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: time.Second}, testKey)
 	defer client.CloseIdleConnections()
 	policy := config.Policy{Roots: []config.Root{{Name: "z", Path: "/z"}, {Name: "a", Path: "/a"}}, Rules: []config.Rule{{Segment: "public", Media: []string{"image"}}}}
-	handler := consumerHandler(client, policy, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	handler := consumerHandler(client, policy, config.Privacy{ExposeSourceMetadata: true}, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	route := "/internal/collections?limit=1"
 	for _, root := range []string{"a", "z"} {
 		req := httptest.NewRequest("GET", route, nil)
@@ -62,7 +62,7 @@ func TestCollectionStreamTransitions(t *testing.T) {
 			req := httptest.NewRequest("GET", route, nil)
 			req.RemoteAddr = "127.0.0.1:1234"
 			denied := httptest.NewRecorder()
-			consumerHandler(client, changed, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil))).ServeHTTP(denied, req)
+			consumerHandler(client, changed, config.Privacy{ExposeSourceMetadata: true}, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil))).ServeHTTP(denied, req)
 			if denied.Code != 404 || calls.Load() != 1 {
 				t.Fatal("changed stream fingerprint accepted")
 			}

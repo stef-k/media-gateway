@@ -15,6 +15,13 @@ type Config struct {
 	Server   Server   `toml:"server"`
 	Provider Provider `toml:"provider"`
 	Policy   Policy   `toml:"policy"`
+	Privacy  Privacy  `toml:"privacy"`
+}
+
+// Privacy controls approved source-sensitive fields and exact original delivery.
+// Its zero value preserves privacy; configuration is immutable after startup.
+type Privacy struct {
+	ExposeSourceMetadata bool `toml:"expose_source_metadata"`
 }
 
 // Server restricts the future service to a numeric loopback listener.

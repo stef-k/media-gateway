@@ -73,7 +73,7 @@ func TestImageRuleDenial(t *testing.T) {
 	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: time.Second}, testKey)
 	defer client.CloseIdleConnections()
 	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"video"}}}}
-	handler := deliveryHandler(client, policy, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := deliveryHandler(client, policy, config.Privacy{ExposeSourceMetadata: true}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	for _, variant := range []string{"preview", "original"} {
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, httptest.NewRequest("GET", "/media/"+testAsset+"/"+variant, nil))

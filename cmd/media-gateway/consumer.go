@@ -35,8 +35,8 @@ type consumerAsset struct {
 	Width          *int64   `json:"width"`
 	Height         *int64   `json:"height"`
 	DurationMS     *int64   `json:"duration_ms"`
-	FileCreatedAt  string   `json:"file_created_at"`
-	LocalDateTime  string   `json:"local_date_time"`
+	FileCreatedAt  *string  `json:"file_created_at"`
+	LocalDateTime  *string  `json:"local_date_time"`
 	Latitude       *float64 `json:"latitude"`
 	Longitude      *float64 `json:"longitude"`
 	PreviewPath    *string  `json:"preview_path"`
@@ -63,9 +63,9 @@ type collectionPage struct {
 
 // gatewayHandler dispatches without path cleaning or redirects. nginx must never
 // proxy /internal/, even though a same-host proxy appears to have a local peer.
-func gatewayHandler(client *immich.Client, policy config.Policy, key cursorKey, logger *slog.Logger) http.Handler {
-	public := deliveryHandler(client, policy, logger)
-	consumer := consumerHandler(client, policy, key, logger)
+func gatewayHandler(client *immich.Client, policy config.Policy, privacy config.Privacy, key cursorKey, logger *slog.Logger) http.Handler {
+	public := deliveryHandler(client, policy, privacy, logger)
+	consumer := consumerHandler(client, policy, privacy, key, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/internal/") {
 			consumer.ServeHTTP(w, r)
@@ -76,7 +76,7 @@ func gatewayHandler(client *immich.Client, policy config.Policy, key cursorKey, 
 }
 
 // consumerHandler validates selectors and signatures before bounded provider work.
-func consumerHandler(client *immich.Client, policy config.Policy, key cursorKey, logger *slog.Logger) http.Handler {
+func consumerHandler(client *immich.Client, policy config.Policy, privacy config.Privacy, key cursorKey, logger *slog.Logger) http.Handler {
 	streams := immich.DiscoveryStreams(policy)
 	policyFingerprint := fingerprint(streams)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +103,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, key cursorKey,
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), catalogueTimeout)
 		defer cancel()
-		result, err := catalogue(ctx, client, policy, streams, key, queryFingerprint, query, state)
+		result, err := catalogue(ctx, client, policy, privacy, streams, key, queryFingerprint, query, state)
 		if err != nil {
 			consumerSearchError(w, r, logger, err)
 			return
@@ -114,13 +114,13 @@ func consumerHandler(client *immich.Client, policy config.Policy, key cursorKey,
 
 // catalogue fills only remaining output slots; every successful provider page is
 // fully consumed. Stream transitions and sparse pages share the eight-call budget.
-func catalogue(ctx context.Context, client *immich.Client, policy config.Policy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogueQuery, state continuation) (any, error) {
+func catalogue(ctx context.Context, client *immich.Client, policy config.Policy, privacy config.Privacy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogueQuery, state continuation) (any, error) {
 	assets := consumerPage{Assets: []consumerAsset{}}
 	collections := collectionPage{Collections: []consumerCollection{}}
 	seen := map[consumerCollection]bool{}
 	count, more := 0, true
 	for calls := 0; calls < maxCatalogueCalls && count < query.Limit && more; calls++ {
-		providerQuery := immich.CandidateQuery{Limit: query.Limit - count, Cursor: state.Provider, ID: query.ID}
+		providerQuery := immich.CandidateQuery{IncludeSourceMetadata: privacy.ExposeSourceMetadata, Limit: query.Limit - count, Cursor: state.Provider, ID: query.ID}
 		if query.Kind == 'c' {
 			if state.Stream >= len(streams) {
 				more = false
@@ -147,7 +147,7 @@ func catalogue(ctx context.Context, client *immich.Client, policy config.Policy,
 					count++
 				}
 			} else if query.ID != "" || (match.RootName == query.Root.Name && match.CollectionPath == query.Collection) {
-				assets.Assets = append(assets.Assets, projectAsset(item, match))
+				assets.Assets = append(assets.Assets, projectAsset(item, match, privacy))
 				count++
 			}
 		}
@@ -183,13 +183,18 @@ func catalogue(ctx context.Context, client *immich.Client, policy config.Policy,
 }
 
 // projectAsset advertises only implemented representations after exact authorization.
-func projectAsset(item immich.Candidate, match publication.Match) consumerAsset {
+func projectAsset(item immich.Candidate, match publication.Match, privacy config.Privacy) consumerAsset {
 	asset := consumerAsset{ID: item.ID, MediaType: item.Media, Root: match.RootName, CollectionPath: match.CollectionPath,
-		Filename: path.Base(item.OriginalPath), Width: item.Width, Height: item.Height, DurationMS: item.DurationMS,
-		FileCreatedAt: item.FileCreatedAt, LocalDateTime: item.LocalDateTime, Latitude: item.Latitude, Longitude: item.Longitude}
+		Filename: path.Base(item.OriginalPath), Width: item.Width, Height: item.Height, DurationMS: item.DurationMS}
+	if privacy.ExposeSourceMetadata {
+		asset.FileCreatedAt, asset.LocalDateTime = &item.FileCreatedAt, &item.LocalDateTime
+		asset.Latitude, asset.Longitude = item.Latitude, item.Longitude
+	}
 	if item.Media == "image" || item.Media == "video" {
 		preview := "/media/" + item.ID + "/preview"
 		asset.PreviewPath = &preview
+	}
+	if privacy.ExposeSourceMetadata && asset.PreviewPath != nil {
 		original := "/media/" + item.ID + "/original"
 		asset.OriginalPath = &original
 	}
