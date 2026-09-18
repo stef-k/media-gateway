@@ -3,8 +3,10 @@
 
 import http.client
 import http.server
+import os
 import pathlib
 import shutil
+import signal
 import socket
 import subprocess
 import tempfile
@@ -18,6 +20,7 @@ class Upstream(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.server.requests.append((self.path, dict(self.headers)))
+        self.server.release.wait(timeout=10)
         self.send_response(200)
         self.send_header("Content-Type", "image/jpeg")
         self.send_header("Content-Length", "7")
@@ -40,11 +43,14 @@ class Ingress(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="media-gateway-nginx-") as directory:
             with http.server.ThreadingHTTPServer(("127.0.0.1", 0), Upstream) as upstream:
                 upstream.requests = []
+                upstream.release = threading.Event()
+                upstream.release.set()
                 thread = threading.Thread(target=upstream.serve_forever)
                 thread.start()
                 try:
                     self.run_nginx(pathlib.Path(directory), upstream)
                 finally:
+                    upstream.release.set()
                     upstream.shutdown()
                     thread.join()
 
@@ -74,6 +80,8 @@ class Ingress(unittest.TestCase):
                         self.fail("isolated nginx did not start")
                     time.sleep(0.02)
             self.check_requests(port, upstream)
+            self.check_concurrency(port, upstream)
+            self.check_burst(port, upstream, process)
         finally:
             process.terminate()
             process.wait(timeout=3)
@@ -81,6 +89,98 @@ class Ingress(unittest.TestCase):
         for route in ("preview", "original", "denied"):
             self.assertIn(f"route={route}", log)
         self.assertNotIn("caller-marker", log)
+        self.assertIn("request_limit=REJECTED", log)
+        self.assertIn("connection_limit=REJECTED", log)
+        self.assertNotIn("limiting requests", (directory / "media-gateway.error.log").read_text())
+
+    def check_concurrency(self, port, upstream):
+        """Hold 32 admitted responses; the next request and cheap denials stay local."""
+        route = "/media/12345678-1234-4234-8234-123456789abc/original"
+        connections = []
+        before = len(upstream.requests)
+        upstream.release.clear()
+        try:
+            for index in range(32):
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                connections.append(connection)
+                connection.request("GET", route, headers={"Host": "media.example.com"})
+                deadline = time.monotonic() + 3
+                while len(upstream.requests) != before + index + 1:
+                    self.assertLess(time.monotonic(), deadline, "held request was not admitted")
+                    time.sleep(0.005)
+            self.check_denials(port, upstream)
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            try:
+                connection.request("HEAD", route, headers={"Host": "media.example.com"})
+                response = connection.getresponse()
+                self.assertEqual(response.status, 429)
+                response.read()
+                self.assertEqual(len(upstream.requests), before + 32)
+            finally:
+                connection.close()
+        finally:
+            upstream.release.set()
+            for connection in connections:
+                response = connection.getresponse()
+                self.assertEqual(response.status, 200)
+                response.read()
+                connection.close()
+
+    def check_denials(self, port, upstream):
+        """Even with admission saturated, invalid requests bypass limits and upstream."""
+        route = "/media/12345678-1234-4234-8234-123456789abc/preview"
+        before = len(upstream.requests)
+        for method, path, host in (("POST", route, "media.example.com"),
+                                   ("GET", route, "wrong.example"),
+                                   ("GET", route, None),
+                                   ("GET", route + "/extra", "media.example.com"),
+                                   ("GET", "/internal/assets", "media.example.com"),
+                                   ("GET", "/api/assets", "media.example.com")):
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            try:
+                # HTTP/1.0 permits absent Host; HTTP/1.1 requires it at parse time.
+                connection._http_vsn = 10
+                connection._http_vsn_str = "HTTP/1.0"
+                connection.putrequest(method, path, skip_host=True)
+                if host is not None:
+                    connection.putheader("Host", host)
+                connection.endheaders()
+                response = connection.getresponse()
+                self.assertEqual(response.status, 404)
+                response.read()
+            finally:
+                connection.close()
+        self.assertEqual(len(upstream.requests), before)
+
+    def check_burst(self, port, upstream, process):
+        """Queue a burst while our nginx child is stopped; keep shipped limits intact."""
+        connections = []
+        before = len(upstream.requests)
+        process.send_signal(signal.SIGSTOP)
+        os.waitpid(process.pid, os.WUNTRACED)
+        try:
+            for index in range(128):
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                connections.append(connection)
+                variant = "preview" if index % 2 else "original"
+                connection.request("GET", f"/media/12345678-1234-4234-8234-123456789abc/{variant}",
+                                   headers={"Host": "media.example.com"})
+        finally:
+            process.send_signal(signal.SIGCONT)
+        try:
+            statuses = []
+            for connection in connections:
+                response = connection.getresponse()
+                statuses.append(response.status)
+                response.read()
+            self.assertIn(429, statuses)
+            self.assertLess(len(upstream.requests) - before, len(connections))
+            self.assertEqual(len(upstream.requests) - before, statuses.count(200))
+            self.assertTrue(set(statuses) <= {200, 429})
+            self.check_denials(port, upstream)
+        finally:
+            for connection in connections:
+                connection.close()
 
     def check_requests(self, port, upstream):
         """Canonical GET/HEAD succeed; malformed/unsupported traffic never reaches upstream."""

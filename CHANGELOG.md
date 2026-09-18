@@ -14,7 +14,8 @@ First stable release for Linux amd64.
   originals preserve embedded source metadata, including EXIF/GPS.
 - Validated video byte ranges and inactivity-bounded original streaming.
 - Hardened unprivileged systemd and loopback/nginx deployment templates that
-  keep the provider and trusted catalogue private.
+  keep the provider and trusted catalogue private, with an aggregate nginx
+  public-origin abuse envelope for request rate and concurrency.
 - Deterministic bundle packaging, checksums, portable smoke checks and documented
   install, upgrade and rollback procedures.
 - Operator and consumer GitHub Pages documentation, also available offline in

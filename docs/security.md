@@ -185,18 +185,31 @@ nginx must never expose `/internal/`, including through a local proxy.
 
 ## Request hardening
 
-The implementation should provide:
+Authorization/confidentiality and availability are separate protections. Fresh
+publication checks protect private media; intentionally published media remains
+public. Valid-shaped UUID floods can still consume gateway/Immich metadata work,
+and many long originals can occupy streams and provider I/O.
 
-- explicit route shapes;
-- `GET`/`HEAD` only on public media routes;
-- bounded header/request sizes through Go/nginx defaults/configuration;
-- provider client connection and request timeouts;
-- no unbounded buffering of large upstream bodies;
-- response content-type allow-listing;
-- sensible concurrency/resource bounds if measurement shows they are needed;
-- graceful cancellation when clients disconnect.
+Existing abuse resistance includes strict Host/raw-route/GET/HEAD allowlists,
+no public `/internal/`, tiny unused bodies, bounded header/body inactivity, fixed
+gateway/provider authorities and bounded provider metadata/header work. nginx has
+no retries, provider/storage fallback, buffering or cache. Established streams
+retain cancellation, inactivity deadlines and bounded shutdown. The documented
+single video-range disambiguation probe remains a bounded application exception;
+there is no general provider retry or alternate representation fallback.
 
-Do not add elaborate rate-limiting infrastructure before evidence. nginx or an optional operator-controlled edge may provide coarse public abuse controls while application behavior remains bounded.
+The reference nginx template adds an aggregate public-origin abuse envelope:
+20 requests/second, burst 40 without delay, and 32 concurrent media requests.
+Excess admission returns nginx-origin 429 before upstream work. Existing
+route/method returns run before admission, so malformed noise retains its cheap
+fixed denial. These lax reference values constrain gateway/provider workload and
+concurrency; they are tunable starting points, not performance/security guarantees.
+
+Limits are not authentication or authorization and do not make public media
+private. They do not solve volumetric DDoS before traffic reaches the host/uplink.
+An optional external edge can shed traffic before origin; no application limiter
+or state store is needed. See [deployment tuning](deployment.md#availability-abuse-controls)
+for aggregate limits and trustworthy optional client identity.
 
 ## Preview privacy and original source semantics
 
