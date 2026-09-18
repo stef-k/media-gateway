@@ -65,7 +65,10 @@ formatting/vet/tests/race/build/smoke regressions, and builds the distribution o
 through `scripts/build-bundle.sh OUTPUT --release vX.Y.Z`. It verifies all internal
 checksums, versioned layout, tagged-source assets and exact binary metadata before
 creating the external checksum. Notes come from the matching changelog section.
-Go 1.27.1 supplies the exact tag version directly; there is no injected version.
+Go 1.27.1 supplies the exact v1 tag version directly; there is no injected version.
+Future major releases require reviewing Go module-path/tag compatibility: the
+current module path does not embed v2+ tags as exact versions, and validation
+rejects any tag/binary version mismatch.
 
 Only an explicit new tag push can publish. PR release checks use a disposable
 synthetic-tag clone and read-only permissions; main CI retains revision bundles.
