@@ -14,21 +14,32 @@ import (
 // TestDeliveryBounds proves cancellation and provider deadlines stop actual HTTP
 // work both before public headers and during streaming, without whole-image buffering.
 func TestDeliveryBounds(t *testing.T) {
-	for _, phase := range []string{"metadata", "preview headers", "preview body", "original headers", "original body"} {
+	for _, phase := range []string{"metadata", "preview headers", "preview body", "original headers", "original body", "original recovered body"} {
 		for _, cancelCaller := range []bool{false, true} {
 			// Original body lifetime is proved separately at the provider seam.
-			if phase == "original body" && !cancelCaller {
+			if strings.HasPrefix(phase, "original") && strings.HasSuffix(phase, "body") && !cancelCaller {
 				continue
 			}
 			t.Run(fmt.Sprintf("%s/cancel=%t", phase, cancelCaller), func(t *testing.T) {
 				entered, stopped := make(chan struct{}), make(chan struct{})
 				provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if phase != "metadata" && r.URL.Path == "/api/assets/"+testAsset {
-						metadata(w, "/external/photos/website/photo.jpg", "IMAGE")
+						kind := "IMAGE"
+						if phase == "original recovered body" {
+							kind = "VIDEO"
+						}
+						metadata(w, "/external/photos/website/photo.jpg", kind)
 						return
 					}
-					if phase == "preview body" || phase == "original body" {
+					if phase == "original recovered body" && r.Header.Get("Range") != "" {
+						w.WriteHeader(404)
+						return
+					}
+					if strings.HasSuffix(phase, "body") {
 						w.Header().Set("Content-Type", "image/jpeg")
+						if phase == "original recovered body" {
+							w.Header().Set("Content-Type", "video/mp4")
+						}
 						w.Header().Set("Content-Length", "65536")
 						_, _ = io.WriteString(w, strings.Repeat("p", 8192))
 						w.(http.Flusher).Flush()
@@ -52,6 +63,9 @@ func TestDeliveryBounds(t *testing.T) {
 						route = "/media/" + testAsset + "/original"
 					}
 					req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+route, nil)
+					if phase == "original recovered body" {
+						req.Header.Set("Range", "bytes=-65536")
+					}
 					resp, err := gateway.Client().Do(req)
 					if err == nil {
 						_, err = io.Copy(io.Discard, resp.Body)
@@ -95,7 +109,7 @@ func TestDeliveryBounds(t *testing.T) {
 // TestTruncatedPreview proves a post-header failure cannot become a complete image
 // or a successful shorter body; the declared public length remains authoritative.
 func TestTruncatedPreview(t *testing.T) {
-	for _, variant := range []string{"preview", "original"} {
+	for _, variant := range []string{"preview", "original", "recovered"} {
 		t.Run(variant, func(t *testing.T) { testTruncatedPreview(t, variant) })
 	}
 }
@@ -104,17 +118,36 @@ func TestTruncatedPreview(t *testing.T) {
 func testTruncatedPreview(t *testing.T, variant string) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/assets/"+testAsset {
-			metadata(w, "/external/photos/website/photo.jpg", "IMAGE")
+			kind := "IMAGE"
+			if variant == "recovered" {
+				kind = "VIDEO"
+			}
+			metadata(w, "/external/photos/website/photo.jpg", kind)
 			return
 		}
 		w.Header().Set("Content-Type", "image/jpeg")
+		if variant == "recovered" {
+			if r.Header.Get("Range") != "" {
+				w.WriteHeader(404)
+				return
+			}
+			w.Header().Set("Content-Type", "video/mp4")
+		}
 		w.Header().Set("Content-Length", "16384")
 		_, _ = io.WriteString(w, strings.Repeat("p", 8192))
 		w.(http.Flusher).Flush()
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, err := gateway.Client().Get(gateway.URL + ("/media/" + testAsset + "/" + variant))
+	route := variant
+	if variant == "recovered" {
+		route = "original"
+	}
+	req, _ := http.NewRequest("GET", gateway.URL+"/media/"+testAsset+"/"+route, nil)
+	if variant == "recovered" {
+		req.Header.Set("Range", "bytes=-20000")
+	}
+	resp, err := gateway.Client().Do(req)
 	if err != nil {
 		return
 	} // An abort before headers reach the socket is also closed.

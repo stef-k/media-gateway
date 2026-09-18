@@ -93,7 +93,7 @@ leading/trailing slashes. The trusted catalogue projects this context only after
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
-A production version may support only a subset of the media types declared by policy. For example, V0 targets images first; video remains denied until the video-delivery slice is implemented and validated.
+A production version may support only a subset of the media types declared by policy. Both image and video preview/original are implemented; #41 real-provider qualification remains a merge gate.
 
 ### Consumer applications
 
@@ -101,9 +101,9 @@ Consumers such as WordPress may store a provider asset reference, alt text, capt
 
 A request for a consumer-referenced asset must still pass the gateway's current provider-root, path-segment and media-type checks. A compromised consumer must not be able to use a private asset ID to bypass policy.
 
-## Current image request flow
+## Current media request flow
 
-The implemented public image request flow is:
+The implemented public image/video request flow is:
 
 ```text
 GET or HEAD /media/<asset-id>/preview
@@ -128,7 +128,10 @@ contains an exact eligible directory segment?
 provider media type permitted by that rule and implemented by gateway?
           | no -> 404
           v yes
-request the fixed authorized image preview or original
+parse Range only for authorized video original (malformed -> 400)
+          |
+          v
+request the fixed authorized preview or original
           |
           v
 validate bounded upstream response
@@ -146,7 +149,7 @@ new ineligible path also denies. There is no second publication database to sync
 
 V0 does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
 
-The implemented stable image routes are:
+The implemented stable image/video routes are:
 
 ```text
 /media/<asset-id>/preview
@@ -189,8 +192,8 @@ never exceed remaining output slots. No catalogue database or folder-view API is
 
 Assets expose logical root/relative collection, path basename, image/video type,
 nullable dimensions and integer `duration_ms`, validated times and always-present
-nullable coordinates. Images have non-null preview and original representation
-paths; both video capabilities await #41. Consumer references do not
+nullable coordinates. Images and videos have non-null preview and original
+paths without provider representation probes. Consumer references do not
 authorize subsequent detail or public delivery. Raw EXIF remains private.
 
 ## Provider boundary
@@ -202,8 +205,8 @@ itself. The adapter requires explicit boolean `isTrashed=false` and
 `isOffline=false` before returning metadata. Either true returns `ErrMissing`;
 missing, null or wrongly typed lifecycle fields return `ErrMetadata`. Lifecycle
 state stays within the provider boundary; `publication.Evaluate` remains pure.
-The public handler calls `Asset`, requires image media, evaluates
-`publication.Evaluate`, and only then calls the fixed `Preview` or `Original` operation. Startup constructs one client
+The public handler calls `Asset`, requires supported image/video media, evaluates
+`publication.Evaluate`, and only then calls the fixed `Preview`, `Original` or `VideoOriginal` operation. Startup constructs one client
 from validated configuration and the separately loaded key. See the
 [reviewed API contract](deployment.md#reviewed-preview-contract).
 
@@ -229,9 +232,9 @@ Do not build provider discovery, dynamic plugins or a generic provider SDK befor
 
 Exact Immich API endpoints must be verified against the supported Immich version at implementation time.
 
-## Image delivery
+## Preview delivery
 
-V0 implements provider-generated preview streaming. Immich owns generation;
+Images and videos use the same provider-generated still preview streaming. Immich owns generation;
 Media Gateway does no transcoding, original/fullsize fallback or image buffering.
 The fixed preview upstream representation is `/api/assets/{id}/thumbnail?size=preview`.
 All redirects are rejected. Before public headers, require HTTP 200, exactly
@@ -268,17 +271,23 @@ If provider previews do not meet those requirements, an explicit image-transform
 
 ### Original images (#40)
 
-`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. M6 qualification remains pending.
+`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. #40 was accepted; #41 video qualification remains pending.
 
 Validate direct 200, exactly one valid parameter-free `image/*` Content-Type and one explicit positive int64 Content-Length. Reject transfer/content encoding and Content-Range. There is no preview-size ceiling. GET streams a shared length-enforcing body; HEAD validates the provider GET then closes it. Both construct the same four public headers described above.
 
-Originals use a separate HTTP/1 transport with no environment proxy, redirects, compression or connection reuse. A bounded 16 KiB wire-header check rejects duplicate Content-Length and transfer encoding before Go normalizes them; net/http continues to own HTTP parsing and body framing. Dial/TLS/header acquisition are bounded, while caller cancellation and the retained 60-second handler/65-second write bounds control the body. No new long-stream inactivity framework is introduced; #41 owns that work.
+Originals use a separate HTTP/1 transport with no environment proxy, redirects, compression or connection reuse. A bounded 16 KiB wire-header check rejects duplicate Content-Length and transfer encoding before Go normalizes them; net/http continues to own HTTP parsing and body framing. Dial/TLS/header acquisition remain bounded. Established image/video body streams use 60-second per-I/O upstream read and downstream write inactivity deadlines. Explicit writes/flushes refresh the server deadline; client cancellation propagates upstream. Ordinary responses retain finite server defaults. Shutdown drains for 10 seconds then force-closes remaining streams.
 
 ## Video delivery
 
-Video is deliberately later work. Correct public video delivery may require range requests, content-length/range semantics, larger timeouts, codec/container behavior and different cache policy.
+Video preview uses the existing thumbnail `size=preview` operation and JPEG/WebP validation. Video originals use only GET `/api/assets/<id>/original` without query, never `/video/playback`. Accept parameter-free `video/*` or the explicit Immich `application/mxf` exception; preserve exact bytes and source metadata.
 
-Until that slice is implemented, video requests fail closed even if the configured path rule marks the asset eligible.
+After fresh authorization, `ParseRange` accepts at most one 128-byte value with unsigned signed-int64 decimals: explicit, open-ended or positive suffix bytes. Reject whitespace, signs, other units and multiple ranges with fixed 400 before original open. Reserialize parsed numbers before forwarding. No Range requires direct 200; a valid Range normally returns direct 206. A direct valid unsatisfiable 416 is also accepted. Provider 200 for Range is 502 without fallback.
+
+For 206, validate one `bytes start-end/total` against the exact requested interval, including EOF clipping and suffix calculation, and require length `end-start+1`. Total is positive signed-int64. Validate optional provider Accept-Ranges as a single `bytes`. Raw duplicate lengths and transfer framing are rejected before HTTP normalization for both 200 and 206. For 416, validate one `bytes */total` and unsatisfiability, discard the provider body and construct a zero-length response. HEAD uses provider GET with the same checks and closes the body.
+
+Immich 3.2.0 maps pre-header file-send errors, including unsatisfiable ranges, to 404. Only a 404 for an authorized valid video Range triggers exactly one no-Range GET to the same fixed original endpoint, with no query or caller headers. Validate the normal video-original 200 contract and resolve the requested range against its positive length. Unsatisfiable ranges close the body and produce public zero-body 416. An oversized/equal suffix (`suffix_length >= total`) reuses the validated length-enforced original body as full-representation 206 with `Content-Range: bytes 0-(total-1)/total` and `Content-Length: total`. GET retains existing inactivity/cancellation semantics; HEAD closes without reading. Other satisfiable ranges close the body and produce sanitized 502. There is no third provider request. A second 404 preserves public 404; probe auth, transport, unexpected status or malformed framing produces sanitized 502. Normal 206 performs no probe. This bounded disambiguation never loops or opens playback.
+
+Public video originals add `Accept-Ranges: bytes` and validated Content-Range for 206/416. Other provider headers are discarded. Image original Range remains ignored/full 200, and all previews ignore Range. Conditional/validator semantics remain unsupported. M6 Immich 3.2.0 original-range, poster privacy, long-stream and cleanup evidence is mandatory before #41 merge; source/synthetic tests do not establish it.
 
 ## Configuration
 
@@ -314,7 +323,7 @@ media = ["video"]
 
 ```
 
-The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
+The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
 
@@ -348,7 +357,6 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 
 Potential later capabilities include:
 
-- video/range delivery;
 - optional local derivative cache;
 - optional image re-encoding/format variants;
 - signed or opaque public URLs if evidence justifies them;

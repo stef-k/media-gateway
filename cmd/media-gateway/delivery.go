@@ -15,8 +15,8 @@ import (
 	"github.com/stef-k/media-gateway/internal/publication"
 )
 
-// deliveryTimeout caps combined metadata/image work; the server write deadline
-// separately bounds blocked downstream writes. Provider setup and preview calls also have a timeout.
+// deliveryTimeout bounds authorization/preview work. Established originals use
+// per-I/O inactivity deadlines while provider connection/header work stays bounded.
 const deliveryTimeout = 60 * time.Second
 
 // deliveryHandler owns public authorization; the concrete client owns private HTTP.
@@ -37,38 +37,61 @@ func deliveryHandler(client *immich.Client, policy config.Policy, logger *slog.L
 			deliveryError(w, r, logger, err)
 			return
 		}
-		if _, eligible := publication.Evaluate(policy, asset.OriginalPath, asset.Media); asset.Media != "image" || !eligible {
+		if _, eligible := publication.Evaluate(policy, asset.OriginalPath, asset.Media); (asset.Media != "image" && asset.Media != "video") || !eligible {
 			publicError(w, r, http.StatusNotFound)
 			return
 		}
-		var contentType string
-		var length int64
-		var body io.ReadCloser
 		if original {
-			source, openErr := client.Original(ctx, id)
-			contentType, length, body, err = source.ContentType, source.Length, source.Body, openErr
-		} else {
-			preview, openErr := client.Preview(ctx, id)
-			contentType, length, body, err = preview.ContentType, preview.Length, preview.Body, openErr
+			var requested immich.ByteRange
+			if asset.Media == "video" {
+				requested, err = immich.ParseRange(r.Header.Values("Range"))
+				if err != nil {
+					publicError(w, r, http.StatusBadRequest)
+					return
+				}
+			}
+			// Authorization keeps its bounded context. Original body work inherits
+			// client cancellation, with separate provider header and I/O bounds.
+			var source immich.Original
+			if asset.Media == "video" {
+				source, err = client.VideoOriginal(r.Context(), id, requested)
+			} else {
+				source, err = client.Original(r.Context(), id)
+			}
+			if err != nil {
+				deliveryError(w, r, logger, err)
+				return
+			}
+			defer source.Body.Close()
+			if asset.Media == "video" {
+				w.Header().Set("Accept-Ranges", "bytes")
+			}
+			if source.ContentRange != "" {
+				w.Header().Set("Content-Range", source.ContentRange)
+			}
+			if source.ContentType != "" {
+				w.Header().Set("Content-Type", source.ContentType)
+			}
+			w.Header().Set("Content-Length", strconv.FormatInt(source.Length, 10))
+			w.WriteHeader(source.Status)
+			if r.Method != http.MethodHead && source.Status != 416 {
+				streamOriginal(w, r, source.Body, logger, deliveryTimeout)
+			}
+			return
 		}
+		preview, err := client.Preview(ctx, id)
 		if err != nil {
 			deliveryError(w, r, logger, err)
 			return
 		}
-		defer body.Close()
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Content-Length", strconv.FormatInt(length, 10))
+		defer preview.Body.Close()
+		w.Header().Set("Content-Type", preview.ContentType)
+		w.Header().Set("Content-Length", strconv.FormatInt(preview.Length, 10))
 		w.WriteHeader(http.StatusOK)
-		if r.Method == http.MethodHead {
-			return
-		}
-		if _, err := io.Copy(w, body); err != nil {
-			// Headers may already be on the wire. Abort instead of returning a
-			// successfully completed partial image or appending a plaintext error.
-			if r.Context().Err() == nil {
-				logger.Warn("image stream failed")
+		if r.Method != http.MethodHead {
+			if _, err := io.Copy(w, preview.Body); err != nil {
+				abortStream(r, logger)
 			}
-			panic(http.ErrAbortHandler)
 		}
 	})
 }
@@ -105,6 +128,9 @@ func deliveryError(w http.ResponseWriter, r *http.Request, logger *slog.Logger, 
 // HEAD headers; neither request text nor provider diagnostics enter the response.
 func publicError(w http.ResponseWriter, r *http.Request, status int) {
 	body := "not found\n"
+	if status == http.StatusBadRequest {
+		body = "invalid range\n"
+	}
 	if status == http.StatusBadGateway {
 		body = "media unavailable\n"
 	}

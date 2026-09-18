@@ -162,7 +162,7 @@ Coordinates are target normal trusted metadata, not publication authority. Prese
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
-Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Image preview and original capabilities are non-null after #40; both video capabilities remain null until #41. Use structured metadata search, never Immich folder view.
+Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Image/video preview and original capabilities are non-null. Projection performs no representation probes and never grants delivery authorization. Use structured metadata search, never Immich folder view.
 
 ## Provider integration
 
@@ -174,17 +174,17 @@ Use bounded connect/header/metadata operations and explicit response validation.
 
 ## Original and video delivery
 
-#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. M6 qualification is required before #40 merge. #41 owns video preview/original, byte ranges and long-media streaming.
+#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup remain mandatory before merge.
 
 Do not smuggle either into unrelated policy/catalogue changes.
 
-For video, practical single-byte-range semantics must be deliberate (`Range`, `206`, `Content-Range`, `Accept-Ranges`, HEAD/416 behavior). Do not blindly proxy arbitrary range/provider headers.
+Only after video-original authorization, parse at most one Range value of at most 128 bytes: `bytes=first-last`, `bytes=first-`, or `bytes=-positive-suffix`, unsigned signed-int64 decimals, no whitespace/signs/commas. Malformed input is fixed 400 with no original open; denied assets remain 404 first. Canonical Range is the only caller-derived provider header. Validate exact 206 interval mathematics and positive length/total; valid unsatisfiable 416 has `bytes */total` and a public zero body. Immich 3.2.0 range 404 triggers exactly one fixed no-Range original GET, without query/caller headers. Validate normal video 200 framing and resolve the range against its positive length. Unsatisfiable math closes the body and yields public 416. A suffix length greater than or equal to the total reuses that validated original body as full-representation 206 with `Content-Range: bytes 0-(total-1)/total`; HEAD closes it without reading. Other satisfiable ranges close the body and yield 502. No third request is made. Probe 404 remains public 404; all other probe failures yield sanitized 502. Normal 206 does not probe; no loops or playback. Provider 200 for a range is 502, never fallback. HEAD performs the same provider GET and closes it. Image originals ignore Range and retain full 200 without Accept-Ranges. Previews ignore Range; all conditionals remain unsupported and stripped.
 
 If provider original download cannot satisfy browser video range needs, do not redefine `/original`; design any separate playback representation explicitly.
 
 ### Streaming lifetime
 
-#40 retains the 60-second handler, 65-second write and 70-second nginx read bounds. The original-only HTTP transport bounds dial/TLS/headers without an absolute client body timeout; metadata/search/preview remain unchanged. The long-media model below is future #41 work.
+#41 establishes fixed 60-second upstream read and downstream write inactivity bounds for image/video originals, refreshed per I/O. Original connection/header work remains bounded; metadata/search/preview retain their normal timeouts. Ordinary responses keep the finite 65-second server write default. Shutdown retains its 10-second drain, then forces remaining connections closed. nginx forwards Range only for original and retains finite 70-second read/65-second send inactivity bounds. No range/conditional values enter logs.
 
 Authorization, provider connect/header acquisition and metadata work remain hard-bounded. Once an authorized media stream is established, longer transfer lifetime should be bounded by I/O inactivity, client disconnect, provider transport safety and bounded shutdown rather than a short absolute wall-clock deadline. Stalled connections must still be finite.
 
