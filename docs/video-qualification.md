@@ -1,9 +1,11 @@
-# #41 temporary M6 qualification
+# Video qualification worksheet
 
-Run only after local/CI checks pass, against the **exact unmerged PR head** and
-M6 Immich **3.2.0**. Record sanitized results in the PR. Source inspection and
-synthetic tests do not qualify the provider. Do not merge until all checks and
-cleanup pass. #42 final product reconciliation and public cutover remain separate.
+#41 passed this gate before PR #47 merged at
+`7053ac1f297b97be6daacca7ff450b442cb689e7`. Reuse this worksheet as the
+video portion of [#42 final product qualification](release.md#final-disposable-qualification-42).
+Run only after software/docs review of the exact unmerged PR head and retained
+CI bundle. Synthetic tests do not qualify a host/provider. All infrastructure is
+temporary; production cutover belongs to `stef-k/server-migration#10`.
 
 ## Prepare an isolated run
 
@@ -108,7 +110,7 @@ Direct strictly validated provider 416 remains supported but is not the expected
 Immich 3.2.0 qualification path. Validate exact intervals, positive totals, types and
 lengths, including clipped ends and suffixes larger than the source. No redirects,
 playback substitutions, provider validators/disposition/cookies or error bodies may
-escape. If Immich original does not satisfy this contract, stop and re-harden #41.
+escape. If Immich original does not satisfy this contract, stop qualification and report the discrepancy before acceptance.
 
 ## Authorization, poster, ingress and lifetime
 

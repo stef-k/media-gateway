@@ -17,7 +17,7 @@ Before consequential implementation or issue hardening, read:
 9. this file
 10. the owning epic and implementation issue
 
-The accepted V0 implementation remains authoritative for **current behavior**. `docs/product-completion.md` and #37/#38–#42 are authoritative for the **target product contract**. Do not silently treat planned routes/schema as already implemented.
+The accepted implementation through #38–#41 remains authoritative for **current behavior**. `docs/product-completion.md` and #37/#38–#42 are authoritative for the **target product contract**. Do not silently treat planned routes/schema as already implemented.
 
 If implementation and documentation disagree on a security boundary, public/consumer contract, policy semantics, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
 
@@ -158,7 +158,7 @@ Safe projection may include logical root name, root-relative collection path, fi
 
 Never expose provider absolute paths, provider URLs, credentials, raw EXIF or provider JSON.
 
-Coordinates are target normal trusted metadata, not publication authority. Preserve strict pair/range validation and never log them.
+Coordinates are normal trusted metadata, not publication authority. Preserve strict pair/range validation and never log them.
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
@@ -174,7 +174,7 @@ Use bounded connect/header/metadata operations and explicit response validation.
 
 ## Original and video delivery
 
-#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup remain mandatory before merge.
+#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup passed before PR #47 merged; #42 owns final bundle qualification.
 
 Do not smuggle either into unrelated policy/catalogue changes.
 

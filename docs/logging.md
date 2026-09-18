@@ -24,7 +24,7 @@ Public-edge logging must not record secrets. In particular:
 - do not expose provider/NAS paths through public URLs in the first place;
 - review any custom nginx log format before enabling it on an Internet-facing deployment.
 
-The V0 public route is intentionally path-based and requires no secret query parameter.
+The public media surface is intentionally path-based and requires no secret query parameter.
 The reference `media_gateway` access format records the peer, method, classified
 route (`preview`, `original` or `denied`), status, bytes and request/upstream timings. It omits
 raw paths, asset IDs, query strings, Host, Referer, User-Agent and all credential

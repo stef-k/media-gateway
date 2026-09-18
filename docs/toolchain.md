@@ -71,7 +71,7 @@ Operators may configure, subject to strict validation:
 - one or more provider-visible allowed roots;
 - literal publication directory-segment names and permitted media types.
 
-Image preview/original are fixed product routes; no delivery feature gate remains.
+Image/video preview/original are fixed product routes; no delivery feature gate remains.
 
 Security semantics are not configurable:
 

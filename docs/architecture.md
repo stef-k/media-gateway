@@ -93,7 +93,7 @@ leading/trailing slashes. The trusted catalogue projects this context only after
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
-A production version may support only a subset of the media types declared by policy. Both image and video preview/original are implemented; #41 real-provider qualification remains a merge gate.
+A production version may support only a subset of the media types declared by policy. Both image and video preview/original are accepted through #41; #42 owns final bundle qualification.
 
 ### Consumer applications
 
@@ -271,7 +271,7 @@ If provider previews do not meet those requirements, an explicit image-transform
 
 ### Original images (#40)
 
-`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. #40 was accepted; #41 video qualification remains pending.
+`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. #40 and #41 are accepted.
 
 Validate direct 200, exactly one valid parameter-free `image/*` Content-Type and one explicit positive int64 Content-Length. Reject transfer/content encoding and Content-Range. There is no preview-size ceiling. GET streams a shared length-enforcing body; HEAD validates the provider GET then closes it. Both construct the same four public headers described above.
 
@@ -287,7 +287,7 @@ For 206, validate one `bytes start-end/total` against the exact requested interv
 
 Immich 3.2.0 maps pre-header file-send errors, including unsatisfiable ranges, to 404. Only a 404 for an authorized valid video Range triggers exactly one no-Range GET to the same fixed original endpoint, with no query or caller headers. Validate the normal video-original 200 contract and resolve the requested range against its positive length. Unsatisfiable ranges close the body and produce public zero-body 416. An oversized/equal suffix (`suffix_length >= total`) reuses the validated length-enforced original body as full-representation 206 with `Content-Range: bytes 0-(total-1)/total` and `Content-Length: total`. GET retains existing inactivity/cancellation semantics; HEAD closes without reading. Other satisfiable ranges close the body and produce sanitized 502. There is no third provider request. A second 404 preserves public 404; probe auth, transport, unexpected status or malformed framing produces sanitized 502. Normal 206 performs no probe. This bounded disambiguation never loops or opens playback.
 
-Public video originals add `Accept-Ranges: bytes` and validated Content-Range for 206/416. Other provider headers are discarded. Image original Range remains ignored/full 200, and all previews ignore Range. Conditional/validator semantics remain unsupported. M6 Immich 3.2.0 original-range, poster privacy, long-stream and cleanup evidence is mandatory before #41 merge; source/synthetic tests do not establish it.
+Public video originals add `Accept-Ranges: bytes` and validated Content-Range for 206/416. Other provider headers are discarded. Image original Range remains ignored/full 200, and all previews ignore Range. Conditional/validator semantics remain unsupported. M6 Immich 3.2.0 original-range, poster privacy, long-stream and cleanup evidence passed for #41. #42 requires final exact-bundle qualification; source/synthetic tests do not establish it.
 
 ## Configuration
 
@@ -304,6 +304,7 @@ public_base_url = "https://media.example.com"
 type = "immich"
 base_url = "http://127.0.0.1:2283"
 api_key_file = "/etc/media-gateway/immich.key"
+request_timeout = "15s"
 
 [[policy.roots]]
 name = "images"
@@ -323,7 +324,7 @@ media = ["video"]
 
 ```
 
-The [committed example](../deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
+The [committed example](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
 

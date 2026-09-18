@@ -1,10 +1,75 @@
-# Configuration foundation
+# Configuration and operator quick start
 
-> **Current schema:** Policy v2 (#38) uses named roots and global/root-scoped rules. Public delivery supports image preview and original and trusted browsing supports paginated image/video collections; #40 still requires M6 qualification; #41–#42 own remaining product completion.
+## Get started
 
-`internal/config.Load(filename)` reads an explicitly supplied TOML file and returns validated typed configuration, a separate credential string, and an error. It does not start a listener, contact Immich, evaluate asset authorization or deliver media. Any failure returns zero configuration and an empty credential. No environment, working-directory or home-directory configuration discovery occurs.
+Use a reachable private Immich instance (accepted provider evidence: 3.2.0), an
+account that can read the intended assets, and a dedicated non-administrator API
+key with `asset.read`, `asset.view`, and `asset.download`. Build with the reviewed
+[Go toolchain](toolchain.md) or verify/extract the [Linux bundle](release.md).
+Python 3 is needed only for smoke tooling; systemd and nginx are the reference
+production host integration.
 
-Use the commented [operator example](../deploy/config.toml.example) for the **current accepted implementation**. Unknown fields/tables, incorrect types and malformed TOML are rejected. Configuration input is limited to 1 MiB. Parser errors are deliberately replaced with a schema/syntax diagnostic because raw parser messages can quote private input. Validation errors identify the offending field or operation without its value.
+Create a protected configuration directory outside Git. Provision the key as a
+regular owner-readable file with **no group/other permissions** (for example
+0400), readable by the process identity. Never put the token in TOML, shell
+arguments or environment variables. Follow [installed ownership](deployment.md#filesystem-layout)
+when moving from a local run to a service.
+
+This minimal single-root example uses exactly the same schema as the
+[full multi-root template](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example):
+
+```toml
+[server]
+# Numeric loopback only; nginx owns external access.
+listen = "127.0.0.1:2290"
+
+[provider]
+type = "immich"
+# Adapt to the private provider origin reachable by this process.
+base_url = "http://127.0.0.1:2283"
+# Replace with an absolute protected credential path readable by this identity.
+api_key_file = "/etc/media-gateway/immich.key"
+# Bounds metadata/search/preview and original header acquisition.
+request_timeout = "15s"
+
+[[policy.roots]]
+name = "archive"
+# Provider-reported POSIX metadata path, never a local mount or Windows UNC path.
+path = "/media/archive"
+
+[[policy.rules]]
+# Exact component anywhere beneath the root, not public-old or public_backup.
+segment = "public"
+media = ["image", "video"]
+```
+
+One root is sufficient for one provider namespace sharing publication conventions.
+Use multiple non-overlapping named roots when archives have separate namespaces;
+use root-scoped rules when a legacy/special convention should apply only to one
+namespace. The full example includes global `public`, `public-images`,
+`public-videos`, and `post` scoped to `images`. Originals include source EXIF/GPS;
+choose publication conventions with that consequence in mind.
+
+Adapt and save the TOML, then start in the foreground:
+
+```sh
+# From a source checkout; bundle users run ./media-gateway instead.
+go build -o bin/media-gateway ./cmd/media-gateway
+bin/media-gateway -version
+bin/media-gateway -config /absolute/path/to/config.toml
+```
+
+Startup validates TOML/key before binding; it does not probe provider readiness.
+Use the [consumer guide](consumer-api.md#integration-walkthrough) against loopback
+to find an eligible asset, then check its preview and original GET/HEAD. Confirm a
+known private asset remains 404. Stop with Ctrl-C; use the
+[deployment guide](deployment.md) for persistent systemd/nginx integration.
+The final #42 M6 run instead uses disposable infrastructure only.
+
+Configuration is loaded once; **TOML/key changes require restart**. Unknown fields,
+incorrect types and malformed TOML fail startup. Input is limited to 1 MiB and
+errors identify fields/operations without quoting private values. No environment,
+working-directory or home-directory configuration discovery occurs.
 
 ## Connectivity and credential
 
@@ -14,7 +79,7 @@ These requirements remain product invariants through #37:
 - `server.public_base_url`: optional HTTP(S) origin.
 - `provider.type`: exactly `immich` until another provider creates a real requirement.
 - `provider.base_url`: required trusted HTTP(S) origin; reject userinfo, query, fragment, non-root path and invalid ports.
-- `provider.request_timeout`: required positive Go duration for bounded provider setup/metadata work. #41 may refine streaming lifetime separately from this request/open bound.
+- `provider.request_timeout`: required positive Go duration for bounded provider setup/metadata work. Established originals instead use fixed 60-second per-I/O inactivity bounds.
 - `provider.api_key_file`: absolute normalized host file path to the separately protected credential.
 
 The credential is intentionally separate from `Config`. Never log the credential or the whole configuration because configuration contains private topology.
@@ -27,7 +92,7 @@ TOML and the key are loaded once before binding. **Changes require service resta
 
 ## Current delivery and consumer configuration
 
-Image `preview` and `original` are fixed product representations. There is no `[delivery]` section or operator-selectable delivery mode. Remove the entire obsolete section, including `allow_original` and `image_variant`, before restart. Any stale section fails with sanitized targeted migration guidance; failure returns zero configuration and an empty credential. No compatibility alias exists. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
+Image/video `preview` and `original` are fixed product representations. There is no `[delivery]` section or operator-selectable delivery mode. Remove the entire obsolete section, including `allow_original` and `image_variant`, before restart. Any stale section fails with sanitized targeted migration guidance; failure returns zero configuration and an empty credential. No compatibility alias exists. Trusted catalogue coordinates are always included as a validated nullable pair; no `[consumer]` table remains. A stale `consumer.expose_coordinates` key fails startup with sanitized guidance to remove it because coordinates are now always included. Failure returns zero configuration and no credential. Other unknown fields/tables remain strictly rejected.
 
 ## Current Policy v2 (#38)
 
@@ -120,11 +185,19 @@ credential. Review the new configuration and restart; there is no hot reload.
 
 ## Representation and lifetime boundaries
 
-Original image bytes retain embedded EXIF/GPS. Preview is a separately qualified provider-generated web representation; the gateway never inspects or rewrites image metadata. Video delivery and Range remain #41 work. `provider.request_timeout` still bounds metadata/search/preview bodies. For originals it bounds response headers, with dial/TLS additionally capped at five seconds; it is not an absolute original-body timeout. The gateway retains its 60-second handler context and 65-second write timeout, and nginx retains 70-second read inactivity.
+Image/video originals retain embedded source metadata. Preview is a separately
+qualified provider-generated web representation; the gateway does not rewrite it.
+Video originals accept single byte ranges; image originals and previews ignore
+Range. All conditionals are unsupported. See [media behavior](architecture.md#video-delivery).
+`provider.request_timeout` bounds metadata/search/preview bodies and original
+headers; dial/TLS are additionally capped at five seconds. Established originals
+refresh 60-second read/write inactivity deadlines per I/O, with client cancellation
+and a 10-second shutdown drain. Ordinary responses keep the 65-second write default;
+nginx uses 70-second read and 65-second send inactivity bounds.
 
 ## Provider permissions
 
-The dedicated non-administrator key requires `asset.read` (metadata/search), `asset.view` (preview) and `asset.download` (original). No write permission is required. Original uses only GET `/api/assets/<UUIDv4>/original` with no query, preserving Immich source semantics. See the [reviewed provider contract](deployment.md#reviewed-original-image-contract-40). M6 original-image qualification remains required before merge.
+The dedicated non-administrator key requires `asset.read` (metadata/search), `asset.view` (preview) and `asset.download` (original). No write permission is required. Original uses only GET `/api/assets/<UUIDv4>/original` with no query, preserving Immich source semantics. See the [reviewed provider contract](deployment.md#reviewed-original-image-contract-40). #40–#41 are accepted; #42 retains final bundle qualification.
 
 ## Development validation
 

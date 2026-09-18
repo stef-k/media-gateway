@@ -19,3 +19,10 @@ baseurl: /media-gateway
 
 # Repository metadata used by Jekyll/GitHub Pages integrations.
 repository: stef-k/media-gateway
+
+# Use the documentation alias, inheriting the shared theme's default layout.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: documentation

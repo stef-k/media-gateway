@@ -79,11 +79,11 @@ Deterministic sequence:
 #38 -> #39 -> #40 -> #41 -> #42 -> close #37
 ```
 
-### #38 — policy v2: named roots and scoped conventions
+### #38 — accepted policy v2: named roots and scoped conventions
 
-Replace the flat `allowed_roots` list with named roots and keep rules as OR-ed exact directory conventions that may be global or scoped to selected logical roots.
+Replaced the flat `allowed_roots` list with named roots and keep rules as OR-ed exact directory conventions that may be global or scoped to selected logical roots.
 
-Target example:
+Accepted example:
 
 ```toml
 [[policy.roots]]
@@ -114,7 +114,7 @@ roots = ["images"]
 
 Root paths are provider-visible POSIX metadata paths, never NAS mounts. Root names are stable logical identifiers. Omitted rule roots mean global; explicit root lists cage a convention. Overlapping roots are rejected.
 
-### #39 — implemented paginated generic eligible-media catalogue
+### #39 — accepted paginated generic eligible-media catalogue
 
 The implementation generalizes the trusted consumer surface to images and videos organized as safe logical collections.
 
@@ -134,7 +134,7 @@ Requirements:
 - bounded internal provider scanning/filling;
 - provider search may optimize discovery but never authorize;
 - logical root/relative collection/filename exposed, absolute provider path hidden;
-- image/video media type, nullable dimensions and `duration_ms`, times, always-present nullable coordinates, and nullable representation capabilities;
+- image/video media type, nullable dimensions and `duration_ms`, times, always-present nullable coordinates, and non-null representation capabilities;
 - image/video preview/original paths are implemented without representation probes;
 - at-least-once collections with in-page deduplication, no counts or folder view;
 - coordinates become normal validated trusted metadata rather than an operator feature flag;
@@ -152,12 +152,12 @@ For images, original means exact provider original bytes after current lifecycle
 
 #40 is accepted on main through `d57e6a955af190df719e5fe0be444442630b8125`. Fixed GET original uses no query and `asset.download`; stale `[delivery]` fails migration. #41 extends the original transport lifetime. #42 still owns final product/public-host reconciliation.
 
-### #41 — software implemented; M6 qualification pending
+### #41 — accepted video, ranges and long streaming
 
 Implemented in the existing catalogue/provider/delivery seams:
 
 - generic catalogue inclusion and video metadata;
-- fixed video preview/poster, pending real-provider privacy qualification;
+- fixed video preview/poster with real-provider privacy qualification;
 - original video bytes;
 - correct practical byte-range semantics (`Range`, `206`, `Content-Range`, `Accept-Ranges`, 416/HEAD behavior);
 - long media streams no longer limited by V0 preview-only absolute request/write lifetime;
@@ -165,18 +165,19 @@ Implemented in the existing catalogue/provider/delivery seams:
 - established streams use bounded inactivity/client-disconnect/shutdown semantics;
 - nginx forwards only explicitly supported media headers and never provider/storage authority.
 
-No gateway transcoding/HLS/DASH is included. Exact PR-head M6 Immich 3.2.0 poster/original-range, byte identity, >65-second active stream, revocation/ingress and mandatory cleanup evidence block merge. No persistent M6 deployment or public cutover is part of this change.
+No gateway transcoding/HLS/DASH is included. PR #47 merged as `7053ac1f297b97be6daacca7ff450b442cb689e7` after exact-head M6 Immich 3.2.0 poster/original-range, byte identity, >65-second active stream, revocation/ingress and mandatory cleanup passed. No persistent M6 installation or public cutover was performed.
 
 ### #42 — final product docs, bundle and qualification
 
-After #38–#41 are accepted:
+#38–#41 are accepted. #42 is the final open child of #37:
 
 - reconcile all docs/config examples with actual behavior;
 - ship a final named-root/global-and-scoped TOML example;
 - document paginated collection/asset JSON for image/video;
 - document preview vs original metadata/privacy semantics;
 - extend bundle/smoke validation for original image/video and representative ranges;
-- real-host-qualify the exact final bundle on M6;
+- after software/docs review, qualify the exact unmerged head/retained CI bundle on disposable M6 infrastructure and clean up;
+- after merge, verify shared-theme Pages rendering and links under `/media-gateway`;
 - close #37 and unblock the host-specific production cutover.
 
 ## Later optional product evolution
