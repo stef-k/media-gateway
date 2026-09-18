@@ -19,7 +19,9 @@ func TestVideoRangeMissing(t *testing.T) {
 		{"unsatisfiable", "BYTES=010-", "", 200, 416},
 		{"explicit unsatisfiable", "bytes=10-20", "", 200, 416},
 		{"satisfiable", "bytes=0-2", "", 200, 502},
-		{"suffix satisfiable", "bytes=-20", "", 200, 502},
+		{"suffix satisfiable", "bytes=-2", "", 200, 502},
+		{"oversized suffix", "bytes=-20", "", 200, 206},
+		{"equal suffix", "bytes=-10", "", 200, 206},
 		{"missing", "bytes=10-", "", 404, 404},
 		{"unauthorized", "bytes=10-", "", 401, 502},
 		{"forbidden", "bytes=10-", "", 403, 502},
@@ -73,7 +75,11 @@ func TestVideoRangeMissing(t *testing.T) {
 					}
 					fmt.Fprintf(rw, "HTTP/1.1 %d test\r\nContent-Type: video/mp4\r\nContent-Length: 10\r\n%s\r\n", tc.status, tc.headers)
 					rw.Flush()
-					// Withhold every body byte: completion must close the probe after headers.
+					if tc.want == 206 && method == "GET" {
+						io.WriteString(rw, "0123456789")
+						rw.Flush()
+					}
+					// HEAD and failures must close without waiting for any body bytes.
 					conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 					var b [1]byte
 					if _, err := rw.Read(b[:]); err != io.EOF {
@@ -95,6 +101,9 @@ func TestVideoRangeMissing(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				wantBody := "media unavailable\n"
+				if tc.want == 206 {
+					wantBody = "0123456789"
+				}
 				if tc.want == 404 {
 					wantBody = "not found\n"
 				}
@@ -106,6 +115,9 @@ func TestVideoRangeMissing(t *testing.T) {
 				}
 				if tc.want == 416 && (resp.Header.Get("Content-Range") != "bytes */10" || resp.Header.Get("Content-Length") != "0" || resp.Header.Get("Accept-Ranges") != "bytes" || resp.Header.Get("Cache-Control") != "no-store" || resp.Header.Get("X-Content-Type-Options") != "nosniff") {
 					t.Fatal("incorrect 416 framing")
+				}
+				if tc.want == 206 && (resp.Header.Get("Content-Range") != "bytes 0-9/10" || resp.ContentLength != 10 || resp.Header.Get("Content-Type") != "video/mp4" || resp.Header.Get("Accept-Ranges") != "bytes" || resp.Header.Get("Cache-Control") != "no-store" || resp.Header.Get("X-Content-Type-Options") != "nosniff") {
+					t.Fatal("incorrect recovered 206 framing")
 				}
 				if calls.Load() != 2 {
 					t.Fatalf("original calls: %d", calls.Load())

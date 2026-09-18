@@ -569,8 +569,13 @@ Real M6 evidence on 2026-09-18 showed Immich 3.2.0 returning 404 for an
 unsatisfiable original Range, consistent with its file-send error wrapper. Only
 this authorized valid-range 404 triggers one fixed no-Range original GET, without
 query or caller headers. Its normal video 200 framing supplies the positive full
-length; close the probe body immediately without streaming. Unsatisfiable math
-produces public zero-body 416; satisfiable math produces sanitized 502. A second
+length. Unsatisfiable math closes the body and produces public zero-body 416.
+Deployed Immich 3.2.0 also returns 404 for an oversized suffix: a suffix length
+greater than or equal to the total reuses this validated no-Range original body
+as full-representation 206, with `Content-Range: bytes 0-(total-1)/total` and full
+length. HEAD returns identical framing and closes the body without reading it.
+Other satisfiable math closes the body and produces sanitized 502; no third
+provider request is made. A second
 404 remains public 404; probe auth/transport/status/framing failures produce 502.
 Normal 206 performs no probe. No loops or playback substitution are introduced.
 

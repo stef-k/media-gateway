@@ -8,12 +8,16 @@ import (
 	"time"
 )
 
-// TestOriginalReadInactivity proves progress extends a stream and a stall closes it.
+// TestOriginalReadInactivity proves recovered suffix streams retain read inactivity bounds.
 func TestOriginalReadInactivity(t *testing.T) {
 	for _, active := range []bool{true, false} {
 		t.Run(map[bool]string{true: "active", false: "stalled"}[active], func(t *testing.T) {
 			stopped := make(chan struct{})
 			client := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("Range") != "" {
+					w.WriteHeader(404)
+					return
+				}
 				defer close(stopped)
 				w.Header().Set("Content-Type", "video/mp4")
 				w.Header().Set("Content-Length", "8")
@@ -36,7 +40,8 @@ func TestOriginalReadInactivity(t *testing.T) {
 			client.streaming = originalHTTPWithInactivity(time.Second, 150*time.Millisecond)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			source, err := client.VideoOriginal(ctx, assetID, ByteRange{})
+			requested, _ := ParseRange([]string{"bytes=-20"})
+			source, err := client.VideoOriginal(ctx, assetID, requested)
 			if err != nil {
 				t.Fatal(err)
 			}

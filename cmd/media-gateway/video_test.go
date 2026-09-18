@@ -21,6 +21,7 @@ func TestVideoDelivery(t *testing.T) {
 		{"preview", "invalid", "", "poster!", 200},
 		{"original", "", "", "raw\x00vid", 200},
 		{"original", "BYTES=01-03", "bytes 1-3/7", "aw\x00", 206},
+		{"original", "bytes=-3", "bytes 4-6/7", "vid", 206},
 		{"original", "bytes=7-", "bytes */7", "", 416},
 	} {
 		t.Run(tc.variant+tc.requested, func(t *testing.T) {
@@ -37,6 +38,9 @@ func TestVideoDelivery(t *testing.T) {
 				expected := ""
 				if tc.status == 206 {
 					expected = "bytes=1-3"
+					if tc.requested == "bytes=-3" {
+						expected = tc.requested
+					}
 				}
 				if tc.status == 416 {
 					expected = "bytes=7-"

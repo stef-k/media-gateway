@@ -39,14 +39,20 @@ func (c *Client) VideoOriginal(ctx context.Context, id string, requested ByteRan
 }
 
 // disambiguateRangeMissing handles Immich 3.2.0's pre-header file-send 404.
-// One un-ranged source GET supplies existence/length only; its body is never read.
+// One un-ranged GET proves the total and supplies bytes only for a full-source suffix.
 func (c *Client) disambiguateRangeMissing(ctx context.Context, id string, requested ByteRange) (Original, error) {
 	probe, err := c.original(ctx, id, "video", ByteRange{})
 	if err != nil {
 		return Original{}, err
 	}
+	first, last, satisfiable := requested.bounds(probe.Length)
+	if satisfiable && requested.suffix && requested.last >= probe.Length {
+		probe.Status = http.StatusPartialContent
+		probe.ContentRange = "bytes " + strconv.FormatInt(first, 10) + "-" + strconv.FormatInt(last, 10) + "/" + strconv.FormatInt(probe.Length, 10)
+		return probe, nil
+	}
 	probe.Body.Close()
-	if _, _, satisfiable := requested.bounds(probe.Length); satisfiable {
+	if satisfiable {
 		return Original{}, ErrOriginal
 	}
 	return Original{Status: http.StatusRequestedRangeNotSatisfiable,

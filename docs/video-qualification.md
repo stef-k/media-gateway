@@ -97,8 +97,13 @@ cmp "$evidence/provider.bin" "$evidence/slow.bin"
 Check direct provider and gateway no-range 200, first/middle/tail/open/suffix 206,
 provider unsatisfiable 404, gateway synthesized 416 and HEAD. Confirm exactly one
 same-endpoint no-Range disambiguation GET for range 404, no extra request for 206,
-and no probe-body streaming. A second provider 404 remains public 404; a valid
-probe length that makes the range satisfiable is a sanitized 502 contradiction.
+and no third request. Expect oversized suffix -> provider 404 -> one validated
+no-Range original -> gateway full-representation 206. Compare its entire body
+with the saved source and check `Content-Range: bytes 0-(total-1)/total` and
+`Content-Length: total`; HEAD has identical framing and zero body. Equal suffix
+uses the same recovery if the provider returns 404. All other probe bodies close
+without streaming. A second provider 404 remains public 404; smaller satisfiable
+suffixes and other satisfiable range-404 cases remain sanitized 502 contradictions.
 Direct strictly validated provider 416 remains supported but is not the expected
 Immich 3.2.0 qualification path. Validate exact intervals, positive totals, types and
 lengths, including clipped ends and suffixes larger than the source. No redirects,
