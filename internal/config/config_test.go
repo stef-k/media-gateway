@@ -46,12 +46,12 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(c, again) || key != againKey {
 		t.Fatal("load is not deterministic")
 	}
-	text = strings.ReplaceAll(text, "/media/archive", "/external/photos")
+	text = strings.ReplaceAll(text, "/library", "/external")
 	text = strings.ReplaceAll(text, `segment = "public"`, `segment = "website"`)
 	text = strings.ReplaceAll(text, `public_base_url = "https://media.example.com"`, "")
 	text = strings.ReplaceAll(text, `127.0.0.1:2290`, `[::1]:2290`)
 	c, _, err = loadText(t, text)
-	if err != nil || c.Policy.Roots[0].Path != "/external/photos/Images" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
+	if err != nil || c.Policy.Roots[0].Path != "/external/photos" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
 		t.Fatalf("installation-specific configuration failed: %v", err)
 	}
 }
@@ -104,7 +104,7 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 			if !reflect.DeepEqual(c, Config{}) || key != "" {
 				t.Fatal("returned partial state")
 			}
-			if strings.Contains(err.Error(), "sentinel-private") || strings.Contains(err.Error(), "test-secret-token") || strings.Contains(err.Error(), "/media/archive") {
+			if strings.Contains(err.Error(), "sentinel-private") || strings.Contains(err.Error(), "test-secret-token") || strings.Contains(err.Error(), "/library") {
 				t.Fatal("error exposed input")
 			}
 		})

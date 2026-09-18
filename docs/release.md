@@ -115,7 +115,7 @@ source EXIF/GPS; preview privacy checks do not establish original metadata strip
 ## Portable smoke interface
 
 Python 3 standard library is sufficient for HTTP checks. No credentials, DNS,
-Cloudflare, public Internet, provider calls or config/key edits are needed. Supply
+external edge service, public Internet, provider calls or config/key edits are needed. Supply
 safe known representatives locally; do not commit their IDs or shell transcripts.
 
 ```sh
@@ -210,8 +210,8 @@ a substitute bundle on the target host.
 
 1. Inspect existing services/listeners and preserve unrelated host state. Prepare
    temporary unprivileged gateway/config/key copies and isolated nginx. Keep the
-   original root-only credential source intact. Never enable a persistent gateway
-   service or create the public hostname/Cloudflare route.
+   original protected credential source intact. Never enable a persistent gateway
+   service or create the public hostname or external edge route.
 2. Validate adapted unit/nginx and Policy v2 startup with representative global
    `public`, image/video-specific and root-scoped `post` conventions. Run the final
    portable smoke against the temporary gateway and nginx, including pagination,

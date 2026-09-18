@@ -196,7 +196,7 @@ The implementation should provide:
 - sensible concurrency/resource bounds if measurement shows they are needed;
 - graceful cancellation when clients disconnect.
 
-Do not add elaborate rate-limiting infrastructure before evidence. nginx/Cloudflare may provide coarse public abuse controls while application behavior remains bounded.
+Do not add elaborate rate-limiting infrastructure before evidence. nginx or an optional operator-controlled edge may provide coarse public abuse controls while application behavior remains bounded.
 
 ## Preview privacy and original source semantics
 

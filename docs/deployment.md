@@ -298,7 +298,7 @@ curl --path-as-is -i -H 'Host: media.example.com' \
   http://127.0.0.1:8089/media/KNOWN-ELIGIBLE-UUID/preview
 ```
 
-For another host or changed integration, record nginx version, `nginx -t`, numeric loopback
+For the target host or changed integration, record nginx version, `nginx -t`, numeric loopback
 sockets, eligible GET/HEAD, private/outside-root/near-match denial, every route/method
 class above, no-store, access/error log operation and bounded upstream failure.
 Confirm nginx targets Media Gateway only and responses/logs contain no actual
@@ -334,15 +334,17 @@ Routine denied/malformed Internet traffic must not become an unbounded high-seve
 
 ## HTTPS / edge
 
-The motivating deployment uses a dedicated public hostname such as:
+Use an operator-controlled public hostname, for example:
 
 ```text
 https://media.example.com
 ```
 
-Public HTTPS can terminate at Cloudflare, nginx, or another trusted edge. The edge must route only to the nginx Media Gateway vhost; it must not route directly to Immich.
+Public HTTPS can terminate at nginx or an optional operator-controlled edge
+(such as Cloudflare or another HTTPS reverse proxy). No external edge or tunnel
+service is required. The edge must route only to the nginx Media Gateway vhost; it must not route directly to Immich.
 
-For Cloudflare Tunnel, point the hostname at the dedicated nginx origin listener. Do not create a tunnel route to the Immich application port.
+If you choose Cloudflare Tunnel, point the hostname at the dedicated nginx origin listener. Do not create a tunnel route to the Immich application port.
 
 ## Provider connectivity
 

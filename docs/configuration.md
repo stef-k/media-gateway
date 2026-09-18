@@ -37,9 +37,9 @@ api_key_file = "/etc/media-gateway/immich.key"
 request_timeout = "15s"
 
 [[policy.roots]]
-name = "archive"
+name = "photos"
 # Provider-reported POSIX metadata path, never a local mount or Windows UNC path.
-path = "/media/archive"
+path = "/library/photos"
 
 [[policy.rules]]
 # Exact component anywhere beneath the root, not public-old or public_backup.
@@ -51,7 +51,7 @@ One root is sufficient for one provider namespace sharing publication convention
 Use multiple non-overlapping named roots when archives have separate namespaces;
 use root-scoped rules when a legacy/special convention should apply only to one
 namespace. The full example includes global `public`, `public-images`,
-`public-videos`, and `post` scoped to `images`. Originals include source EXIF/GPS;
+`public-videos`, and `post` scoped to `photos`. Originals include source EXIF/GPS;
 choose publication conventions with that consequence in mind.
 
 Adapt and save the TOML, then start in the foreground:
@@ -107,12 +107,12 @@ Configuration shape:
 [policy]
 
 [[policy.roots]]
-name = "images"
-path = "/media/archive/Images"
+name = "photos"
+path = "/library/photos"
 
 [[policy.roots]]
 name = "art"
-path = "/media/archive/ART"
+path = "/library/art"
 
 # Global convention: applies below every root.
 [[policy.rules]]
@@ -131,12 +131,12 @@ media = ["video"]
 [[policy.rules]]
 segment = "post"
 media = ["image"]
-roots = ["images"]
+roots = ["photos"]
 ```
 
 ### Root paths
 
-`path` is the absolute normalized POSIX path **reported by the provider in asset metadata**. It is not a Windows UNC path such as `\\NAS\Multimedia\Images`, not a host NAS mount and never a local path opened by Media Gateway.
+`path` is the absolute normalized POSIX path **reported by the provider in asset metadata**. It is not a Windows UNC path such as `\\example-nas\share\photos`, not a host NAS mount and never a local path opened by Media Gateway.
 
 `name` is a unique stable logical identifier: 1..64 ASCII lowercase letters,
 digits and hyphens, with alphanumeric first/last characters. Comparison is exact.
@@ -153,7 +153,7 @@ The evaluator defensively denies zero or multiple root matches.
 Rules remain OR-ed exact conventions.
 
 - omitted `roots` -> applies to every configured root;
-- `roots = ["images"]` -> applies only beneath that named root;
+- `roots = ["photos"]` -> applies only beneath that named root;
 - explicit `roots = []` -> invalid;
 - unknown/duplicated root references -> invalid;
 - segment matching remains exact component equality at any descendant depth;
@@ -167,9 +167,9 @@ partially overlapping sets) are valid and OR together. There are no deny rules
 or precedence rules. Combine media in a single rule for an identical segment/scope.
 
 `publication.Evaluate` returns eligibility and `Match{RootName, CollectionPath}`.
-For root `/media/archive/Images` and asset
-`/media/archive/Images/2019/Romania/post/DSC1.JPG`, the context is `images` and
-`2019/Romania/post`. Only directory components strictly beneath the root and above
+For root `/library/photos` and asset
+`/library/photos/2026/example-trip/post/example.jpg`, the context is `photos` and
+`2026/example-trip/post`. Only directory components strictly beneath the root and above
 the basename can match, at any depth. Malformed metadata denies without repair.
 Denial returns zero context. Current consumer JSON exposes both logical fields after successful authorization.
 

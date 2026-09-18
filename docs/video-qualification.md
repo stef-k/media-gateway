@@ -16,7 +16,7 @@ and remove it after the run.
 - Use a temporary unprivileged gateway on `127.0.0.1:2290` and isolated nginx on
   `127.0.0.1:8089`, adapting the shipped templates and running `nginx -t` first.
   Inspect existing listeners/services first; preserve unrelated host services.
-- Copy only the preserved dedicated credential into the protected temporary run.
+- Copy only the operator-provisioned dedicated credential into the protected temporary run.
   Key permissions remain `asset.read + asset.view + asset.download`; no admin/write.
   Do not enable/install a persistent gateway service or publish the public hostname.
 - Select a currently eligible MP4 and, if safely available, a second source/container,
@@ -136,7 +136,7 @@ escape. If Immich original does not satisfy this contract, stop qualification an
 Stop and remove only the temporary processes/unit/config/key copies created for
 this run, including the curl credential copy and downloaded source evidence.
 Preserve sanitized qualification results and the separately protected original
-credential source under its existing root-only policy. Verify:
+credential source under its existing access policy. Verify:
 
 ```sh
 # Both commands must show no remaining qualification listener.

@@ -8,11 +8,11 @@ title: "Architecture"
 
 Media Gateway is a small, fail-closed HTTP publication boundary between a private media provider and public consumers.
 
-The initial deployment uses Immich as the provider. Immich remains private and indexes a read-only external archive. Media Gateway is the only component allowed to turn a provider asset into an Internet-deliverable response, and only after re-evaluating publication policy from current provider metadata.
+Immich is the supported provider. Immich remains private and indexes a read-only external archive. Media Gateway is the only component allowed to turn a provider asset into an Internet-deliverable response, and only after re-evaluating publication policy from current provider metadata.
 
 The service is intentionally smaller than the applications consuming it. It has no media-management UI, no publication database, no direct NAS access and no generic proxy behavior.
 
-## Initial deployment
+## Reference deployment
 
 ```text
                                   PRIVATE
@@ -36,16 +36,18 @@ The service is intentionally smaller than the applications consuming it. It has 
                                 v
                               nginx
                                 |
-                       Cloudflare / HTTPS
+                       trusted edge / HTTPS
                                 |
 =============================== | ===============================
                               Internet
                                 |
                                 v
-                        media.stefk.me
+                        media.example.com
 ```
 
-The exact deployment may differ for other installations. The architectural requirements are:
+nginx is the reference public boundary. HTTPS may terminate at nginx or an
+operator-controlled external edge; any external edge or tunnel is optional and
+deployment-specific. The architectural requirements are:
 
 - the provider is not directly Internet-exposed by Media Gateway;
 - the gateway binds only to a numeric loopback address; other network boundaries require an explicit architecture revision;
@@ -62,12 +64,12 @@ Media Gateway must therefore treat provider reachability as **capability to insp
 
 ### Publication policy
 
-The initial deployment uses provider-indexed path metadata as the single publication switch.
+Publication uses provider-indexed path metadata as the single publication switch.
 
 Configured root:
 
 ```text
-/media/archive
+/library/photos
 ```
 
 Eligible exact directory segments:
@@ -311,8 +313,8 @@ api_key_file = "/etc/media-gateway/immich.key"
 request_timeout = "15s"
 
 [[policy.roots]]
-name = "images"
-path = "/media/archive"
+name = "photos"
+path = "/library/photos"
 
 [[policy.rules]]
 segment = "public"
