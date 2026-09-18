@@ -9,9 +9,96 @@ documentation and portable smoke tooling. Verify it before installation and
 retain a coherent binary/configuration/template set for rollback.
 
 CI retains the verified archive as the `media-gateway-linux-amd64` artifact.
-CI artifacts are not signed releases or a formal distribution mechanism.
+CI artifacts are exact-revision qualification inputs, not the supported binary
+download surface. Use [GitHub Releases](https://github.com/stef-k/media-gateway/releases)
+for versioned distribution.
 
-## Build and verify
+## Download and verify a release
+
+Choose a specific immutable `vMAJOR.MINOR.PATCH` from
+[GitHub Releases](https://github.com/stef-k/media-gateway/releases), and read its
+notes and [CHANGELOG](https://github.com/stef-k/media-gateway/blob/main/CHANGELOG.md).
+Linux amd64 is the supported binary platform. Download both assets into a new
+empty directory; this example selects `v1.0.0`:
+
+```sh
+# Stop on any failure. Downloading/verifying does not install or restart services.
+set -eu
+version=v1.0.0
+archive="media-gateway-$version-linux-amd64.tar.gz"
+base="https://github.com/stef-k/media-gateway/releases/download/$version"
+curl --fail --location --output "$archive" "$base/$archive"
+curl --fail --location --output "$archive.sha256" "$base/$archive.sha256"
+sha256sum --check --strict "$archive.sha256"
+tar -xzf "$archive"
+cd "media-gateway-$version-linux-amd64"
+sha256sum --check --strict SHA256SUMS
+./media-gateway -version
+```
+
+The external `.tar.gz.sha256` verifies the downloaded archive; internal
+`SHA256SUMS` verifies its packaged files. Require `version=v1.0.0`, the exact tag
+commit shown on GitHub, `modified=false` and `go=go1.27.1` for this release.
+Checksums detect corruption; they are not independent publisher signatures.
+Obtain both files from the intended repository's authenticated HTTPS release.
+
+Downloading a release is separate from production deployment. After verification,
+follow [first installation](#first-installation) or [upgrade and rollback](#upgrade-and-rollback)
+with the existing [deployment guidance](deployment.md). No Go toolchain or CI access
+is needed on the target. Retain the previous versioned release directory and its
+coherent protected configuration/template backup until upgrade acceptance.
+
+## Version and publication policy
+
+The immutable Git tag is the sole version authority: `vMAJOR.MINOR.PATCH`, with
+no leading zeroes, prerelease suffix or build suffix. Choose major versions for
+incompatible operator/consumer contracts, minor versions for compatible additions,
+and patch versions for compatible fixes. Never move/reuse a published tag or replace
+its assets. Keep `Unreleased` above dated `## X.Y.Z - YYYY-MM-DD` sections in
+`CHANGELOG.md`; each release needs one nonempty matching section before tagging.
+Entries describe visible changes and compatibility, not commit history.
+
+Before creating any real release tag, a repository administrator must enable
+**release immutability** in the repository Settings. This is a maintainer release
+prerequisite, not an operator installation requirement. The workflow cannot grant
+or configure repository administration policy. With immutability enabled,
+publication locks the release assets and associated tag and GitHub generates a
+signed release attestation. Do not create `v1.0.0` before enabling this setting.
+
+Maintainers first review and merge the release mechanism and changelog to `main`,
+then separately create/push the chosen tag at that accepted commit. The release
+workflow fetches main, checks ancestry/exact-tag clean source and changelog, runs
+formatting/vet/tests/race/build/smoke regressions, and builds the distribution once
+through `scripts/build-bundle.sh OUTPUT --release vX.Y.Z`. It verifies all internal
+checksums, versioned layout, tagged-source assets and exact binary metadata before
+creating the external checksum. Notes come from the matching changelog section.
+Go 1.27.1 supplies the exact v1 tag version directly; there is no injected version.
+Future major releases require reviewing Go module-path/tag compatibility: the
+current module path does not embed v2+ tags as exact versions, and validation
+rejects any tag/binary version mismatch.
+
+Only an explicit new tag push can publish. PR release checks use a disposable
+synthetic-tag clone and read-only permissions; main CI retains revision bundles.
+Only the guarded publication job has `contents: write`. It consumes the validated
+archive/checksum, creates a draft with both assets, then publishes it using `gh`.
+Immediately afterward it queries the published release and requires GitHub to
+report `immutable: true`; any other result or query failure fails the workflow.
+This assertion detects a missing prerequisite after publication; it does not
+retroactively enable immutability or undo publication.
+An existing release causes failure; there is no overwrite or clobber path. A failed
+upload/publication may leave a draft: inspect it and the failed run before recovery.
+Do not rebuild or replace published bytes. Any recovery must consume the exact
+validated archive, checksum and notes from that run, with explicit maintainer review.
+
+After publication, independently download both assets and repeat the checks above,
+including tagged-source template comparison, before accepting the distribution.
+As a separate post-merge acceptance step against the actual release, independently
+verify GitHub's signed attestation with `gh release verify v1.0.0` and verify the
+downloaded assets with `gh release verify-asset`. PR validation does not call a
+real release attestation.
+Publication itself performs no host installation, provider qualification or deployment.
+
+## Build and verify qualification bundles
 
 On Linux with Git, Bash, GNU coreutils/find/tar/gzip and the reviewed Go toolchain,
 use a clean checkout of the revision under review. The output directory must be
@@ -35,7 +122,7 @@ accidental changes; authenticate the source/archive separately through the revie
 repository. It is not a signature from a trusted publisher.
 
 The explicit bundle contents are `media-gateway`, `config.toml.example`,
-`media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `LICENSE`, a short `README.md`,
+`media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `CHANGELOG.md`, `LICENSE`, a short `README.md`,
 `smoke-deployment.py`, and offline `docs/` operator/consumer, architecture/security, media qualification,
 roadmap and product-contract guidance. Templates contain public example values only; never package
 an installed TOML/key or an operator's adapted nginx file. The static Linux amd64
