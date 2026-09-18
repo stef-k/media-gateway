@@ -100,6 +100,9 @@ Publication itself performs no host installation, provider qualification or depl
 
 ## Build and verify qualification bundles
 
+This maintainer procedure builds qualification inputs from source. Operators use
+[download and verify a release](#download-and-verify-a-release) instead.
+
 On Linux with Git, Bash, GNU coreutils/find/tar/gzip and the reviewed Go toolchain,
 use a clean checkout of the revision under review. The output directory must be
 outside the checkout. The script refuses dirty/untracked source and existing output.
@@ -132,12 +135,11 @@ is repeatable; byte-for-byte build reproducibility is not claimed.
 
 ## First installation
 
-Use [deployment](https://github.com/stef-k/media-gateway/blob/main/docs/deployment.md)
-in the repository, or `docs/deployment.md` in the
-bundle, for the service identity, permissions, secret provisioning and systemd
-commands. From an extracted bundle, substitute `./media-gateway` for the build
-output and the top-level template names for `deploy/...`; no Go toolchain is needed
-on the target. Verify checksums/version before installing. Review TOML literals,
+After [release verification](#download-and-verify-a-release), follow
+[service account and installation](deployment.md#service-account-and-installation)
+for the service identity, permissions, secret provisioning and systemd commands.
+Those commands run directly from the extracted release directory using its
+binary and top-level templates. Review TOML literals,
 private origin and key path locally; retain the separate protected key contract.
 
 Adapt only this service's nginx include: expected Host, dedicated free origin port,

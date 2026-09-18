@@ -26,13 +26,19 @@ The application selects them only through the explicit TOML and key paths.
 
 ## Service account and installation
 
-These are first-install commands from a reviewed checkout on a systemd Linux host
-with `sudo`, shadow-utils (`groupadd`/`useradd`), coreutils and the reviewed
-[Go toolchain](toolchain.md). Stop on any failure. Inspect existing names/paths first;
+First [download and verify a Linux amd64 GitHub Release](release.md#download-and-verify-a-release).
+Run these first-install commands from its verified, extracted directory on a supported
+Linux amd64 host with `sudo`, account-management tools (`getent`, `groupadd`,
+`useradd`, `passwd`, `nologin`), coreutils, and systemd/nginx for the reference
+integration. Go, Git and a source checkout are not target-host prerequisites.
+Stop on any failure. Inspect existing names/paths first;
 do not reuse an unrelated account, overwrite an existing installation, or alter
 other services. Existing deployments should retain recoverable files before changes.
 
 ```sh
+# The release guide must already have been used to verify this extracted directory.
+./media-gateway -version
+
 # Inspect first: absent entries are expected on a fresh host.
 getent passwd media-gateway
 getent group media-gateway
@@ -46,21 +52,20 @@ sudo useradd --system --gid media-gateway --no-create-home \
 sudo passwd --lock media-gateway
 id media-gateway
 
-# Build the static Linux amd64 application; no custom version injection.
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/media-gateway ./cmd/media-gateway
-sudo install -o root -g root -m 0755 bin/media-gateway /usr/local/bin/media-gateway
+sudo install -o root -g root -m 0755 \
+  ./media-gateway /usr/local/bin/media-gateway
 sudo install -d -o root -g media-gateway -m 0750 /etc/media-gateway
 sudo install -o root -g media-gateway -m 0640 \
-  deploy/config.toml.example /etc/media-gateway/config.toml
+  ./config.toml.example /etc/media-gateway/config.toml
 sudoedit /etc/media-gateway/config.toml
 
 # Provision the real key separately into a protected root-only source file outside
-# the checkout. Replace this placeholder source path; never put the token in a
+# the release directory. Replace this placeholder source path; never put the token in a
 # command argument, environment variable, TOML or Git. Do not print its contents.
 sudo install -o media-gateway -g media-gateway -m 0400 \
   /root/private-secrets/immich.key /etc/media-gateway/immich.key
 sudo install -o root -g root -m 0644 \
-  deploy/media-gateway.service /etc/systemd/system/media-gateway.service
+  ./media-gateway.service /etc/systemd/system/media-gateway.service
 
 # Inspect metadata only. Parent directories must also be administrator-controlled.
 sudo stat -c '%U:%G %a %n' /usr/local/bin/media-gateway /etc/media-gateway \
@@ -71,6 +76,10 @@ sudo -u media-gateway test ! -w /etc/media-gateway/config.toml
 sudo -u media-gateway test ! -w /etc/media-gateway
 sudo -u media-gateway test -r /etc/media-gateway/immich.key
 ```
+
+Developers/maintainers intentionally building from source should use the
+[toolchain and development guidance](toolchain.md#build-and-ci-baseline) and
+[qualification bundle procedure](release.md#build-and-verify-qualification-bundles).
 
 The account must have only its dedicated group, with no NAS, Immich, nginx or
 administrative group memberships. Do not grant it file capabilities, ACL access to

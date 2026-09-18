@@ -8,8 +8,9 @@ title: "Configuration and operator quick start"
 
 Use a reachable private Immich instance (deployed validation baseline: 3.2.0), an
 account that can read the intended assets, and a dedicated non-administrator API
-key with `asset.read`, `asset.view`, and `asset.download`. Build with the reviewed
-[Go toolchain](toolchain.md) or verify/extract the [Linux bundle](release.md).
+key with `asset.read`, `asset.view`, and `asset.download`. First
+[download and verify the Linux amd64 GitHub Release](release.md#download-and-verify-a-release),
+then work from its extracted directory. No Go toolchain or source checkout is needed.
 Python 3 is needed only for smoke tooling; systemd and nginx are the reference
 production host integration.
 
@@ -57,10 +58,9 @@ choose publication conventions with that consequence in mind.
 Adapt and save the TOML, then start in the foreground:
 
 ```sh
-# From a source checkout; bundle users run ./media-gateway instead.
-go build -o bin/media-gateway ./cmd/media-gateway
-bin/media-gateway -version
-bin/media-gateway -config /absolute/path/to/config.toml
+# Run from the verified, extracted release directory.
+./media-gateway -version
+./media-gateway -config /absolute/path/to/config.toml
 ```
 
 Startup validates TOML/key before binding; it does not probe provider readiness.
