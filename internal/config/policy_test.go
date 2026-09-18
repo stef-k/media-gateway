@@ -72,16 +72,16 @@ func TestRuleScopes(t *testing.T) {
 		valid       bool
 	}{
 		{"global", rule, true},
-		{"scoped", rule + "roots=['images']\n", true},
+		{"scoped", rule + "roots=['photos']\n", true},
 		{"explicit empty", rule + "roots=[]\n", false},
 		{"unknown", rule + "roots=['missing']\n", false},
-		{"exact reference", rule + "roots=['Images']\n", false},
-		{"duplicate reference", rule + "roots=['images','images']\n", false},
+		{"exact reference", rule + "roots=['Photos']\n", false},
+		{"duplicate reference", rule + "roots=['photos','photos']\n", false},
 		{"duplicate global", rule + rule, false},
-		{"duplicate scope different media", rule + "roots=['images','art']\n" + strings.ReplaceAll(rule, "'image'", "'video'") + "roots=['art','images']\n", false},
-		{"global and all roots scoped", rule + rule + "roots=['images','art']\n", true},
-		{"distinct scopes", rule + "roots=['images']\n" + rule + "roots=['art']\n", true},
-		{"overlapping scopes", rule + "roots=['images']\n" + rule + "roots=['images','art']\n", true},
+		{"duplicate scope different media", rule + "roots=['photos','art']\n" + strings.ReplaceAll(rule, "'image'", "'video'") + "roots=['art','photos']\n", false},
+		{"global and all roots scoped", rule + rule + "roots=['photos','art']\n", true},
+		{"distinct scopes", rule + "roots=['photos']\n" + rule + "roots=['art']\n", true},
+		{"overlapping scopes", rule + "roots=['photos']\n" + rule + "roots=['photos','art']\n", true},
 		{"no rules", "", false},
 	}
 	for _, tc := range cases {
