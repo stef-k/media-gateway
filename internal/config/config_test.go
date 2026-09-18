@@ -39,7 +39,7 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "test-secret-token" || c.Provider.APIKeyFile != keyPath || c.Provider.RequestTimeout != 15*time.Second || len(c.Policy.Rules) != 3 {
+	if key != "test-secret-token" || c.Provider.APIKeyFile != keyPath || c.Provider.RequestTimeout != 15*time.Second || len(c.Policy.Roots) != 2 || len(c.Policy.Rules) != 4 {
 		t.Fatalf("unexpected loaded fields")
 	}
 	again, againKey, err := loadText(t, text)
@@ -51,7 +51,7 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	text = strings.ReplaceAll(text, `public_base_url = "https://media.example.com"`, "")
 	text = strings.ReplaceAll(text, `127.0.0.1:2290`, `[::1]:2290`)
 	c, _, err = loadText(t, text)
-	if err != nil || c.Policy.Roots[0].Path != "/external/photos" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
+	if err != nil || c.Policy.Roots[0].Path != "/external/photos/Images" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
 		t.Fatalf("installation-specific configuration failed: %v", err)
 	}
 }

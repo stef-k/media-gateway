@@ -1,3 +1,7 @@
+---
+title: "Trusted consumer API"
+---
+
 # Trusted consumer API
 
 The #39 catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.

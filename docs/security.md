@@ -1,3 +1,7 @@
+---
+title: "Security model"
+---
+
 # Security model
 
 ## Security goal

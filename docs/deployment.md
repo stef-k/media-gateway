@@ -1,3 +1,7 @@
+---
+title: "Deployment"
+---
+
 # Deployment
 
 This document describes the reference deployment shape. The files under `deploy/` are templates, not unattended installers.
@@ -185,7 +189,7 @@ behavior and final SIGKILL bound stop to 30 seconds around the 10-second Go drai
 
 ### Sandbox and real-host qualification
 
-Every directive is explained in the [unit](../deploy/media-gateway.service).
+Every directive is explained in the [unit](https://github.com/stef-k/media-gateway/blob/main/deploy/media-gateway.service).
 The static Go process has no JIT, child-process, device, clock, kernel administration
 or filesystem-write requirement. Retain `MemoryDenyWriteExecute`, empty bounding
 and ambient capabilities, `NoNewPrivileges`, SUID/SGID and personality restrictions,
@@ -219,7 +223,7 @@ checks must not be represented as installed-host execution.
 
 nginx is the only public HTTP boundary. The gateway stays on numeric loopback,
 conventionally `127.0.0.1:2290`; neither the edge nor nginx may target Immich/storage.
-The [template](../deploy/nginx.conf) is included **once inside `http {}`**, with
+The [template](https://github.com/stef-k/media-gateway/blob/main/deploy/nginx.conf) is included **once inside `http {}`**, with
 its map/log format and two servers intact. Choose a free dedicated loopback origin
 port (example `8089`), replace `media.example.com` and adapt log paths. The local
 edge must send that Host. Unknown/missing Host selects the explicit default deny

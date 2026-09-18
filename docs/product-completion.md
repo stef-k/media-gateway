@@ -1,3 +1,7 @@
+---
+title: "Product completion: convention-driven media publication"
+---
+
 # Product completion: convention-driven media publication
 
 This document defines the product-completion contract tracked by [#37](https://github.com/stef-k/media-gateway/issues/37).

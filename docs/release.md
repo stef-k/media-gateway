@@ -1,8 +1,15 @@
+---
+title: "Linux bundle and deployment smoke"
+---
+
 # Linux bundle and deployment smoke
 
-#33 supplies these tools; acceptance on the exact bundle/host is still required
-before #33/#5 close. #31/#32 templates are accepted. No GitHub Release or production
-hostname/Cloudflare cutover is performed by this procedure.
+The accepted V0 bundle/install/rollback tooling now carries the #38–#41 product
+contract. #42 final qualification remains required after software/docs review.
+No GitHub Release or production hostname/Cloudflare cutover is performed here.
+For #42 use temporary isolated paths/unit/config/key copies only; the persistent
+installation commands below describe the later operator workflow, not permission
+to leave a qualification installation behind.
 
 PR CI may retain the verified Linux amd64 bundle as the
 `media-gateway-linux-amd64` CI artifact for qualification without Go on the target.
@@ -34,8 +41,8 @@ repository. It is not a signature from a trusted publisher.
 
 The explicit bundle contents are `media-gateway`, `config.toml.example`,
 `media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `LICENSE`, this `README.md`,
-`smoke-deployment.py`, and offline `docs/` release/deployment/configuration/logging/toolchain/
-consumer-API guidance. Templates contain public example values only; never package
+`smoke-deployment.py`, and offline `docs/` operator/consumer, architecture/security, media qualification,
+roadmap and product-contract guidance. Templates contain public example values only; never package
 an installed TOML/key or an operator's adapted nginx file. The static Linux amd64
 build uses `CGO_ENABLED=0`, `GOAMD64=v1`, normal Go VCS metadata and no custom version
 injection. Archive order, ownership and timestamps are normalized. The procedure
@@ -104,10 +111,11 @@ adapt only names that differ on the host. Work in a controlled maintenance windo
    installed/live version equal the recorded old revision and repeat the smoke.
    Report restoration failures; do not leave a failed rollback described as healthy.
 
-For #40 upgrades, remove the obsolete `[delivery]` section from the staged TOML and
+For upgrades from V0, migrate `policy.allowed_roots` to named roots, remove obsolete
+`[consumer]` and `[delivery]` sections from the staged TOML and
 provision the dedicated key with `asset.read` + `asset.view` + `asset.download`.
 Retain the old TOML/key with the old binary for coherent rollback. Originals expose
-source EXIF/GPS; this behavior requires the qualification below before #40 merge.
+source EXIF/GPS; #40–#41 are accepted and the final #42 bundle gate is below.
 
 ## Portable smoke interface
 
@@ -120,17 +128,53 @@ safe known representatives locally; do not commit their IDs or shell transcripts
 python3 scripts/smoke-deployment.py \
   --origin "$LOCAL_NGINX_ORIGIN" --host "$EXPECTED_HOST" \
   --eligible-id "$ELIGIBLE_ID" --private-id "$PRIVATE_ID" \
-  --near-match-id "$NEAR_MATCH_ID" --outside-root-id "$OUTSIDE_ROOT_ID"
+  --near-match-id "$NEAR_MATCH_ID" --outside-root-id "$OUTSIDE_ROOT_ID" \
+  --lifecycle-id "$REVOKED_ID" --image-original --image-sha256 "$IMAGE_SHA256" \
+  --video-id "$VIDEO_ID" --video-sha256 "$VIDEO_SHA256" \
+  --gateway-origin "$LOCAL_GATEWAY_ORIGIN" --root "$LOGICAL_ROOT" \
+  --collection "$RELATIVE_COLLECTION"
 ```
 
 Origin must be numeric loopback HTTP with explicit port. Requests do not follow
 redirects or ambient proxy settings. The reference Host isolation contract is
 required. Output contains fixed check labels only, never bodies, IDs, headers,
-credentials, private paths, raw metadata or coordinates. Images are held only in
-bounded memory. Checks cover eligible GET/HEAD type/length/no-store/nosniff, fixed
-private denial, optional near-match/outside-root denial, private/provider/UI/unknown
-routes, crafted paths, unsupported methods and wrong Host. Missing representatives
-are explicitly skipped, not passed. This is not EXIF or human visual qualification.
+credentials, private paths, raw metadata or coordinates. Previews are held in bounded
+memory; originals are hashed incrementally with only small range samples retained.
+The default original budget is 1 GiB/300 seconds per transfer; increase
+`--max-original-bytes` and `--transfer-timeout` deliberately for larger sources.
+These are smoke limits, not product size or lifetime ceilings. No originals are saved.
+
+The existing preview/route/Host/method checks remain available without new options.
+`--image-original` adds full image GET/HEAD; `--video-id` adds poster, full original,
+first/suffix byte comparisons, range HEAD, unsatisfiable 416 and malformed 400.
+Supply SHA256 values calculated privately from independently retrieved provider
+originals to prove source identity; absent hashes are reported as SKIP. Hashes and
+response values are never printed. Policy representatives deny on preview and
+original, even with malformed Range (authorization must run first).
+
+`--gateway-origin` is a **separate direct numeric loopback** origin for the private
+catalogue, accompanied by `--root` and `--collection`. It follows collection and
+asset cursors with limit 1, validates the safe projection and fetches supplied
+image/video details. `--max-pages` defaults to four per operation (maximum 100).
+Choose a collection with multiple assets; absent continuation is SKIP, and an
+unfinished scan at the explicit budget is REVIEW, not an exhaustion claim.
+nginx-origin checks independently require `/internal/collections` and assets to deny.
+
+For an explicit long-media check, add `--long-video-rate 262144` (paced bytes/second)
+and an adequate transfer budget/source size. It repeats the video original,
+requires elapsed transfer >65 seconds and compares its full hash to the first GET.
+Use a source substantially larger than transport buffers (for example >32 MiB),
+check ongoing gateway/nginx activity, and retain the [video worksheet](video-qualification.md)
+for cancellation, provider range-404 details and poster privacy/human quality.
+A slow receiver alone does not prove upstream activity for the whole interval.
+
+Absent representatives/check options produce explicit SKIP. Lifecycle input proves
+a currently denied ID, not a complete revoke/restore transition. Repeat with the
+same UUID before revocation, after provider rescan, and after restoration in the
+isolated qualification run. For global/scoped convention coverage, rerun with
+representatives in each intended rule/root and supply a wrong-root scoped near miss.
+Startup of that instance validates Policy v2; smoke does not read config/secrets or
+infer intended publication policy from the private catalogue.
 
 On the installed Linux host, add `--host-checks --unit "$GATEWAY_UNIT" --user
 "$GATEWAY_USER" --listen "$GATEWAY_ENDPOINT" --access-log "$NGINX_ACCESS_LOG"
@@ -160,21 +204,65 @@ keys or stop an unrelated provider as part of normal smoke.
 
 ## Acceptance evidence
 
-Record exact source/bundle SHA, checksum/version/template comparison, normal Go
-checks, Code Guard and exact-head CI. After source review, qualify the exact bundle
-and smoke on M6: installed/live version, normal and optional representatives,
-identity/listener, effective upstream and logging ownership/privacy, safe outage
-and restoration where approved, plus upgrade/rollback evidence. Accepted #31/#32
-host results remain valid but do not prove new #33 tooling. Update tracker #1 and
-#5 only after acceptance/merge. Production cutover and #30 remain separate work.
+Record exact source/bundle SHA, checksum/version/template comparison, local baseline,
+Code Guard and exact-head CI. Software evidence is not host/provider qualification.
+V0/#38–#41 are accepted; tracker #1 stays closed. #42 and #37 stay open through
+final disposable qualification, merge and the published Pages check below.
+
+## Final disposable qualification (#42)
+
+Do not begin until the exact software/docs PR head is reviewed. Use that **unmerged
+head and exact retained CI bundle**, verifying `-version`, checksums and template
+identity. Do not rebuild a substitute bundle on M6.
+
+1. Inspect existing services/listeners and preserve unrelated host state. Prepare
+   temporary unprivileged gateway/config/key copies and isolated nginx. Keep the
+   original root-only credential source intact. Never enable a persistent gateway
+   service or create the public hostname/Cloudflare route.
+2. Validate adapted unit/nginx and Policy v2 startup with representative global
+   `public`, image/video-specific and root-scoped `post` conventions. Run the final
+   portable smoke against the temporary gateway and nginx, including pagination,
+   independently verified image/video source hashes, private/outside-root/near-match
+   and revoked IDs. Apply the [video worksheet](video-qualification.md) for complete
+   range-404, oversized suffix, long-stream, privacy and revocation evidence.
+3. Exercise install/upgrade/rollback using the temporary installation layout and
+   retained coherent binary/config/key/template copies. Record installed/live
+   revisions before and after each transition; preserve the old bundle. Validate
+   config/key permissions and repeat product smoke after upgrade and rollback.
+   Restoration must include the old schema/key union when applicable. Do not run
+   the persistent `/usr/local` or `/etc` installation commands unadapted.
+4. Inspect fixed upstream, Range forwarding, `/internal/` isolation and safe logs.
+   Perform outage/auth-failure and service stop/start only with explicit opt-in in
+   the isolated instance, always restoring it. Classify unavailable representatives
+   and privacy/manual evidence honestly; no raw provider data belongs in the PR.
+5. Stop/remove all task-owned services/processes, nginx/config/key copies, downloaded
+   source bytes and evidence/rollback directories. Verify no :2290 or :8089 listener,
+   installed/enabled qualification service or temporary path remains. Preserve only
+   sanitized results and the pre-existing protected credential source. Check
+   unrelated services remain healthy. Cleanup is mandatory even after failure.
+
+Production cutover belongs to `stef-k/server-migration#10`, after #37 acceptance.
+
+## Pages publication and final closure
+
+Pages uses **Deploy from a branch → main → /docs**, shared
+`stef-k/.github@main`, and `/media-gateway` as base path. If not configured, an
+administrator must set that source in repository Settings → Pages. Do not add an
+Actions deployment workflow. `docs/index.md` is the sole homepage (`permalink: /`).
+The local `documentation` layout is only an alias to the shared `default` layout;
+no shared CSS/markup is copied. Relative Markdown links are rewritten by the
+GitHub Pages-supported `jekyll-relative-links` plugin.
+
+After merge, verify the published homepage, shared styling, navigation and each
+internal link under `/media-gateway`, including anchors. Verify root README ↔ docs
+homepage navigation and inspect rendered content for stale/private material.
+Only then close #42, reconcile accepted child/main SHAs in #37 and close #37.
+These are future acceptance steps, not evidence supplied by a local build.
 
 ## #40 original image qualification
 
-**Pending:** software/source review and CI do not qualify the new original seam.
-Do not merge #40 until the user/operator qualifies its exact revision on M6.
-The existing portable smoke covers previews and ingress denials; it does not prove
-original identity or privacy semantics. #42 owns final product/bundle/smoke/public-host
-reconciliation after video/Range work, and the real public hostname cutover stays gated.
+#40 is accepted. Reuse these source-identity checks for the final #42 bundle;
+preview privacy evidence does not establish original metadata stripping.
 
 Record sanitized evidence, without IDs, private paths, credentials or raw metadata:
 

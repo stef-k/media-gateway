@@ -1,3 +1,7 @@
+---
+title: "Configuration and operator quick start"
+---
+
 # Configuration and operator quick start
 
 ## Get started

@@ -7,6 +7,8 @@ remote_theme: stef-k/.github@main
 # Required by GitHub Pages to load the remote theme above.
 plugins:
   - jekyll-remote-theme
+  # Resolve Markdown links for both GitHub source and the project Pages base path.
+  - jekyll-relative-links
 
 # Project metadata displayed by the shared documentation theme.
 title: Media Gateway

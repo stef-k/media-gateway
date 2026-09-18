@@ -1,3 +1,7 @@
+---
+title: "Logging"
+---
+
 # Logging
 
 Media Gateway uses two complementary logging layers. They serve different purposes and neither replaces the other.

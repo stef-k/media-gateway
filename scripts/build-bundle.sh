@@ -27,7 +27,7 @@ install -m 0644 docs/release.md "$stage/README.md"
 install -m 0755 scripts/smoke-deployment.py "$stage/"
 # Include referenced operator authorities for offline use.
 mkdir "$stage/docs"
-install -m 0644 docs/{release,deployment,configuration,logging,toolchain,consumer-api}.md "$stage/docs/"
+install -m 0644 docs/{index,release,deployment,configuration,logging,toolchain,consumer-api,architecture,security,product-completion,roadmap,video-qualification}.md "$stage/docs/"
 (
     cd "$stage"
     find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS
