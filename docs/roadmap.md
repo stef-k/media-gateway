@@ -51,7 +51,8 @@ publication authorization; cached bytes cannot become independent authority.
 
 ## Distribution and operations
 
-Formal versioning and GitHub Release distribution are separate release-engineering
-work. The existing [bundle verification and operations guide](release.md) describes
-the available build/install path. Host-specific public routing remains an operator
+Immutable versioned binaries are distributed through
+[GitHub Releases](https://github.com/stef-k/media-gateway/releases). The
+[bundle verification and operations guide](release.md) describes download,
+checksum verification and installation. Host-specific public routing remains an operator
 deployment decision after validation.

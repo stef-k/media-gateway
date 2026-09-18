@@ -104,11 +104,18 @@ bash -n scripts/build-bundle.sh
 `-version` reports module version, embedded VCS revision/dirty state and Go version.
 Local builds may show a generated module pseudo-version or `(devel)`; absent VCS
 revision/dirty metadata is reported as `unknown`.
-No custom version injection is used. `scripts/build-bundle.sh` builds Linux amd64
+At an exact release tag, Go 1.27.1 reads the semantic module version directly
+from Git. Release validation requires the tag version, exact commit, clean state
+and reviewed toolchain; no custom version injection or version file is used. `scripts/build-bundle.sh` builds Linux amd64
 with CGO disabled from a clean checkout and packages an explicit file allowlist.
 See [release validation](release.md); the procedure is repeatable, without claiming
 byte-for-byte reproducibility. Python 3 and Linux host tools are operator smoke
 tooling only, not application runtime dependencies.
+
+The separate `.github/workflows/release.yml` validates explicit stable tags and
+publishes only accepted main commits. Its PR path runs
+`python3 scripts/test_release.py`: normal revision packaging plus full release
+construction in a disposable locally tagged clone, without publication.
 
 ## Version-update policy
 

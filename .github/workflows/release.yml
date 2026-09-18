@@ -1,0 +1,110 @@
+# Tags publish; PRs exercise the same construction without a write token.
+name: Release
+on:
+  push:
+    tags: ['v*'] # Exact stable SemVer is checked before any build/publication.
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/workflows/ci.yml'
+      - 'scripts/**'
+      - 'cmd/media-gateway/**'
+      - 'deploy/**'
+      - 'docs/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'LICENSE'
+      - 'go.mod'
+      - 'go.sum'
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # Never interrupt an in-progress publication.
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.source.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0 # Tags and main ancestry are required, not a shallow guess.
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+      - name: Validate exact tag and main ancestry
+        if: github.event_name == 'push'
+        id: source
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          TAG_CREATED: ${{ github.event.created }}
+          TAG_FORCED: ${{ github.event.forced }}
+        run: |
+          test "$TAG_CREATED" = true
+          test "$TAG_FORCED" = false
+          git fetch origin main
+          python3 scripts/release.py validate "$RELEASE_TAG" --main-ref origin/main > "$RUNNER_TEMP/release-notes.md"
+          echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Required product validation
+        run: |
+          test -z "$(gofmt -l $(git ls-files '*.go'))"
+          go vet ./...
+          go test ./...
+          go test -race ./...
+          go build ./cmd/media-gateway
+          python3 scripts/test_smoke.py
+          bash -n scripts/build-bundle.sh
+          python3 scripts/test_release.py ReleaseContractTests
+      - name: PR-safe release and revision bundle contracts
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/test_release.py
+      - name: Build and verify tag distribution once
+        if: github.event_name == 'push'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          output="$RUNNER_TEMP/distribution"
+          scripts/build-bundle.sh "$output" --release "$RELEASE_TAG"
+          python3 scripts/release.py verify "$RELEASE_TAG" --archive "$output/media-gateway-$RELEASE_TAG-linux-amd64.tar.gz"
+          (cd "$output" && sha256sum --check --strict "media-gateway-$RELEASE_TAG-linux-amd64.tar.gz.sha256")
+          cp "$RUNNER_TEMP/release-notes.md" "$output/release-notes.md"
+      - name: Retain validated publication inputs
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-inputs
+          path: ${{ runner.temp }}/distribution/*
+          if-no-files-found: error
+  publish:
+    # PRs cannot reach this job. Only a new, non-forced explicit tag may publish.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.event.created && !github.event.forced && !github.event.deleted
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: distribution
+      - name: Publish verified assets without replacing an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REVISION: ${{ needs.validate.outputs.revision }}
+        working-directory: distribution
+        run: |
+          test "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)" = "$RELEASE_REVISION"
+          archive="media-gateway-$RELEASE_TAG-linux-amd64.tar.gz"
+          sha256sum --check --strict "$archive.sha256"
+          # Creation fails if a release already exists; no upload --clobber path.
+          # A failed upload leaves a draft for deliberate recovery, never partial publication.
+          gh release create "$RELEASE_TAG" "$archive" "$archive.sha256" \
+            --verify-tag --draft --title "$RELEASE_TAG" --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false

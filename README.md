@@ -6,7 +6,8 @@ named provider roots; trusted same-host applications browse eligible collections
 and public clients receive stable preview and original URLs.
 
 **[Read the documentation](https://stef-k.github.io/media-gateway/)** ·
-[Documentation source](docs/index.md) · [Configuration example](deploy/config.toml.example)
+[GitHub Releases](https://github.com/stef-k/media-gateway/releases) ·
+[Changelog](CHANGELOG.md) · [Documentation source](docs/index.md) · [Configuration example](deploy/config.toml.example)
 
 Every delivery rechecks current provider lifecycle and publication policy.
 Consumer selections never grant publication. Immich and NAS paths stay private;
@@ -27,7 +28,9 @@ The reference platform is Linux amd64 with systemd and nginx.
 
 Start with the [operator quick start](docs/configuration.md#get-started),
 [consumer guide](docs/consumer-api.md), or [release and operations](docs/release.md).
-Build and validate using the reviewed [Go 1.27.1 toolchain](docs/toolchain.md).
+Download supported binaries from [GitHub Releases](https://github.com/stef-k/media-gateway/releases)
+and follow [archive verification](docs/release.md#download-and-verify-a-release).
+Source builds use the reviewed [Go 1.27.1 toolchain](docs/toolchain.md).
 
 ## License
 

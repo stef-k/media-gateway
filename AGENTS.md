@@ -7,7 +7,7 @@ This file defines Media Gateway-specific rules for coding agents. General Git sa
 Before consequential implementation or issue hardening, read:
 
 1. `README.md`
-2. `docs/product-completion.md` for #37 work
+2. `docs/product-completion.md` for settled product scope
 3. `docs/architecture.md`
 4. `docs/security.md`
 5. `docs/toolchain.md`
@@ -17,7 +17,10 @@ Before consequential implementation or issue hardening, read:
 9. this file
 10. the owning epic and implementation issue
 
-The accepted implementation through #38–#41 remains authoritative for **current behavior**. `docs/product-completion.md` and #37/#38–#42 are authoritative for the **target product contract**. Do not silently treat planned routes/schema as already implemented.
+Product completion is finished: #37 and #38–#42 are accepted historical context.
+The implementation and product/security documents define settled behavior.
+#48 is the current bounded release-engineering lane. Release changes must not
+alter settled media/security semantics without a separate bounded issue.
 
 If implementation and documentation disagree on a security boundary, public/consumer contract, policy semantics, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
 
@@ -129,7 +132,7 @@ No public health/readiness surface is required merely for convention.
 
 ### Product-complete public routes
 
-#37 requires fixed gateway representations:
+The accepted product provides fixed gateway representations:
 
 ```text
 GET/HEAD /media/<id>/preview
@@ -174,7 +177,7 @@ Use bounded connect/header/metadata operations and explicit response validation.
 
 ## Original and video delivery
 
-#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup passed before PR #47 merged; #42 owns final bundle qualification.
+#40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup passed before PR #47 merged; #42 final bundle qualification is complete.
 
 Do not smuggle either into unrelated policy/catalogue changes.
 
@@ -217,28 +220,23 @@ Run as a dedicated unprivileged account bound only to numeric loopback. nginx is
 
 Deployment examples are templates; preserve unrelated host services and validate systemd/nginx before restart/reload.
 
-The accepted V0 bundle/smoke/upgrade/rollback discipline remains the baseline for #42 final product qualification.
+The accepted bundle/smoke/install/upgrade/rollback discipline remains the baseline
+for versioned distribution. Release validation does not constitute deployment.
 
 ## Scope and issue execution
 
 Historical V0 tracker #1 is closed and should remain closed as the accepted security/deployment milestone.
 
-Current product-completion authority is #37 with bounded children:
+Product completion (#37, including #38–#42) is finished. #48 owns formal
+immutable tag versions, CHANGELOG, GitHub Releases and operator distribution.
+Keep normal CI exact-revision qualification separate from tag publication.
+Tags are the sole version authority; never add a duplicate version constant/file.
+Implement/review/merge the mechanism before creating the first `v1.0.0` tag.
+Actual release download verification is required before closing #48.
 
-```text
-#38 -> #39 -> #40 -> #41 -> #42 -> close #37
-```
-
-- #38 named roots + global/root-scoped policy
-- #39 paginated image/video collections/catalogue
-- #40 original image delivery
-- #41 video preview/original, ranges and long streaming
-- #42 final docs/config/bundle/smoke/real-host qualification
-
-Do not hand #37 wholesale to an implementation agent while these children exist. Consult live issue state before choosing the next unit.
-
-#30 remains optional later derivative-profile work and must not replace or delay required `/original` semantics without concrete evidence.
-
-The real `media.stefk.me`/Cloudflare cutover in `stef-k/server-migration#10` should wait for #37 completion.
+#30 remains optional future derivative work and must preserve `/original` semantics.
+Release changes must not alter settled media/provider/policy/HTTP/security or smoke
+semantics without a separate bounded issue. Production deployment is separate.
+Consult live issue state before choosing the next unit.
 
 Documentation is part of completion whenever policy/configuration, public/consumer contracts, provider endpoints, delivery/streaming, deployment, logging, toolchain/dependencies or security behavior changes.

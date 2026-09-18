@@ -25,6 +25,12 @@ inactivity. Originals include source metadata such as EXIF/GPS. Consumer referen
 never grant publication authority. There is no gallery UI, database, direct NAS
 access, arbitrary proxy or transcoding service.
 
+Supported Linux amd64 binaries are distributed through
+[GitHub Releases](https://github.com/stef-k/media-gateway/releases).
+[Download and verify a release](release.md#download-and-verify-a-release) before
+installation; see the [changelog](https://github.com/stef-k/media-gateway/blob/main/CHANGELOG.md)
+for operator and consumer changes.
+
 ## Get started / operator guide
 
 1. [Configure a first instance](configuration.md#get-started): prerequisites,
