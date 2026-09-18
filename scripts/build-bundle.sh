@@ -23,7 +23,21 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v1 GOFLAGS= go build \
     -buildvcs=true -o "$stage/media-gateway" ./cmd/media-gateway
 install -m 0644 deploy/config.toml.example deploy/media-gateway.service \
     deploy/nginx.conf LICENSE "$stage/"
-install -m 0644 docs/release.md "$stage/README.md"
+# Keep the bundle entrypoint small; relative guide links resolve inside docs/.
+cat > "$stage/README.md" <<'GUIDE'
+# Media Gateway Linux bundle
+
+Verify this bundle before use:
+
+```sh
+sha256sum --check --strict SHA256SUMS
+./media-gateway -version
+```
+
+Read [install, upgrade, rollback and smoke instructions](docs/release.md).
+The [documentation homepage](docs/index.md) links operator and consumer guides.
+Configuration and credentials are supplied separately; templates are examples.
+GUIDE
 install -m 0755 scripts/smoke-deployment.py "$stage/"
 # Include referenced operator authorities for offline use.
 mkdir "$stage/docs"

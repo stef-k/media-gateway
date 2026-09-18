@@ -40,7 +40,7 @@ accidental changes; authenticate the source/archive separately through the revie
 repository. It is not a signature from a trusted publisher.
 
 The explicit bundle contents are `media-gateway`, `config.toml.example`,
-`media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `LICENSE`, this `README.md`,
+`media-gateway.service`, `nginx.conf`, `SHA256SUMS`, `LICENSE`, a short `README.md`,
 `smoke-deployment.py`, and offline `docs/` operator/consumer, architecture/security, media qualification,
 roadmap and product-contract guidance. Templates contain public example values only; never package
 an installed TOML/key or an operator's adapted nginx file. The static Linux amd64
