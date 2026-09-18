@@ -114,7 +114,7 @@ tooling only, not application runtime dependencies.
 
 The separate `.github/workflows/release.yml` validates explicit stable tags and
 publishes only accepted main commits. Its PR path runs
-`python3 scripts/test_release.py`: normal revision packaging plus full release
+`python3 scripts/test_release.py` with Python 3.12+: normal revision packaging plus full release
 construction in a disposable locally tagged clone, without publication.
 
 ## Version-update policy

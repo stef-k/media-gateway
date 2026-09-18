@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Package only tracked reusable artifacts from a clean revision; never operator files.
 set -euo pipefail
-if [[ $# != 1 && $# != 3 ]] || [[ $# == 3 && $2 != --release ]]; then
+if [[ $# != 1 && $# != 3 ]] || [[ $# == 3 && ( $2 != --release || -z $3 ) ]]; then
     echo 'Usage: scripts/build-bundle.sh OUTPUT_DIRECTORY [--release vMAJOR.MINOR.PATCH] (outside checkout)' >&2
     exit 2
 fi

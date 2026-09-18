@@ -46,7 +46,7 @@ jobs:
         run: |
           test "$TAG_CREATED" = true
           test "$TAG_FORCED" = false
-          git fetch origin main
+          git fetch origin main:refs/remotes/origin/main
           python3 scripts/release.py validate "$RELEASE_TAG" --main-ref origin/main > "$RUNNER_TEMP/release-notes.md"
           echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Required product validation

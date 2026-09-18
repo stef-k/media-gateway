@@ -64,9 +64,11 @@ class BundleTests(unittest.TestCase):
             self.assertIn(f"revision={revision} modified=false go=go1.27.1", version)
             self.assertTrue((extracted / "CHANGELOG.md").is_file())
             # No tag is written to the caller's checkout or any remote.
-            subprocess.run(["git", "tag", "v1.0.0"], cwd=source, check=True)
+            subprocess.run(["git", "-c", "user.name=Release test", "-c", "user.email=release@example.invalid", "tag", "-a", "v1.0.0", "-m", "Synthetic release test"], cwd=source, check=True)
             release.validate_source(source, "v1.0.0", "HEAD")
-            for tag in ("invalid", "v1.0.1"):
+            with self.assertRaises(subprocess.CalledProcessError):
+                release.validate_source(source, "v1.0.0", "HEAD^")
+            for tag in ("", "invalid", "v1.0.1"):
                 result = subprocess.run([str(builder), str(work / "invalid"), "--release", tag], capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
             # A valid exact tag without notes must also fail before construction.
@@ -77,6 +79,16 @@ class BundleTests(unittest.TestCase):
             subprocess.run([str(builder), str(output), "--release", "v1.0.0"], check=True)
             archive = output / "media-gateway-v1.0.0-linux-amd64.tar.gz"
             release.verify_bundle(source, archive, "v1.0.0")
+            with tarfile.open(archive) as bundle:
+                release_files = {str(pathlib.PurePosixPath(m.name).relative_to(release.archive_stem("v1.0.0"))) for m in bundle.getmembers() if m.isfile()}
+            self.assertEqual(release_files, {p.relative_to(extracted).as_posix() for p in extracted.rglob("*") if p.is_file()})
+            with self.assertRaisesRegex(ValueError, "filename"):
+                release.verify_bundle(source, normal / "wrong-name.tar.gz", "v1.0.0")
+            # The qualification archive has valid contents but the wrong release layout.
+            wrong_layout = work / archive.name
+            wrong_layout.hardlink_to(normal / f"media-gateway-linux-amd64-{revision}.tar.gz")
+            with self.assertRaisesRegex(ValueError, "layout"):
+                release.verify_bundle(source, wrong_layout, "v1.0.0")
             release.write_checksum(archive)
             subprocess.run(["sha256sum", "--check", "--strict", archive.name + ".sha256"], cwd=output, check=True)
             with self.assertRaises(FileExistsError):
