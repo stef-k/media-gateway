@@ -16,11 +16,22 @@ import (
 
 // TestConsumerInputBoundary proves invalid requests cannot reach provider search.
 func TestConsumerInputBoundary(t *testing.T) {
+	for _, expose := range []bool{false, true} {
+		name := "off"
+		if expose {
+			name = "on"
+		}
+		t.Run(name, func(t *testing.T) { testConsumerInputBoundary(t, expose) })
+	}
+}
+
+// testConsumerInputBoundary applies the same security boundary in either privacy mode.
+func testConsumerInputBoundary(t *testing.T, expose bool) {
 	var calls atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
 	defer provider.Close()
 	var logs bytes.Buffer
-	gateway := gatewayFor(t, provider, &logs, time.Second)
+	gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
 	for _, route := range []string{
 		"/internal/assets/", "/internal/assets/not-a-uuid", "/internal/assets/" + testAsset + "/preview",
 		"/internal/assets/" + testAsset + "?limit=1", "/internal/assets/" + testAsset + "?",
@@ -177,19 +188,30 @@ func TestConsumerCancellation(t *testing.T) {
 
 // TestConsumerResponseBound exercises the encoded-size cap with valid provider times.
 func TestConsumerResponseBound(t *testing.T) {
+	for _, expose := range []bool{false, true} {
+		name := "off"
+		if expose {
+			name = "on"
+		}
+		t.Run(name, func(t *testing.T) { testConsumerResponseBound(t, expose) })
+	}
+}
+
+// testConsumerResponseBound applies the same security boundary in either privacy mode.
+func testConsumerResponseBound(t *testing.T, expose bool) {
 	var oversized atomic.Bool
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		items := make([]map[string]any, 100)
 		for i := range items {
 			items[i] = candidateFixture(fmt.Sprintf("%08x-1234-4234-8234-123456789abc", i), "/external/photos/website/a.jpg", "IMAGE")
 			if oversized.Load() {
-				items[i]["fileCreatedAt"] = "2026-09-13T10:00:00." + strings.Repeat("1", 5200) + "Z"
+				items[i]["originalPath"] = "/external/photos/website/" + strings.Repeat("a", 5200) + ".jpg"
 			}
 		}
 		candidateResponse(w, items, nil)
 	}))
 	defer provider.Close()
-	gateway := gatewayFor(t, provider, io.Discard, time.Second)
+	gateway := gatewayWithPrivacy(t, provider, io.Discard, time.Second, expose)
 	for _, large := range []bool{false, true} {
 		oversized.Store(large)
 		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website&limit=100")

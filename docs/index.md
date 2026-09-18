@@ -31,6 +31,13 @@ Supported Linux amd64 binaries are distributed through
 installation; see the [changelog](https://github.com/stef-k/media-gateway/blob/main/CHANGELOG.md)
 for operator and consumer changes.
 
+Source-metadata exposure is **off by default**. Capture/local timestamps,
+coordinates and original paths remain present as null; originals return fixed 404
+without provider fetches. Qualified previews/posters remain available. Set
+`privacy.expose_source_metadata=true` deliberately to enable sensitive catalogue
+fields and exact originals, whose bytes may contain embedded metadata. Filenames
+and collection names remain visible in both modes.
+
 ## Get started / operator guide
 
 1. [Configure a first instance](configuration.md#get-started): prerequisites,
@@ -59,7 +66,7 @@ Never expose `/internal/` through a public proxy.
 ## Technical reference
 
 - [Architecture and media behavior](architecture.md)
-- [Configuration and Policy v2](configuration.md)
+- [Configuration and publication policy](configuration.md)
 - [Security model](security.md)
 - [Toolchain and local validation](toolchain.md)
 - [Product model and scope](product-completion.md)

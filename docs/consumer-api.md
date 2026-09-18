@@ -33,7 +33,7 @@ empty page can still have continuation. Restart browsing after gateway restart
 invalidates a cursor; merge collections by `(root, collection_path)` and avoid
 assuming a provider snapshot. Never print real catalogue responses into public logs.
 
-Use the returned preview/original paths with your configured public gateway origin
+Use the returned non-null preview/original paths with your configured public gateway origin
 for public media, or loopback for trusted local use. Do not infer authorization
 from a stored URL. Handle 404 revocation and sanitized 502 failures at delivery.
 Your application owns selection persistence, captions and presentation.
@@ -52,7 +52,7 @@ Detail accepts no query, including an empty `?`. Routes are exact, with no path 
 
 Asset browsing requires an exact configured logical `root` and a canonical relative POSIX `collection`: nonempty valid UTF-8, no leading/trailing slash, empty/dot/dot-dot components, backslashes or control characters. Normal query decoding applies once; selectors are never cleaned or Unicode-normalized into validity. Consumers never supply an absolute provider path.
 
-Every active candidate passes `publication.Evaluate`. Asset browsing additionally requires exact root and parent-collection equality: descendants are separate collections. A valid known-root selector with no eligible media returns 200 with an empty page, without revealing whether a private directory exists. A stored asset reference grants no authority; detail independently rechecks current lifecycle and Policy v2.
+Every active candidate passes `publication.Evaluate`. Asset browsing additionally requires exact root and parent-collection equality: descendants are separate collections. A valid known-root selector with no eligible media returns 200 with an empty page, without revealing whether a private directory exists. A stored asset reference grants no authority; detail independently rechecks current lifecycle and publication policy.
 
 ## Bounds and pagination
 
@@ -84,7 +84,7 @@ Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail 
 }
 ```
 
-Collection identity is exactly `(root, collection_path)`, derived only from the successful Policy v2 result for an active eligible asset. No collection counts are returned. `next_cursor` is always present as a string or `null`.
+Collection identity is exactly `(root, collection_path)`, derived only from the successful publication policy result for an active eligible asset. No collection counts are returned. `next_cursor` is always present as a string or `null`.
 
 Discovery combines applicable global and root-scoped rules by exact segment, unions media sets, and traverses streams sorted by logical root name then segment. Provider root-prefix and segment-shaped filters only narrow candidates. Immich's case/accent-insensitive matching never replaces exact policy evaluation. Discovery uses `withExif=false` and decodes only lifecycle/path/media facts; unrelated dimensions, times or EXIF cannot fail discovery.
 
@@ -92,30 +92,30 @@ Collection discovery is **at least once**: identities are deduplicated within a 
 
 ## Asset JSON
 
-Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one asset directly. Every asset has exactly these fields (values below are synthetic):
+Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one asset directly. Every asset has exactly these fields (synthetic privacy-off defaults below):
 
 ```json
 {
   "id": "12345678-1234-4234-8234-123456789abc",
   "media_type": "image",
   "root": "photos",
-  "collection_path": "2025/legacy-trip/post",
+  "collection_path": "2025/example-trip/post",
   "filename": "DSC01234.JPG",
   "width": 6000,
   "height": 4000,
   "duration_ms": null,
-  "file_created_at": "2025-01-15T10:21:00Z",
-  "local_date_time": "2025-01-15T12:21:00Z",
-  "latitude": 12.3456,
-  "longitude": 23.4567,
+  "file_created_at": null,
+  "local_date_time": null,
+  "latitude": null,
+  "longitude": null,
   "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
-  "original_path": "/media/12345678-1234-4234-8234-123456789abc/original"
+  "original_path": null
 }
 ```
 
-`media_type` is `image` or `video`. `filename` is the basename of the validated provider path, never an arbitrary provider display filename. Width, height and `duration_ms` are explicit nullable nonnegative safe JSON integers (maximum 9007199254740991). Duration is **milliseconds**, so a 23.8-second video has `duration_ms: 23800`. Zero is valid; null means unknown. Both required time strings are validated as RFC3339 with optional fractional seconds and preserved; local wall time is not converted to another timezone.
+`media_type` is `image` or `video`. `filename` is the basename of the validated provider path, never an arbitrary provider display filename. Width, height and `duration_ms` are explicit nullable nonnegative safe JSON integers (maximum 9007199254740991). Duration is **milliseconds**, so a 23.8-second video has `duration_ms: 23800`. Zero is valid; null means unknown. When source metadata is enabled, both required time strings are validated as RFC3339 with optional fractional seconds and preserved; local wall time is not converted to another timezone.
 
-An example video page (synthetic values) uses the same schema. A detail request
+An example video page with source metadata enabled (synthetic values) uses the same schema. A detail request
 returns the asset object directly, without the page envelope:
 
 ```json
@@ -140,22 +140,44 @@ returns the asset object directly, without the page envelope:
 }
 ```
 
-### Current representation capabilities
+### Source-metadata privacy
 
-| Media | `preview_path` | `original_path` |
+The optional startup setting `[privacy] expose_source_metadata = false` controls
+this fixed surface. It cannot be selected by HTTP callers.
+
+| Field or behavior | Omitted / false | True |
 | --- | --- | --- |
-| image | `/media/<id>/preview` | `/media/<id>/original` |
-| video | `/media/<id>/preview` | `/media/<id>/original` |
+| `file_created_at` | Present, null | Validated capture timestamp |
+| `local_date_time` | Present, null | Validated local timestamp, unchanged timezone meaning |
+| `latitude`, `longitude` | Both present, null | Validated nullable pair |
+| `original_path` | Present, null | `/media/<id>/original` |
+| Original image/video GET/HEAD, including Range | Fixed 404, zero provider original fetches | Existing exact-byte, range and streaming contract |
+| `preview_path` | `/media/<id>/preview` | Same |
+| Asset list/detail `withExif` | false | true |
+| Collection discovery `withExif` | false | false |
+| `id`, `media_type`, `root`, `collection_path`, `filename` | Existing semantics | Same |
+| `width`, `height`, `duration_ms` | Validated nullable integers | Same |
 
-All capability fields are present and non-null for eligible images and videos. They advertise implemented representations, not existence guarantees or authorization grants. Projection makes no representation probes. A derivative can disappear; every subsequent delivery independently re-fetches current metadata/lifecycle and re-evaluates policy. The metadata schema and millisecond duration units are unchanged.
+While off, hidden capture/local timestamps and EXIF are ignored rather than
+validated, including malformed values within otherwise valid bounded JSON.
+With true, timestamps retain RFC3339 validation and original precision. Coordinates
+are both absent/null or a finite numeric pair: latitude `[-90,90]`, longitude
+`[-180,180]`. Zero and inclusive boundaries are valid. Partial pairs,
+null/numeric mismatches, nonnumeric/non-finite and out-of-range values fail safely
+with sanitized provider errors. Unrelated EXIF is discarded and never logged.
 
-`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection.
+This is source-metadata privacy, not complete anonymity: filenames and collection
+names can contain descriptive information. Enabling it deliberately exposes
+approved sensitive fields and exact source originals, whose bytes may contain
+arbitrary additional embedded metadata. No EXIF stripping, re-encoding or remuxing
+occurs. Absence of provider coordinates does not establish original-byte safety.
 
-### Coordinates and privacy
-
-Latitude and longitude are always present, either both valid numbers or both null. Asset list/detail searches use `withExif=true`; only the coordinate pair is retained. Both absent or both null mean unknown. One absent/present mismatch, one null/numeric mismatch, nonnumeric/non-finite values, latitude outside `[-90,90]` or longitude outside `[-180,180]` fail as provider metadata errors. Zero and inclusive boundaries are valid. Unrelated EXIF is discarded and coordinates are never logged.
-
-There is no `[consumer]` configuration section. Stale `consumer.expose_coordinates` fails startup with migration guidance; remove it and restart. Other unknown configuration remains invalid.
+Preview/poster bytes and authorization are unchanged in both modes. Non-null
+capabilities advertise implemented representations, not existence guarantees or
+authorization grants; projection makes no representation probes. Every enabled
+delivery rechecks current lifecycle and policy. RAW/HEIC originals need not be
+browser-displayable. Startup configuration is immutable and restart invalidates
+cursor signing keys, so privacy mode is not caller-controlled cursor state.
 
 Provider absolute/NAS paths, URLs, credentials, owner/library IDs, checksums, people/albums, visibility flags and raw EXIF/provider JSON never cross the consumer boundary. Full upstream JSON, including ignored EXIF, remains bounded to 1 MiB.
 

@@ -195,11 +195,13 @@ adapt only names that differ on the host. Work in a controlled maintenance windo
    installed/live version equal the recorded old revision and repeat the smoke.
    Report restoration failures; do not leave a failed rollback described as healthy.
 
-For upgrades from the previous configuration format, migrate `policy.allowed_roots` to named roots, remove obsolete
-`[consumer]` and `[delivery]` sections from the staged TOML and
-provision the dedicated key with `asset.read` + `asset.view` + `asset.download`.
-Retain the old TOML/key with the old binary for coherent rollback. Originals expose
-source EXIF/GPS; preview privacy checks do not establish original metadata stripping.
+Review the current [configuration schema](configuration.md) before upgrade and
+retain the old TOML/key with the old binary for coherent rollback. The optional
+`privacy.expose_source_metadata` defaults to false: sensitive catalogue fields and
+original capability become null, and originals return 404 without provider fetches.
+Enable it deliberately only when source metadata exposure is intended. Original
+smoke options require this opt-in; preview privacy checks do not prove original
+metadata stripping. Release validation is not deployment or provider qualification.
 
 ## Portable smoke interface
 
@@ -257,7 +259,7 @@ a currently denied ID, not a complete revoke/restore transition. Repeat with the
 same UUID before revocation, after provider rescan, and after restoration in the
 isolated qualification run. For global/scoped convention coverage, rerun with
 representatives in each intended rule/root and supply a wrong-root scoped near miss.
-Startup of that instance validates Policy v2; smoke does not read config/secrets or
+Startup of that instance validates publication policy; smoke does not read config/secrets or
 infer intended publication policy from the private catalogue.
 
 On the installed Linux host, add `--host-checks --unit "$GATEWAY_UNIT" --user
@@ -301,7 +303,7 @@ a substitute bundle on the target host.
    temporary unprivileged gateway/config/key copies and isolated nginx. Keep the
    original protected credential source intact. Never enable a persistent gateway
    service or create the public hostname or external edge route.
-2. Validate adapted unit/nginx and Policy v2 startup with representative global
+2. Validate adapted unit/nginx and publication policy startup with representative global
    `public`, image/video-specific and root-scoped `post` conventions. Run the final
    portable smoke against the temporary gateway and nginx, including pagination,
    independently verified image/video source hashes, private/outside-root/near-match

@@ -485,7 +485,7 @@ Only `AssetResponseDto.id`, `originalPath` and `type` are retained. All are requ
 and non-empty. `IMAGE` maps to `image`, `VIDEO` to `video`; documented `AUDIO` and
 `OTHER`, and any unknown type, fail closed. Paths pass unchanged to
 `publication.Evaluate`; neither ID knowledge nor successful metadata retrieval
-grants publication. Video mapping alone never authorizes delivery; current Policy v2 must also succeed.
+grants publication. Video mapping alone never authorizes delivery; current publication policy must also succeed.
 
 `internal/immich.New` consumes validated `config.Load` provider values and its
 separately returned credential. `Client.Asset` performs a fresh lookup each time.
@@ -521,7 +521,9 @@ and run provider/policy smoke tests when upgrading Immich.
 
 Re-verified on **2026-09-15** against Immich **v3.2.1**, with the unchanged
 v3.2.x structured-search/asset schema. Deployed evidence uses v3.2.0;
-source review does not establish deployed behavior on v3.2.1.
+source review does not establish deployed behavior on v3.2.1. The optional boolean
+`withExif` search schema was rechecked against both versions on 2026-09-19 for
+the source-metadata privacy guard.
 
 Use only `POST /api/search/metadata`, `x-api-key`, permission **asset.read**, and
 HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/search.dto.ts),
@@ -536,7 +538,7 @@ Gateway-generated filters always include `type.in` with eligible IMAGE/VIDEO med
 a prefix resolved from the configured root plus validated relative selector.
 SQL wildcard characters in these literals are escaped. Immich wraps `like` with
 wildcards itself; both path operators are case/accent-insensitive, so every
-candidate still requires exact lifecycle/path/media/Policy v2 evaluation.
+candidate still requires exact lifecycle/path/media/publication policy evaluation.
 An exact UUIDv4 detail adds `id.eq`; no caller filter tree or provider URL is accepted.
 
 Ordering is fixed `fileCreatedAt desc` with the provider's ID tie-break. Offset
@@ -548,9 +550,11 @@ continuation; callers cannot submit raw provider cursors.
 
 `withPeople=false` and `withStacked=false` are fixed. Discovery requests
 `withExif=false` and decodes only policy facts, ignoring unrelated malformed
-projection fields. Asset lists/details request `withExif=true`. They require
-explicit nullable nonnegative safe-integer width/height/duration, validated
-RFC3339 capture/local time strings, and only a validated nullable coordinate pair.
+projection fields. Asset lists/details set `withExif` from
+`privacy.expose_source_metadata` (default false). They always require explicit
+nullable nonnegative safe-integer width/height/duration. Only when enabled do
+they validate RFC3339 capture/local time strings and a nullable coordinate pair;
+otherwise hidden sensitive metadata is ignored and projects as null.
 Immich duration is integer **milliseconds**, exposed as `duration_ms`. Local wall
 time strings are preserved without timezone conversion. Filename comes from the
 validated path basename, never arbitrary provider filename metadata.
@@ -595,6 +599,11 @@ Repeat representative checks after provider versions/settings change. The
 gateway itself does not strip image metadata.
 
 ### Reviewed original image contract
+
+Exact original delivery requires `privacy.expose_source_metadata=true`. The
+default returns fixed 404 without provider original requests; previews/posters
+remain available. Enabling deliberately exposes exact metadata-bearing source
+bytes. Use explicit opt-in for the original checks below.
 
 Reverified on 2026-09-15 against official Immich **v3.2.1**:
 [controller](https://github.com/immich-app/immich/blob/v3.2.1/server/src/controllers/asset-media.controller.ts),

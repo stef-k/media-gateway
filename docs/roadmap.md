@@ -24,6 +24,13 @@ See [configuration](configuration.md), the [consumer guide](consumer-api.md) and
 Immich 3.2.0 is the deployed validation baseline; provider upgrades require
 renewed representative checks.
 
+Source-metadata exposure is **off by default**. Capture/local timestamps,
+coordinates and original paths remain present as null; originals return fixed 404
+without provider fetches. Qualified previews/posters remain available. Set
+`privacy.expose_source_metadata=true` deliberately to enable sensitive catalogue
+fields and exact originals, whose bytes may contain embedded metadata. Filenames
+and collection names remain visible in both modes.
+
 ## Optional future directions
 
 ### Additional fixed image representations

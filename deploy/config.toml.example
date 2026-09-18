@@ -48,7 +48,7 @@ api_key_file = "/etc/media-gateway/immich.key"
 # bounded through metadata/search/preview bodies. For originals it bounds headers,
 # not the body. Established image/video originals use fixed 60-second per-I/O
 # read/write inactivity bounds, client cancellation and 10-second shutdown drain.
-# There is no storage fallback or configurable delivery feature gate.
+# There is no storage fallback.
 # Required positive Go duration; zero, negative, missing and overflowing values fail.
 request_timeout = "15s"
 
@@ -58,7 +58,6 @@ request_timeout = "15s"
 # ends. Paths must already be canonical absolute POSIX paths other than /: no dot
 # components, trailing/repeated slashes, backslashes or control characters.
 # Paths must be unique and non-overlapping; /photos and /photos-old are distinct.
-# Policy v2 replaces obsolete allowed_roots; stale legacy configuration fails startup.
 [[policy.roots]]
 name = "photos"
 path = "/library/photos"
@@ -84,7 +83,7 @@ media = ["image", "video"]
 # Omitted roots means global. A scoped rule uses roots = ["photos"]; an empty
 # list is invalid. References must exist and be unique. Root order is irrelevant.
 # The same segment may have distinct scopes, combined with OR semantics (no deny
-# rules or precedence). This legacy convention applies only to photos root:
+# rules or precedence). This root-scoped convention applies only to photos root:
 [[policy.rules]]
 segment = "post"
 media = ["image"]
@@ -100,6 +99,12 @@ media = ["image"]
 segment = "public-videos"
 media = ["video"]
 
-# Image/video preview/original are fixed routes, not configuration options. Remove any
-# obsolete [delivery] section. Originals preserve source EXIF/GPS; use the separately
-# qualified preview for web/privacy needs.
+[privacy]
+# Privacy-preserving default.
+# When false, capture/local timestamps and coordinates are null in the
+# trusted catalogue and exact originals are unavailable.
+# Qualified previews/posters remain available.
+# Enabling deliberately exposes approved source-sensitive catalogue fields and
+# exact original bytes, which may contain further embedded EXIF/container metadata.
+# This is not an anonymity mode: filenames and collection names remain visible.
+expose_source_metadata = false

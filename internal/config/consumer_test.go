@@ -9,6 +9,8 @@ import (
 // TestPrivacyConfig verifies conservative defaults and strict, atomic configuration loading.
 func TestPrivacyConfig(t *testing.T) {
 	base, _ := fixture(t)
+	// Remove the optional example table so omission and explicit forms are distinct.
+	base = strings.Split(base, "[privacy]")[0]
 	for _, tc := range []struct {
 		section          string
 		enabled, invalid bool

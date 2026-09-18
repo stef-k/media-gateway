@@ -19,7 +19,8 @@ Before consequential implementation or issue hardening, read:
 
 Product completion is finished: #37 and #38–#42 are accepted historical context.
 The implementation and product/security documents define settled behavior.
-#48 is the current bounded release-engineering lane. Release changes must not
+#48 release engineering is complete; immutable v1.0.0 is accepted. #60 owns the
+bounded source-metadata privacy correction. Release changes must not
 alter settled media/security semantics without a separate bounded issue.
 
 If implementation and documentation disagree on a security boundary, public/consumer contract, policy semantics, selected toolchain, logging/privacy rule or dependency policy, resolve the inconsistency explicitly and update the relevant authority document in the same change.
@@ -92,10 +93,10 @@ Tests must include known-private assets, outside-root/near-match paths, lifecycl
 
 ## Publication policy
 
-### Current Policy v2 (#38)
+### Publication policy (#38)
 
-Use named roots and global/root-scoped rules. Obsolete `policy.allowed_roots` is
-rejected with a sanitized migration error; no compatibility alias exists:
+Use named roots and global/root-scoped rules. Unknown/unsupported fields are
+strictly rejected with sanitized errors; no compatibility aliases exist:
 
 ```toml
 [[policy.roots]]
@@ -169,7 +170,7 @@ Coordinates are normal trusted metadata, not publication authority. Preserve str
 
 Provider search filters are optimization only. Every returned asset must pass current policy/lifecycle checks.
 
-Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Coordinates are always present as a validated nullable pair; no `[consumer]` config remains. Image/video preview and original capabilities are non-null. Projection performs no representation probes and never grants delivery authorization. Use structured metadata search, never Immich folder view.
+Current pages default to 25 (maximum 100), with at most eight provider calls and 30 seconds of work. Gateway HMAC cursors bind selectors/policy and are invalidated by restart. Collections are deduplicated within a page only; consumers merge at-least-once results by `(root, collection_path)`. Asset `duration_ms` is nullable integer milliseconds. Sensitive timestamps, coordinates and original paths are present but null by default. Preview paths remain non-null. Projection performs no representation probes and never grants delivery authorization. Use structured metadata search, never Immich folder view.
 
 ## Provider integration
 
@@ -178,6 +179,21 @@ Immich access belongs behind a small provider boundary. **Verify the currently s
 Use fixed configured provider authority and dedicated least-privilege credential. Do not use administrator credentials when narrower permissions suffice.
 
 Use bounded connect/header/metadata operations and explicit response validation. Provider failures become sanitized gateway failures, never arbitrary provider responses.
+
+## Source-metadata privacy
+
+The optional `[privacy] expose_source_metadata = false` setting defaults to false.
+It controls capture/local timestamps, coordinates, trusted original capability and
+exact image/video originals, not publication eligibility. Discovery always uses
+`withExif=false`; list/detail follows the immutable startup setting. While off,
+hidden sensitive values are ignored without validation and project as present/null;
+dimensions/duration still validate. Originals return fixed 404 before provider I/O
+or Range parsing. Qualified previews/posters and filename/collection identity remain.
+
+True retains validated timestamps/nullable coordinate pairs and enables the existing
+exact-original contract, including arbitrary embedded source metadata. Never infer
+original safety from absent coordinates or add transformations. No caller-controlled
+metadata selectors, globals or privacy state in cursors; restart invalidates signing keys.
 
 ## Original and video delivery
 
@@ -210,7 +226,8 @@ Follow `docs/logging.md`.
 
 ## Configuration and secrets
 
-Configuration remains human-readable TOML with strict unknown-field rejection. The obsolete `[delivery]` table fails with sanitized guidance to remove it: image preview/original are fixed representations, with no runtime feature gate. Invalid/ambiguous authorization config fails startup.
+Configuration remains human-readable TOML with strict unknown-field rejection.
+Invalid/ambiguous authorization config fails startup.
 
 Committed operator examples must comment deployment-specific values, trust boundaries and non-obvious hardening choices.
 
@@ -229,14 +246,14 @@ for versioned distribution. Release validation does not constitute deployment.
 
 ## Scope and issue execution
 
-Historical V0 tracker #1 is closed and should remain closed as the accepted security/deployment milestone.
+Historical milestone tracker #1 is closed and should remain closed as the accepted security/deployment milestone.
 
 Product completion (#37, including #38–#42) is finished. #48 owns formal
 immutable tag versions, CHANGELOG, GitHub Releases and operator distribution.
 Keep normal CI exact-revision qualification separate from tag publication.
 Tags are the sole version authority; never add a duplicate version constant/file.
-Implement/review/merge the mechanism before creating the first `v1.0.0` tag.
-Actual release download verification is required before closing #48.
+The accepted `v1.0.0` tag/Release is immutable. #60 must not tag, publish or deploy;
+a patch release requires a separate accepted preparation/review step.
 
 #30 remains optional future derivative work and must preserve `/original` semantics.
 Release changes must not alter settled media/provider/policy/HTTP/security or smoke

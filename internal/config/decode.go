@@ -28,7 +28,6 @@ func decode(data []byte, c *Config) error {
 			if _, present := unsupported["delivery"]; present {
 				return errors.New("config: delivery section is not supported; preview/original are fixed product representations; remove the delivery section")
 			}
-
 		}
 		var missing *toml.StrictMissingError
 		if errors.As(err, &missing) {

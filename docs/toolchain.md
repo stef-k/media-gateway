@@ -75,7 +75,9 @@ Operators may configure, subject to strict validation:
 - one or more provider-visible allowed roots;
 - literal publication directory-segment names and permitted media types.
 
-Image/video preview/original are fixed product routes; no delivery feature gate remains.
+Image/video preview/original are fixed product routes. The optional
+`privacy.expose_source_metadata` flag defaults to false and controls approved
+source-sensitive catalogue fields and exact original availability.
 
 Security semantics are not configurable:
 

@@ -19,13 +19,24 @@ import (
 
 // TestCursorBoundary checks signed state alterations before any provider I/O.
 func TestCursorBoundary(t *testing.T) {
+	for _, expose := range []bool{false, true} {
+		name := "off"
+		if expose {
+			name = "on"
+		}
+		t.Run(name, func(t *testing.T) { testCursorBoundary(t, expose) })
+	}
+}
+
+// testCursorBoundary applies the same security boundary in either privacy mode.
+func testCursorBoundary(t *testing.T, expose bool) {
 	var calls atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		candidateResponse(w, []map[string]any{}, nil)
 	}))
 	defer provider.Close()
-	gateway := gatewayFor(t, provider, io.Discard, time.Second)
+	gateway := gatewayWithPrivacy(t, provider, io.Discard, time.Second, expose)
 	key := cursorKey{1}
 	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"image", "video"}}}}
 	policyHash := fingerprint(immich.DiscoveryStreams(policy))
