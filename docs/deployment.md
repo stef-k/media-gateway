@@ -236,7 +236,7 @@ Queries are ignored by the application and cannot select upstream behavior.
 
 | Request to the configured Host | Expected ingress behavior |
 | --- | --- |
-| GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | Fixed loopback gateway; current policy/range validation decides 200/206/400/404/416/502 |
+| GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | nginx admission may return 429; otherwise fixed loopback gateway and current policy/range validation decide 200/206/400/404/416/502 |
 | `/media`, `/media/`, extra segments or other representations | 404; no automatic slash redirect |
 | `/internal/assets` or any `/internal/...` | 404 without upstream access |
 | `/api`, `/api/...`, `/`, search/config/control/diagnostic/provider-looking or unknown paths | 404 without upstream access |
@@ -280,6 +280,92 @@ Run `python3 scripts/test_nginx.py` with local nginx installed to exercise both
 canonical media routes, malformed/private/provider denials, header stripping and
 route log classification in an isolated process. A skipped test is unavailable
 local nginx evidence, not a pass. This synthetic upstream does not qualify a deployed provider.
+
+### Availability-abuse controls
+
+The shipped aggregate limits share one bucket per `$server_name`, across both
+media representations and GET/HEAD. They work even when a local tunnel/reverse
+proxy makes every visitor appear to have the same peer address. Include the zones
+once in `http {}`; the template applies admission only in the public media
+location after the existing return-only route/method checks:
+
+```nginx
+# http context: shared aggregate service budgets, independent of client address.
+limit_req_zone $server_name zone=media_gateway_rate:1m rate=20r/s;
+limit_conn_zone $server_name zone=media_gateway_conn:1m;
+
+# Canonical media location: reject excess admission before gateway work.
+limit_req_status 429;
+limit_conn_status 429;
+limit_req zone=media_gateway_rate burst=40 nodelay;
+limit_conn media_gateway_conn 32;
+```
+
+This allows 20 requests/second with burst 40 and no queueing delay, plus 32
+concurrent media requests. Both limits return **429 Too Many Requests** from
+nginx; application response contracts remain unchanged. Connection accounting
+starts after complete request headers while requests are being processed, not
+for every idle TCP socket. HTTP/2 and HTTP/3 count concurrent requests separately.
+Wrong/missing Host, malformed paths, unsupported methods and private/unknown routes
+retain their existing cheap denials before admission and upstream access.
+
+These intentionally lax reference values are not security/performance guarantees.
+Tune rate, burst and concurrency together against measured traffic, gateway/provider
+capacity and long-stream occupancy; low values can reject legitimate visitors.
+No response `limit_rate` is enabled: slowing large media can prolong resource
+occupancy. The controls do not make published media private or stop volumetric
+traffic before it reaches the host/uplink.
+
+For optional observation-first tuning, temporarily add in the media location:
+
+```nginx
+# Observe excess admission without enforcing either limit during measurement.
+limit_req_dry_run on;
+limit_conn_dry_run on;
+```
+
+Remove these overrides to restore enforcement; dry-run is not the shipped default.
+The route-classified access log includes `$limit_req_status` and
+`$limit_conn_status` as `request_limit` and `connection_limit`. Observe `REJECTED`
+and `REJECTED_DRY_RUN` alongside status, latency and provider capacity; a limiter
+that was not reached can have no status. No raw paths, queries or headers are added.
+Both limit-event log levels are `notice`, below the existing `warn` error-log
+threshold, keeping ordinary shedding in access logs without an error-log flood.
+Retain normal host rotation and privacy rules. Validate the effective configuration
+with `nginx -t` before applying an operator change.
+
+Official directive references:
+[request limiting](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html),
+[connection limiting](https://nginx.org/en/docs/http/ngx_http_limit_conn_module.html).
+The isolated nginx regression queues a valid burst without changing these values,
+checks 429/non-forwarding and holds 32 synthetic upstream responses to exercise
+concurrency rejection. It also verifies cheap denials under load.
+
+### Optional per-client limits
+
+Directly Internet-facing nginx normally sees the network peer in `$remote_addr`.
+Behind a tunnel/reverse proxy it may see only the edge peer: blindly using per-IP
+limits there can put every visitor into one bucket. Only with a trustworthy client
+address, optionally add separate zones and limits alongside the aggregate ones:
+
+```nginx
+# http context: illustrative per-client values; tune for shared NATs and capacity.
+limit_req_zone $binary_remote_addr zone=media_client_rate:1m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=media_client_conn:1m;
+
+# Same canonical media location, retaining both aggregate limit directives.
+limit_req zone=media_client_rate burst=20 nodelay;
+limit_conn media_client_conn 8;
+```
+
+Never trust arbitrary `X-Forwarded-For`. Use
+[`set_real_ip_from`, `real_ip_header` and `real_ip_recursive`](https://nginx.org/en/docs/http/ngx_http_realip_module.html)
+only after explicitly trusting proxy addresses and their header semantics,
+including how the chain is constructed and which peers can reach the origin.
+Do not use a universal trusted-address range or assume every local proxy supplies
+verified identity. Alternatively, enforce per-client limits at an external edge
+where client identity is already known. Edge limiting can reject unwanted traffic
+before it consumes origin/uplink capacity; no particular edge provider is required.
 
 ### Install and qualify ingress
 

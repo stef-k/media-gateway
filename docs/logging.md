@@ -30,7 +30,9 @@ Public-edge logging must not record secrets. In particular:
 
 The public media surface is intentionally path-based and requires no secret query parameter.
 The reference `media_gateway` access format records the peer, method, classified
-route (`preview`, `original` or `denied`), status, bytes and request/upstream timings. It omits
+route (`preview`, `original` or `denied`), status, bytes, request/upstream timings
+and request/connection limit outcomes. Routine limit events use `notice`, below
+the `warn` error-log threshold; 429 remains visible in access logs. It omits
 raw paths, asset IDs, query strings, Host, Referer, User-Agent and all credential
 headers. Both the default-deny and media servers use this format and dedicated
 access/error files. Behind an edge the peer may be the local tunnel; do not trust
