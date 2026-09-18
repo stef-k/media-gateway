@@ -560,13 +560,21 @@ Malformed ranges return fixed 400 without opening original. Private/lifecycle/po
 denials stay 404 before parsing. Canonical Range is the only caller-derived header
 sent to Immich; all conditionals are discarded. No Range requires direct 200;
 a satisfiable Range requires 206 with mathematically exact Content-Range and length.
-Provider 200 for Range is 502. Valid unsatisfiable 416 requires `bytes */total` with
-positive total and produces a zero-body public 416. HEAD uses the same provider GET
+Provider 200 for Range is 502. A direct valid unsatisfiable 416 requires `bytes */total`
+with positive total and produces a zero-body public 416. HEAD uses the same provider GET
 and closes the body. Video originals advertise Accept-Ranges; image originals remain
 full 200 and ignore Range. All public range headers are validated and constructed.
 
-Source inspection shows original and playback share the file-send helper; it does
-not prove the deployed original endpoint's range behavior. Follow the bounded
+Real M6 evidence on 2026-09-18 showed Immich 3.2.0 returning 404 for an
+unsatisfiable original Range, consistent with its file-send error wrapper. Only
+this authorized valid-range 404 triggers one fixed no-Range original GET, without
+query or caller headers. Its normal video 200 framing supplies the positive full
+length; close the probe body immediately without streaming. Unsatisfiable math
+produces public zero-body 416; satisfiable math produces sanitized 502. A second
+404 remains public 404; probe auth/transport/status/framing failures produce 502.
+Normal 206 performs no probe. No loops or playback substitution are introduced.
+
+This revised software still requires exact-head qualification. Follow the bounded
 [#41 qualification checklist](video-qualification.md) against the exact PR head.
 M6 poster privacy, original-range identity, >65-second active transfer, authorization,
 ingress and mandatory temporary-instance cleanup must pass before merge. No
