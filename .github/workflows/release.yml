@@ -109,4 +109,5 @@ jobs:
             --verify-tag --draft --title "$RELEASE_TAG" --notes-file release-notes.md
           gh release edit "$RELEASE_TAG" --draft=false
           # Repository administrators must enable release immutability before tagging.
-          test "$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq .immutable)" = true
+          immutable=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" --jq .immutable)
+          test "$immutable" = true
