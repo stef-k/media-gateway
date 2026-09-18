@@ -65,6 +65,10 @@ Do not add a web framework, DI container, logging framework, ORM, job system, co
 
 Toolchain/dependency upgrades are deliberate reviewed changes, not opportunistic agent updates.
 
+All external GitHub Actions must be pinned to reviewed full-length commit SHAs;
+mutable action branches/tags are not acceptable. Action-pin updates must verify
+the commit belongs to the intended upstream repository and be deliberately reviewed.
+
 ## Security invariants
 
 These are not ordinary configuration choices:
