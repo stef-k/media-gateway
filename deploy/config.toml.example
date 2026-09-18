@@ -58,7 +58,7 @@ request_timeout = "15s"
 # ends. Paths must already be canonical absolute POSIX paths other than /: no dot
 # components, trailing/repeated slashes, backslashes or control characters.
 # Paths must be unique and non-overlapping; /photos and /photos-old are distinct.
-# Policy v2 replaces obsolete allowed_roots; stale V0 configuration fails startup.
+# Policy v2 replaces obsolete allowed_roots; stale legacy configuration fails startup.
 [[policy.roots]]
 name = "photos"
 path = "/library/photos"
