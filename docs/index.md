@@ -34,7 +34,7 @@ access, arbitrary proxy or transcoding service.
 3. [Install and deploy](deployment.md): dedicated service identity, protected
    files, loopback listener and nginx isolation.
 4. [Validate and operate](release.md): checksummed bundle, smoke checks,
-   install/upgrade/rollback and final disposable qualification.
+   install/upgrade/rollback and isolated deployment validation.
 
 ## Consumer guide
 
@@ -50,16 +50,14 @@ Never expose `/internal/` through a public proxy.
 - [Logging and privacy](logging.md)
 - [Video qualification worksheet](video-qualification.md)
 
-## Technical reference and project state
+## Technical reference
 
 - [Architecture and media behavior](architecture.md)
 - [Configuration and Policy v2](configuration.md)
 - [Security model](security.md)
 - [Toolchain and local validation](toolchain.md)
-- [Product-completion contract](product-completion.md)
-- [Roadmap and accepted milestones](roadmap.md)
+- [Product model and scope](product-completion.md)
+- [Current capabilities and roadmap](roadmap.md)
 
-#38–#41 are accepted through `7053ac1f297b97be6daacca7ff450b442cb689e7`.
-#42 is the final #37 child: final bundle qualification and post-merge Pages
-verification remain acceptance gates. Production hostname/Cloudflare cutover is
-separate in `stef-k/server-migration#10`; #30 is optional derivative work.
+The supported provider is Immich, validated on version 3.2.0. The reference
+platform is Linux amd64 with systemd and nginx.

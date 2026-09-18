@@ -4,17 +4,12 @@ title: "Linux bundle and deployment smoke"
 
 # Linux bundle and deployment smoke
 
-The accepted V0 bundle/install/rollback tooling now carries the #38–#41 product
-contract. #42 final qualification remains required after software/docs review.
-No GitHub Release or production hostname/Cloudflare cutover is performed here.
-For #42 use temporary isolated paths/unit/config/key copies only; the persistent
-installation commands below describe the later operator workflow, not permission
-to leave a qualification installation behind.
+The Linux amd64 bundle includes the binary, deployment templates, offline
+documentation and portable smoke tooling. Verify it before installation and
+retain a coherent binary/configuration/template set for rollback.
 
-PR CI may retain the verified Linux amd64 bundle as the
-`media-gateway-linux-amd64` CI artifact for qualification without Go on the target.
-It contains only the verified `.tar.gz`. CI artifacts are not signed releases and
-are not the production distribution mechanism.
+CI retains the verified archive as the `media-gateway-linux-amd64` artifact.
+CI artifacts are not signed releases or a formal distribution mechanism.
 
 ## Build and verify
 
@@ -52,7 +47,7 @@ is repeatable; byte-for-byte build reproducibility is not claimed.
 
 Use [deployment](https://github.com/stef-k/media-gateway/blob/main/docs/deployment.md)
 in the repository, or `docs/deployment.md` in the
-bundle, for the accepted identity, permissions, secret provisioning and systemd
+bundle, for the service identity, permissions, secret provisioning and systemd
 commands. From an extracted bundle, substitute `./media-gateway` for the build
 output and the top-level template names for `deploy/...`; no Go toolchain is needed
 on the target. Verify checksums/version before installing. Review TOML literals,
@@ -69,12 +64,12 @@ reload. Do not replace the host's complete nginx configuration.
 Run `systemd-analyze verify` on the installed unit, `systemctl daemon-reload`, then
 start/enable only the gateway unit. Startup is the TOML/key validator; there is no
 validation-only command. Check its journal/listener and run the smoke below before
-publishing. The always-present nullable #39 coordinate metadata is private-consumer-only; nginx
+publishing. The always-present nullable coordinate metadata is private-consumer-only; nginx
 must continue denying `/internal/`.
 
 ## Upgrade and rollback
 
-Stop on any failed command. These steps assume the accepted paths and unit name;
+Stop on any failed command. These steps assume the reference paths and unit name;
 adapt only names that differ on the host. Work in a controlled maintenance window.
 
 1. Verify the new extracted checksums and `./media-gateway -version`. Record the
@@ -111,16 +106,16 @@ adapt only names that differ on the host. Work in a controlled maintenance windo
    installed/live version equal the recorded old revision and repeat the smoke.
    Report restoration failures; do not leave a failed rollback described as healthy.
 
-For upgrades from V0, migrate `policy.allowed_roots` to named roots, remove obsolete
+For upgrades from the previous configuration format, migrate `policy.allowed_roots` to named roots, remove obsolete
 `[consumer]` and `[delivery]` sections from the staged TOML and
 provision the dedicated key with `asset.read` + `asset.view` + `asset.download`.
 Retain the old TOML/key with the old binary for coherent rollback. Originals expose
-source EXIF/GPS; #40–#41 are accepted and the final #42 bundle gate is below.
+source EXIF/GPS; preview privacy checks do not establish original metadata stripping.
 
 ## Portable smoke interface
 
 Python 3 standard library is sufficient for HTTP checks. No credentials, DNS,
-Cloudflare, public Internet, provider calls or config/key edits are needed. Supply
+external edge service, public Internet, provider calls or config/key edits are needed. Supply
 safe known representatives locally; do not commit their IDs or shell transcripts.
 
 ```sh
@@ -202,23 +197,21 @@ unavailable, require fixed gateway 502 `media unavailable` within the documented
 bound, restore it and repeat eligible/private checks. Never edit shared provider
 keys or stop an unrelated provider as part of normal smoke.
 
-## Acceptance evidence
+## Validation evidence
 
-Record exact source/bundle SHA, checksum/version/template comparison, local baseline,
-Code Guard and exact-head CI. Software evidence is not host/provider qualification.
-V0/#38–#41 are accepted; tracker #1 stays closed. #42 and #37 stay open through
-final disposable qualification, merge and the published Pages check below.
+Record the source revision, bundle checksum, version/template comparison, local baseline,
+Code Guard and CI for that revision. Software evidence is not host/provider qualification.
 
-## Final disposable qualification (#42)
+## Isolated deployment validation
 
-Do not begin until the exact software/docs PR head is reviewed. Use that **unmerged
-head and exact retained CI bundle**, verifying `-version`, checksums and template
-identity. Do not rebuild a substitute bundle on M6.
+Use a reviewed source revision and its exact verified bundle. Check `-version`,
+checksums and template identity before preparing an isolated run. Do not rebuild
+a substitute bundle on the target host.
 
 1. Inspect existing services/listeners and preserve unrelated host state. Prepare
    temporary unprivileged gateway/config/key copies and isolated nginx. Keep the
-   original root-only credential source intact. Never enable a persistent gateway
-   service or create the public hostname/Cloudflare route.
+   original protected credential source intact. Never enable a persistent gateway
+   service or create the public hostname or external edge route.
 2. Validate adapted unit/nginx and Policy v2 startup with representative global
    `public`, image/video-specific and root-scoped `post` conventions. Run the final
    portable smoke against the temporary gateway and nginx, including pagination,
@@ -234,16 +227,14 @@ identity. Do not rebuild a substitute bundle on M6.
 4. Inspect fixed upstream, Range forwarding, `/internal/` isolation and safe logs.
    Perform outage/auth-failure and service stop/start only with explicit opt-in in
    the isolated instance, always restoring it. Classify unavailable representatives
-   and privacy/manual evidence honestly; no raw provider data belongs in the PR.
+   and privacy/manual evidence honestly; keep raw provider data out of shared reports.
 5. Stop/remove all task-owned services/processes, nginx/config/key copies, downloaded
-   source bytes and evidence/rollback directories. Verify no :2290 or :8089 listener,
+   source bytes and evidence/rollback directories. Verify no temporary listener,
    installed/enabled qualification service or temporary path remains. Preserve only
    sanitized results and the pre-existing protected credential source. Check
    unrelated services remain healthy. Cleanup is mandatory even after failure.
 
-Production cutover belongs to `stef-k/server-migration#10`, after #37 acceptance.
-
-## Pages publication and final closure
+## Documentation site maintenance
 
 Pages uses **Deploy from a branch → main → /docs**, shared
 `stef-k/.github@main`, and `/media-gateway` as base path. If not configured, an
@@ -253,20 +244,19 @@ The local `documentation` layout is only an alias to the shared `default` layout
 no shared CSS/markup is copied. Relative Markdown links are rewritten by the
 GitHub Pages-supported `jekyll-relative-links` plugin.
 
-After merge, verify the published homepage, shared styling, navigation and each
+When publishing documentation, verify the published homepage, shared styling, navigation and each
 internal link under `/media-gateway`, including anchors. Verify root README ↔ docs
 homepage navigation and inspect rendered content for stale/private material.
-Only then close #42, reconcile accepted child/main SHAs in #37 and close #37.
-These are future acceptance steps, not evidence supplied by a local build.
+A local build does not establish that the published site renders correctly.
 
-## #40 original image qualification
+## Original image qualification
 
-#40 is accepted. Reuse these source-identity checks for the final #42 bundle;
+Use these source-identity checks when validating a deployment;
 preview privacy evidence does not establish original metadata stripping.
 
 Record sanitized evidence, without IDs, private paths, credentials or raw metadata:
 
-- deployed Immich version and exact gateway PR/revision;
+- deployed Immich version and exact gateway revision;
 - dedicated key permissions: asset.read, asset.view, asset.download;
 - representative eligible JPEG and RAW/ARW or HEIC if available (record absence);
 - provider original GET status/type/length, gateway byte identity by hash and length;

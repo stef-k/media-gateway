@@ -8,11 +8,11 @@ title: "Architecture"
 
 Media Gateway is a small, fail-closed HTTP publication boundary between a private media provider and public consumers.
 
-The initial deployment uses Immich as the provider. Immich remains private and indexes a read-only external archive. Media Gateway is the only component allowed to turn a provider asset into an Internet-deliverable response, and only after re-evaluating publication policy from current provider metadata.
+Immich is the supported provider. Immich remains private and indexes a read-only external archive. Media Gateway is the only component allowed to turn a provider asset into an Internet-deliverable response, and only after re-evaluating publication policy from current provider metadata.
 
 The service is intentionally smaller than the applications consuming it. It has no media-management UI, no publication database, no direct NAS access and no generic proxy behavior.
 
-## Initial deployment
+## Reference deployment
 
 ```text
                                   PRIVATE
@@ -36,19 +36,21 @@ The service is intentionally smaller than the applications consuming it. It has 
                                 v
                               nginx
                                 |
-                       Cloudflare / HTTPS
+                       trusted edge / HTTPS
                                 |
 =============================== | ===============================
                               Internet
                                 |
                                 v
-                        media.stefk.me
+                        media.example.com
 ```
 
-The exact deployment may differ for other installations. The architectural requirements are:
+nginx is the reference public boundary. HTTPS may terminate at nginx or an
+operator-controlled external edge; any external edge or tunnel is optional and
+deployment-specific. The architectural requirements are:
 
 - the provider is not directly Internet-exposed by Media Gateway;
-- the V0 gateway binds only to a numeric loopback address; other network boundaries require an explicit architecture revision;
+- the gateway binds only to a numeric loopback address; other network boundaries require an explicit architecture revision;
 - the public reverse proxy exposes only public delivery routes;
 - provider credentials stay on the trusted host and are never sent to consumers.
 
@@ -62,12 +64,12 @@ Media Gateway must therefore treat provider reachability as **capability to insp
 
 ### Publication policy
 
-The initial deployment uses provider-indexed path metadata as the single publication switch.
+Publication uses provider-indexed path metadata as the single publication switch.
 
 Configured root:
 
 ```text
-/media/archive
+/library/photos
 ```
 
 Eligible exact directory segments:
@@ -97,7 +99,7 @@ leading/trailing slashes. The trusted catalogue projects this context only after
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
-A production version may support only a subset of the media types declared by policy. Both image and video preview/original are accepted through #41; #42 owns final bundle qualification.
+Both image and video preview/original delivery are supported, subject to current policy and representation validation.
 
 ### Consumer applications
 
@@ -151,7 +153,7 @@ new ineligible path also denies. There is no second publication database to sync
 
 ## Public URLs
 
-V0 does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
+Media Gateway does not treat provider asset identifiers as secrets. Knowledge of an identifier must never be sufficient for publication; the gateway always rechecks policy.
 
 The implemented stable image/video routes are:
 
@@ -168,7 +170,7 @@ Provider paths and NAS paths must never appear in public URLs.
 
 ## Public HTTP surface
 
-The V0 public surface is intentionally narrow:
+The public surface is intentionally narrow:
 
 - `GET` and `HEAD` only for implemented media routes;
 - no health/readiness endpoint;
@@ -225,12 +227,13 @@ The handler fills pages within its finite budget and requires exact root/parent
 membership for collection assets. See the
 [reviewed search contract](deployment.md#reviewed-candidate-search-contract).
 
-The provider needs only capabilities required by current issues, initially:
+The provider boundary supplies:
 
 - fetch asset metadata by stable provider ID;
 - obtain media type;
 - obtain the indexed original path/folder metadata needed for policy evaluation;
-- obtain a suitable image preview/representation.
+- search bounded metadata candidates for the trusted catalogue;
+- obtain fixed image previews/video posters and exact image/video originals.
 
 Do not build provider discovery, dynamic plugins or a generic provider SDK before a second provider establishes real requirements.
 
@@ -258,10 +261,9 @@ recall bytes already received or stop an already-authorized in-flight response.
 A short/failed stream aborts the public connection or HTTP stream; headers already
 sent cannot be replaced with a 502. No error text is appended to image bytes.
 
-#17 supplies deterministic software evidence. Accepted #18 supplies real Immich
-3.2.0 representative preview privacy/quality and live lifecycle-revocation evidence.
-`/preview` is the first accepted representation, not a permanent quality ceiling;
-#30 tracks post-V0 fixed safe representation profiles.
+Representative preview privacy, visual quality and live lifecycle revocation were
+validated against Immich 3.2.0. Additional fixed derivative profiles are optional
+future scope.
 
 A preview derivative may be qualified for production public delivery only after tests prove:
 
@@ -273,9 +275,9 @@ A preview derivative may be qualified for production public delivery only after 
 
 If provider previews do not meet those requirements, an explicit image-transformation slice may add safe re-encoding/metadata stripping. Do not add ImageMagick/libvips/transcoding dependencies preemptively.
 
-### Original images (#40)
+### Original images
 
-`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback. #40 and #41 are accepted.
+`Client.Original` retrieves only GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and no query. `asset.download` joins the metadata/preview permissions. Current active lifecycle, Policy v2 and image type are mandatory before opening it. Originals preserve source bytes and embedded EXIF/GPS, including RAW/HEIC, with no conversion or fallback.
 
 Validate direct 200, exactly one valid parameter-free `image/*` Content-Type and one explicit positive int64 Content-Length. Reject transfer/content encoding and Content-Range. There is no preview-size ceiling. GET streams a shared length-enforcing body; HEAD validates the provider GET then closes it. Both construct the same four public headers described above.
 
@@ -291,11 +293,11 @@ For 206, validate one `bytes start-end/total` against the exact requested interv
 
 Immich 3.2.0 maps pre-header file-send errors, including unsatisfiable ranges, to 404. Only a 404 for an authorized valid video Range triggers exactly one no-Range GET to the same fixed original endpoint, with no query or caller headers. Validate the normal video-original 200 contract and resolve the requested range against its positive length. Unsatisfiable ranges close the body and produce public zero-body 416. An oversized/equal suffix (`suffix_length >= total`) reuses the validated length-enforced original body as full-representation 206 with `Content-Range: bytes 0-(total-1)/total` and `Content-Length: total`. GET retains existing inactivity/cancellation semantics; HEAD closes without reading. Other satisfiable ranges close the body and produce sanitized 502. There is no third provider request. A second 404 preserves public 404; probe auth, transport, unexpected status or malformed framing produces sanitized 502. Normal 206 performs no probe. This bounded disambiguation never loops or opens playback.
 
-Public video originals add `Accept-Ranges: bytes` and validated Content-Range for 206/416. Other provider headers are discarded. Image original Range remains ignored/full 200, and all previews ignore Range. Conditional/validator semantics remain unsupported. M6 Immich 3.2.0 original-range, poster privacy, long-stream and cleanup evidence passed for #41. #42 requires final exact-bundle qualification; source/synthetic tests do not establish it.
+Public video originals add `Accept-Ranges: bytes` and validated Content-Range for 206/416. Other provider headers are discarded. Image original Range remains ignored/full 200, and all previews ignore Range. Conditional/validator semantics remain unsupported. Provider validation on Immich 3.2.0 covered original ranges, poster privacy and long streams. Repeat relevant checks after provider or deployment changes; synthetic tests alone do not qualify a deployed provider.
 
 ## Configuration
 
-V0 uses TOML. Configuration describes policy and connectivity, not publication state.
+Media Gateway uses TOML. Configuration describes policy and connectivity, not publication state.
 
 Representative shape:
 
@@ -311,8 +313,8 @@ api_key_file = "/etc/media-gateway/immich.key"
 request_timeout = "15s"
 
 [[policy.roots]]
-name = "images"
-path = "/media/archive"
+name = "photos"
+path = "/library/photos"
 
 [[policy.rules]]
 segment = "public"
@@ -330,7 +332,7 @@ media = ["video"]
 
 The [committed example](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; stale `[delivery]` fails with migration guidance. `public_base_url` is optional.
 
-Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not required for V0.
+Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not supported.
 
 ## State
 
@@ -340,7 +342,7 @@ Allowed state is limited to normal process/runtime state and, if later justified
 
 ## Dependencies
 
-Prefer Go's standard library. The expected V0 problem is small enough that a web framework, dependency injection container, ORM, message broker, scheduler or container runtime is unnecessary.
+Prefer Go's standard library. The product scope is small enough that a web framework, dependency injection container, ORM, message broker, scheduler or container runtime is unnecessary.
 
 A small TOML parser is an acceptable dependency if chosen deliberately. Additional dependencies require concrete value and should stay auditable.
 
@@ -368,4 +370,4 @@ Potential later capabilities include:
 - additional private consumer integrations;
 - another provider, once a real second provider exists.
 
-These are not V0 requirements and must not add complexity to the first secure image path without evidence.
+These optional directions require concrete requirements before expanding the product.

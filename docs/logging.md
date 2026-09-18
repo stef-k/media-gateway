@@ -116,7 +116,7 @@ Media Gateway
 private provider
 ```
 
-This keeps the service small: no logging framework, log database, agent, or application-managed rotation is required for V0.
+This keeps the service small: no logging framework, log database, agent, or application-managed rotation is required.
 
 ## Production checks
 

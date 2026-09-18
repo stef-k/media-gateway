@@ -150,7 +150,7 @@ mid-stream failure aborts the response. HEAD checks current metadata/policy and
 preview headers, then closes the body. All responses use `no-store`; configure
 nginx/edge to honor it and never force-cache these routes. Private/missing/invalid
 assets get `404`; provider/auth/validation failures before headers get `502`.
-#18 accepted real Immich 3.2.0 preview privacy/quality and lifecycle revocation;
+Real Immich 3.2.0 validation covered preview privacy/quality and lifecycle revocation;
 provider/settings upgrades require renewed representative checks.
 
 ### Start, restart and stop
@@ -199,7 +199,7 @@ resolver/CA reads remain available. IPv4/IPv6 and Unix sockets support provider,
 DNS and same-host peers; address-family restrictions do not restrict destinations.
 No private network namespace is used because host loopback/provider access is needed.
 
-On a supported systemd host after PR review, record:
+On a supported systemd host, record:
 
 - exact binary revision, distribution/kernel/systemd version, successful unit verify,
   and no ignored/unsupported sandbox directives;
@@ -216,7 +216,7 @@ On a supported systemd host after PR review, record:
 Existing Go tests cover startup rejection, real process signals and bounded drain;
 these do not prove systemd sandbox, service identity or host permission enforcement.
 If privileges or a suitable host are unavailable, retain these exact evidence items
-for qualification on the target host. #31 is already accepted and M6-qualified. Static
+for qualification on the target host. Static
 checks must not be represented as installed-host execution.
 
 ## nginx
@@ -279,7 +279,7 @@ real-IP handling is configured. No upload or WebSocket surface exists.
 Run `python3 scripts/test_nginx.py` with local nginx installed to exercise both
 canonical media routes, malformed/private/provider denials, header stripping and
 route log classification in an isolated process. A skipped test is unavailable
-local nginx evidence, not a pass. This synthetic upstream does not qualify M6.
+local nginx evidence, not a pass. This synthetic upstream does not qualify a deployed provider.
 
 ### Install and qualify ingress
 
@@ -298,15 +298,14 @@ curl --path-as-is -i -H 'Host: media.example.com' \
   http://127.0.0.1:8089/media/KNOWN-ELIGIBLE-UUID/preview
 ```
 
-The exact #32 template is accepted and M6-qualified against the #31 service.
-For another host or changed integration, record nginx version, `nginx -t`, numeric loopback
+For the target host or changed integration, record nginx version, `nginx -t`, numeric loopback
 sockets, eligible GET/HEAD, private/outside-root/near-match denial, every route/method
 class above, no-store, access/error log operation and bounded upstream failure.
 Confirm nginx targets Media Gateway only and responses/logs contain no actual
 provider credentials or private metadata. Local nginx tests with a synthetic
-upstream prove routing/transport only, not M6, real-provider policy or preview privacy.
-Use the [release and portable smoke procedure](release.md) for #33 bundle
-validation; exact-bundle M6 acceptance remains separate from production cutover.
+upstream prove routing/transport only, not installed-host behavior, real-provider policy or preview privacy.
+Use the [release and portable smoke procedure](release.md) for bundle
+validation before production cutover.
 
 ## Logging
 
@@ -322,7 +321,7 @@ Do not put provider credentials or authorization headers into access logs. If a 
 
 The Go process uses the standard library `log/slog` for lifecycle, sanitized startup/configuration state, provider/runtime failures and security-relevant diagnostics. It writes to stderr/stdout; under systemd, journald owns persistence and rotation.
 
-There is no V0 application-managed logfile or rotation subsystem and no second full access log duplicating nginx.
+There is no application-managed logfile or rotation subsystem and no second full access log duplicating nginx.
 
 Useful operator commands include:
 
@@ -335,15 +334,17 @@ Routine denied/malformed Internet traffic must not become an unbounded high-seve
 
 ## HTTPS / edge
 
-The motivating deployment uses a dedicated public hostname such as:
+Use an operator-controlled public hostname, for example:
 
 ```text
 https://media.example.com
 ```
 
-Public HTTPS can terminate at Cloudflare, nginx, or another trusted edge. The edge must route only to the nginx Media Gateway vhost; it must not route directly to Immich.
+Public HTTPS can terminate at nginx or an optional operator-controlled edge
+(such as Cloudflare or another HTTPS reverse proxy). No external edge or tunnel
+service is required. The edge must route only to the nginx Media Gateway vhost; it must not route directly to Immich.
 
-For Cloudflare Tunnel, point the hostname at the dedicated nginx origin listener. Do not create a tunnel route to the Immich application port.
+If you choose Cloudflare Tunnel, point the hostname at the dedicated nginx origin listener. Do not create a tunnel route to the Immich application port.
 
 ## Provider connectivity
 
@@ -358,7 +359,7 @@ Other private-network layouts are valid, but the provider URL is operator config
 ### Reviewed metadata contract
 
 Verified on 2026-09-12 against official Immich OpenAPI version **3.2.0** at
-[upstream commit `0f901eea5ec2d3ebf85188b8c1dd193ae3619966`](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/open-api/immich-openapi-specs.json).
+[the reviewed upstream OpenAPI snapshot](https://github.com/immich-app/immich/blob/0f901eea5ec2d3ebf85188b8c1dd193ae3619966/open-api/immich-openapi-specs.json).
 The [Retrieve an asset operation](https://api.immich.app/endpoints/assets/getAssetInfo)
 (`getAssetInfo`) uses `GET /api/assets/{id}` and returns HTTP `200` with
 `application/json`. The API server prefix is `/api`; configured `base_url`
@@ -412,9 +413,9 @@ or absent `asset.read` access: see [the access gate](https://github.com/immich-a
 and [asset retrieval](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/asset.service.ts).
 For this fixed UUIDv4-prevalidated endpoint only, `Asset()` maps 400 alongside 404
 to `ErrMissing` without reading provider error bodies. Preview and candidate-search
-status handling are unchanged. #18 recorded successful missing/private
-requalification on accepted #24. Accepted #27/#18 also proved external-library
-move/rescan revocation without restarting the gateway: the old trashed/offline ID
+status handling use their own endpoint contracts. Deployed Immich 3.2.0 checks
+confirmed missing/private denial and external-library move/rescan revocation
+without restarting the gateway: the old trashed/offline ID
 and new ineligible ID returned fixed 404.
 
 This verification is an upstream API/source review plus local HTTP contract tests,
@@ -424,8 +425,8 @@ and run provider/policy smoke tests when upgrading Immich.
 ### Reviewed candidate search contract
 
 Re-verified on **2026-09-15** against Immich **v3.2.1**, with the unchanged
-v3.2.x structured-search/asset schema reviewed by #39. Deployed evidence remains
-v3.2.0; this source review does not claim an upgrade or real-host #39 qualification.
+v3.2.x structured-search/asset schema. Deployed evidence uses v3.2.0;
+source review does not establish deployed behavior on v3.2.1.
 
 Use only `POST /api/search/metadata`, `x-api-key`, permission **asset.read**, and
 HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/search.dto.ts),
@@ -475,8 +476,7 @@ failure semantics. Public preview behavior and permissions remain unchanged.
 
 ### Reviewed preview contract
 
-Re-verified on 2026-09-12 against the same current official upstream commit
-`0f901eea5ec2d3ebf85188b8c1dd193ae3619966`. The OpenAPI `viewAsset` operation is
+Re-verified on 2026-09-12 against the same official Immich 3.2.0 source snapshot. The OpenAPI `viewAsset` operation is
 `GET /api/assets/{id}/thumbnail?size=preview`, with `asset.view` permission and
 `x-api-key` authentication. UUIDv4 validation and the configured origin remain
 identical to metadata lookup. The
@@ -489,18 +489,17 @@ headers, queries or authorization. It requests identity encoding.
 OpenAPI describes the body generically as `application/octet-stream`; the service
 sets its actual type from the derivative path. Official
 [image settings](https://docs.immich.app/administration/system-settings/) describe
-JPEG/WebP previews. V0 therefore accepts only exact `image/jpeg` and `image/webp`,
-not the generic OpenAPI body type. The 16 MiB bound is a gateway V0 limit, not an
+JPEG/WebP previews. Media Gateway accepts only exact `image/jpeg` and `image/webp`,
+not the generic OpenAPI body type. The 16 MiB bound is a gateway limit, not an
 Immich guarantee. Missing previews deny; redirects and invalid representation
 headers fail with 502. No retry, alternate representation or storage fallback exists.
 
-Accepted #18 records real Immich 3.2.0 representative phone/camera/RAW quality,
-metadata/privacy, direct-response and live revocation evidence through this route.
-This qualifies `/preview` as the first accepted representation, not all future
-provider versions/settings. The gateway itself does not strip image metadata.
-#30 tracks post-V0 fixed safe profiles; it does not block V0 deployment.
+Real Immich 3.2.0 validation covered representative phone/camera/RAW quality,
+metadata/privacy, direct responses and live revocation through this route.
+Repeat representative checks after provider versions/settings change. The
+gateway itself does not strip image metadata.
 
-### Reviewed original image contract (#40)
+### Reviewed original image contract
 
 Reverified on 2026-09-15 against official Immich **v3.2.1**:
 [controller](https://github.com/immich-app/immich/blob/v3.2.1/server/src/controllers/asset-media.controller.ts),
@@ -508,7 +507,7 @@ Reverified on 2026-09-15 against official Immich **v3.2.1**:
 [service](https://github.com/immich-app/immich/blob/v3.2.1/server/src/services/asset-media.service.ts),
 [file response](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/file.ts)
 and [MIME mappings](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/mime-types.ts).
-Accepted deployed evidence is v3.2.0; source review does not prove an upgrade.
+Deployed validation used v3.2.0; source review does not prove an upgrade.
 
 The sole operation is GET `/api/assets/<UUIDv4>/original`, with `x-api-key` and
 `asset.download`. No provider query is sent: optional `edited` defaults false, so
@@ -529,7 +528,7 @@ no redirects or compression, and a fresh HTTP/1 connection. It checks bounded wi
 headers before Go normalizes duplicate lengths/transfer fields. Dial/TLS are bounded
 by the smaller of five seconds and `provider.request_timeout`; response headers by
 the configured timeout. The HTTP client has no absolute body timeout. Established
-original streams now use #41 fixed 60-second read/write inactivity deadlines.
+original streams use fixed 60-second read/write inactivity deadlines.
 Ordinary responses retain the finite server defaults; nginx read/send inactivity
 remains 70/65 seconds. Client disconnect and bounded shutdown cancel originals.
 
@@ -541,12 +540,12 @@ Original does **not** strip EXIF/GPS or inspect embedded metadata.
 
 Remove stale `[delivery]` configuration before startup; fixed image representations
 have no feature gate. Update the dedicated key union without adding write/admin
-permissions. See [the required M6 checks](release.md#40-original-image-qualification)
-for the accepted image baseline. The #41 video gate below is accepted.
+permissions. See [original image qualification](release.md#original-image-qualification)
+for source-identity and privacy checks.
 
-### Reviewed video contract (#41)
+### Reviewed video contract
 
-Reverified on 2026-09-15 against Immich **v3.2.0**, matching the M6 qualification target:
+Reverified on 2026-09-15 against Immich **v3.2.0**, the deployed validation version:
 [controller](https://github.com/immich-app/immich/blob/v3.2.0/server/src/controllers/asset-media.controller.ts),
 [service](https://github.com/immich-app/immich/blob/v3.2.0/server/src/services/asset-media.service.ts),
 [file helper](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/file.ts),
@@ -569,7 +568,7 @@ with positive total and produces a zero-body public 416. HEAD uses the same prov
 and closes the body. Video originals advertise Accept-Ranges; image originals remain
 full 200 and ignore Range. All public range headers are validated and constructed.
 
-Real M6 evidence on 2026-09-18 showed Immich 3.2.0 returning 404 for an
+Deployed-provider evidence on 2026-09-18 showed Immich 3.2.0 returning 404 for an
 unsatisfiable original Range, consistent with its file-send error wrapper. Only
 this authorized valid-range 404 triggers one fixed no-Range original GET, without
 query or caller headers. Its normal video 200 framing supplies the positive full
@@ -583,10 +582,8 @@ provider request is made. A second
 404 remains public 404; probe auth/transport/status/framing failures produce 502.
 Normal 206 performs no probe. No loops or playback substitution are introduced.
 
-PR #47 / #41 was accepted at `7053ac1f297b97be6daacca7ff450b442cb689e7`
-after exact-head M6 qualification and cleanup. The [video worksheet](video-qualification.md)
-remains reusable for #42 final disposable qualification after software review.
-No persistent installation or public cutover belongs to that qualification.
+Use the [video worksheet](video-qualification.md) to validate a deployment in
+isolation. Remove temporary services and credential copies after validation.
 
 ## Host firewall
 

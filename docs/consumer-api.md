@@ -4,7 +4,7 @@ title: "Trusted consumer API"
 
 # Trusted consumer API
 
-The #39 catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
+The trusted catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
 
 ## Integration walkthrough
 
@@ -22,7 +22,7 @@ key `collection` (the JSON response calls the field `collection_path`):
 
 ```sh
 curl --fail --get 'http://127.0.0.1:2290/internal/assets' \
-  --data-urlencode 'root=images' --data-urlencode 'collection=2023/Trip/public' \
+  --data-urlencode 'root=photos' --data-urlencode 'collection=2026/example-trip/public' \
   --data-urlencode 'limit=25'
 curl --fail 'http://127.0.0.1:2290/internal/assets/12345678-1234-4234-8234-123456789abc'
 ```
@@ -78,7 +78,7 @@ Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail 
 ```json
 {
   "collections": [
-    {"root": "images", "collection_path": "2022/Egypt Oct 2022/public-images"}
+    {"root": "photos", "collection_path": "2026/example-trip/public-images"}
   ],
   "next_cursor": null
 }
@@ -92,22 +92,22 @@ Collection discovery is **at least once**: identities are deduplicated within a 
 
 ## Asset JSON
 
-Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one asset directly. Every asset has exactly these fields:
+Asset lists return `{"assets": [...], "next_cursor": null}`; detail returns one asset directly. Every asset has exactly these fields (values below are synthetic):
 
 ```json
 {
   "id": "12345678-1234-4234-8234-123456789abc",
   "media_type": "image",
-  "root": "images",
-  "collection_path": "2019/Romania Dec 2019/post",
+  "root": "photos",
+  "collection_path": "2025/legacy-trip/post",
   "filename": "DSC01234.JPG",
   "width": 6000,
   "height": 4000,
   "duration_ms": null,
-  "file_created_at": "2019-12-08T10:21:00Z",
-  "local_date_time": "2019-12-08T12:21:00Z",
-  "latitude": 44.4268,
-  "longitude": 26.1025,
+  "file_created_at": "2025-01-15T10:21:00Z",
+  "local_date_time": "2025-01-15T12:21:00Z",
+  "latitude": 12.3456,
+  "longitude": 23.4567,
   "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
   "original_path": "/media/12345678-1234-4234-8234-123456789abc/original"
 }
@@ -123,14 +123,14 @@ returns the asset object directly, without the page envelope:
   "assets": [{
     "id": "12345678-1234-4234-8234-123456789abd",
     "media_type": "video",
-    "root": "images",
-    "collection_path": "2023/Trip/public",
+    "root": "photos",
+    "collection_path": "2026/example-trip/public",
     "filename": "clip.mp4",
     "width": 1920,
     "height": 1080,
     "duration_ms": 23800,
-    "file_created_at": "2023-06-01T10:00:00Z",
-    "local_date_time": "2023-06-01T12:00:00Z",
+    "file_created_at": "2026-06-01T10:00:00Z",
+    "local_date_time": "2026-06-01T12:00:00Z",
     "latitude": null,
     "longitude": null,
     "preview_path": "/media/12345678-1234-4234-8234-123456789abd/preview",
@@ -149,7 +149,7 @@ returns the asset object directly, without the page envelope:
 
 All capability fields are present and non-null for eligible images and videos. They advertise implemented representations, not existence guarantees or authorization grants. Projection makes no representation probes. A derivative can disappear; every subsequent delivery independently re-fetches current metadata/lifecycle and re-evaluates policy. The metadata schema and millisecond duration units are unchanged.
 
-`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection. #41 video qualification is accepted; final bundle qualification remains in #42.
+`/preview` is a separately qualified provider-generated web representation. `/original` returns exact authorized source bytes, including embedded EXIF/GPS, without conversion or metadata stripping; RAW/HEIC need not be browser-displayable. Both require fresh public authorization even after catalogue selection.
 
 ### Coordinates and privacy
 

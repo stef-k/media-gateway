@@ -8,14 +8,14 @@ Media Gateway intentionally keeps its implementation stack small and auditable.
 
 ## Go baseline
 
-V0 targets **Go 1.27.1**, the current stable Go release selected on 2026-09-12.
+The reviewed toolchain is **Go 1.27.1**.
 
 Go does not publish a separate LTS channel. Its release policy supports each major release until two newer major releases exist, with critical/security fixes shipped as minor revisions. For this project, "latest stable" therefore means the newest supported stable Go release, updated deliberately rather than automatically.
 
 Project policy:
 
 - language/toolchain family: Go 1.27;
-- initial development and CI toolchain: Go 1.27.1;
+- development and CI toolchain: Go 1.27.1;
 - use stable releases only; no beta/RC toolchains;
 - update patch releases promptly after normal CI/security review;
 - major Go upgrades are deliberate changes with full tests and deployment validation;
@@ -29,9 +29,9 @@ Official release policy/history: <https://go.dev/doc/devel/release>
 
 Use the Go standard library unless a small external dependency clearly reduces risk or complexity.
 
-V0 should not add a web framework, router framework, DI container, logging framework, ORM, database driver, background-job framework or configuration framework.
+Do not add a web framework, router framework, DI container, logging framework, ORM, database driver, background-job framework or configuration framework.
 
-The Go standard library already provides the expected V0 needs:
+The Go standard library already provides the product needs:
 
 - HTTP server/client and routing: `net/http`;
 - structured logging: `log/slog`;
@@ -43,7 +43,7 @@ The Go standard library already provides the expected V0 needs:
 
 ### TOML
 
-The one expected third-party runtime dependency for #2 is:
+The sole third-party runtime dependency is:
 
 ```text
 github.com/pelletier/go-toml/v2 v2.4.3
@@ -59,7 +59,7 @@ Reasons:
 
 Package documentation: <https://pkg.go.dev/github.com/pelletier/go-toml/v2>
 
-No other third-party runtime dependency is approved for V0 by default. An implementation issue may add one only with a concrete requirement and documentation of why the standard library is insufficient.
+No other third-party runtime dependency is approved by default. Add one only with a concrete requirement and documentation of why the standard library is insufficient.
 
 ## Configuration contract
 

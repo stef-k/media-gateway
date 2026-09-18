@@ -20,19 +20,14 @@ Originals preserve source bytes, including embedded EXIF/GPS.
 - One Go binary, strict TOML, separate credential, systemd/nginx templates and
   a checksummed Linux bundle with portable smoke and rollback guidance.
 
-## Status and getting started
+## Getting started
 
-Feature children #38–#41 are accepted on `main` through
-`7053ac1f297b97be6daacca7ff450b442cb689e7` (PR #47).
-[#42](https://github.com/stef-k/media-gateway/issues/42) owns final documentation,
-bundle and disposable qualification; [#37](https://github.com/stef-k/media-gateway/issues/37)
-remains open until final acceptance. Production cutover belongs to
-[server-migration #10](https://github.com/stef-k/server-migration/issues/10).
+The supported provider is Immich; deployed contract validation used Immich 3.2.0.
+The reference platform is Linux amd64 with systemd and nginx.
 
 Start with the [operator quick start](docs/configuration.md#get-started),
 [consumer guide](docs/consumer-api.md), or [release and operations](docs/release.md).
 Build and validate using the reviewed [Go 1.27.1 toolchain](docs/toolchain.md).
-Additional derivative profiles in #30 remain optional.
 
 ## License
 

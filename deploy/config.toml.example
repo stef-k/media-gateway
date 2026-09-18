@@ -25,8 +25,8 @@ listen = "127.0.0.1:2290"
 public_base_url = "https://media.example.com"
 
 [provider]
-# Provider adapter to use. V0 implements only Immich; this value is explicit so the
-# configuration does not imply that provider behavior is generic or auto-detected.
+# Provider adapter to use. Currently only Immich is supported; this explicit value
+# does not imply that provider behavior is generic or auto-detected.
 type = "immich"
 
 # Trusted Immich API origin as seen by Media Gateway. This is configured at startup
@@ -58,15 +58,15 @@ request_timeout = "15s"
 # ends. Paths must already be canonical absolute POSIX paths other than /: no dot
 # components, trailing/repeated slashes, backslashes or control characters.
 # Paths must be unique and non-overlapping; /photos and /photos-old are distinct.
-# Policy v2 replaces obsolete allowed_roots; stale V0 configuration fails startup.
+# Policy v2 replaces obsolete allowed_roots; stale legacy configuration fails startup.
 [[policy.roots]]
-name = "images"
-path = "/media/archive/Images"
+name = "photos"
+path = "/library/photos"
 
 # A separate non-overlapping provider namespace, not a local/UNC mount.
 [[policy.roots]]
 name = "art"
-path = "/media/archive/ART"
+path = "/library/art"
 
 # Publication rules match ONE exact normalized directory segment. `segment` is a
 # configurable literal name, not a glob/regex/prefix. Operators may choose names such
@@ -81,14 +81,14 @@ path = "/media/archive/ART"
 segment = "public"
 media = ["image", "video"]
 
-# Omitted roots means global. A scoped rule uses roots = ["images"]; an empty
+# Omitted roots means global. A scoped rule uses roots = ["photos"]; an empty
 # list is invalid. References must exist and be unique. Root order is irrelevant.
 # The same segment may have distinct scopes, combined with OR semantics (no deny
-# rules or precedence). This legacy convention applies only to images root:
+# rules or precedence). This legacy convention applies only to photos root:
 [[policy.rules]]
 segment = "post"
 media = ["image"]
-roots = ["images"]
+roots = ["photos"]
 
 # Example image-only publication directory.
 [[policy.rules]]
