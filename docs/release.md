@@ -37,8 +37,9 @@ sha256sum --check --strict SHA256SUMS
 ```
 
 The external `.tar.gz.sha256` verifies the downloaded archive; internal
-`SHA256SUMS` verifies its packaged files. Require `version='vX.Y.Z' # Replace this placeholder with the selected immutable tag.`, the exact tag
-commit shown on GitHub, `modified=false` and `go=go1.27.1` for this release.
+`SHA256SUMS` verifies its packaged files. Require the reported `version` to equal your selected `$version`, the revision to
+match that exact tag commit shown on GitHub, `modified=false`, and the Go toolchain
+recorded for that release (see its bundled [toolchain guide](toolchain.md)).
 Checksums detect corruption; they are not independent publisher signatures.
 Obtain both files from the intended repository's authenticated HTTPS release.
 
