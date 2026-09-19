@@ -48,10 +48,9 @@ func TestLoadDocumentedConfiguration(t *testing.T) {
 	}
 	text = strings.ReplaceAll(text, "/library", "/external")
 	text = strings.ReplaceAll(text, `segment = "public"`, `segment = "website"`)
-	text = strings.ReplaceAll(text, `public_base_url = "https://media.example.com"`, "")
 	text = strings.ReplaceAll(text, `127.0.0.1:2290`, `[::1]:2290`)
 	c, _, err = loadText(t, text)
-	if err != nil || c.Policy.Roots[0].Path != "/external/photos" || c.Policy.Rules[0].Segment != "website" || c.Server.PublicBaseURL != "" {
+	if err != nil || c.Policy.Roots[0].Path != "/external/photos" || c.Policy.Rules[0].Segment != "website" {
 		t.Fatalf("installation-specific configuration failed: %v", err)
 	}
 }
@@ -73,7 +72,7 @@ func TestRejectInvalidConfiguration(t *testing.T) {
 		{"url fragment", `http://127.0.0.1:2283`, `http://host#`},
 		{"url path", `http://127.0.0.1:2283`, `http://host/api`},
 		{"url invalid port", `http://127.0.0.1:2283`, `http://host:65536`},
-		{"public url", `https://media.example.com`, `not-a-url`},
+		{"removed public origin", "[server]", "[server]\npublic_base_url = 'https://media.example.com'"},
 		{"credential relative", `api_key_file = "`, `api_key_file = "relative`},
 		{"empty segment", `segment = "public"`, `segment = ""`},
 		{"duplicate segment", `segment = "public-images"`, `segment = "public"`},

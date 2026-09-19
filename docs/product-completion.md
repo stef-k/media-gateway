@@ -34,8 +34,8 @@ See [configuration](configuration.md) for the current publication policy schema 
 
 ## Discovery and delivery
 
-Trusted same-host applications browse paginated collections and image/video
-assets through the loopback catalogue. They receive logical root names,
+Public applications browse paginated collections and image/video
+assets through the public catalog. They receive logical root names,
 root-relative collection paths, filenames, validated nullable metadata and stable
 gateway paths. Provider absolute paths, credentials and raw EXIF stay private.
 Search filters narrow candidates; every candidate still passes current policy.
@@ -52,20 +52,21 @@ independently rechecks current provider lifecycle and publication policy:
 - Original streams use 60-second read/write inactivity bounds. Metadata,
   connection/header work and shutdown remain separately bounded.
 
-The [consumer guide](consumer-api.md) defines pagination and projection;
+The [consumer guide](catalog-api.md) defines pagination and projection;
 [architecture](architecture.md#preview-delivery) defines media framing, provider
 failure handling and streaming behavior. Original source formats such as RAW/HEIC
 need not be browser-displayable; consumers own their downstream transformations.
 
 By default, approved source-sensitive timestamps, coordinates and original paths
 are null and originals return fixed 404 without provider fetches. Previews/posters
-remain available. This is not anonymity: filenames and collection names remain.
+remain available. Enabling source metadata deliberately publishes the approved
+sensitive catalog fields and exact originals. This is not anonymity: filenames and collection names remain.
 
 ## Deployment boundary
 
 One Go binary uses strict startup TOML and a separately protected credential.
 The application listens only on numeric loopback. nginx publishes the explicit
-media routes and denies the trusted `/internal/` surface. Immich remains private;
+`/media/` and `/catalog/` routes. Immich remains private;
 there is no direct NAS access, caller-selected upstream or storage fallback.
 
 The reference deployment uses Linux amd64, an unprivileged systemd service,
@@ -77,11 +78,11 @@ intended host; a successful build alone is not deployment qualification.
 ## Scope limits
 
 Media Gateway does not provide a gallery/editor, media manager, CMS integration,
-publication database, NAS browser, generic URL proxy, public catalogue or identity
+publication database, NAS browser, generic URL proxy or identity
 platform. It does not offer arbitrary resize/crop/quality transformations,
 transcoding, HLS/DASH, a cache or a metrics stack.
 
 Consumers own browsing, selection, presentation and consumer-specific derivative
-or caching strategy. The gateway surface is catalogue, preview/poster and
+or caching strategy. The gateway surface is catalog, preview/poster and
 privacy-permitted exact original. A measured new need requires a fresh bounded
 issue; see the [roadmap](roadmap.md).

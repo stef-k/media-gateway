@@ -33,6 +33,12 @@ jobs:
         run: |
           python3 scripts/test_smoke.py
           bash -n scripts/build-bundle.sh
+      - name: Check reference nginx ingress
+        # Exercise routing and shared admission limits with an isolated local upstream.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nginx
+          python3 scripts/test_nginx.py
       - name: Verify Linux bundle
         id: bundle
         # Reuse this checkout/toolchain; no release publishing or additional job.

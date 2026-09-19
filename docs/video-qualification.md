@@ -119,12 +119,12 @@ escape. If Immich original does not satisfy this contract, stop qualification an
 - Compare fixed provider thumbnail `?size=preview` and gateway preview GET/HEAD:
   direct 200 JPEG/WebP, positive length <=16 MiB, usable poster and no unexpected
   sensitive embedded metadata. Check browser seeking for a playable source.
-- Capture a catalogue video reference, revoke its convention by moving/rescanning
+- Capture a catalog video reference, revoke its convention by moving/rescanning
   the same UUID, prove preview/original 404, then restore/rescan and prove success.
 - Temporarily simulate credential/permission failure and provider outage in the
   isolated run: bounded sanitized 502, recovery after restoration, no leakage.
 - Confirm nginx forwards Range only to original, strips preview Range, If-Range,
-  all conditionals, credentials/cookies and Upgrade. Test wrong Host, `/internal/`,
+  all conditionals, credentials/cookies and Upgrade. Test wrong Host, legacy `/internal/`,
   provider-looking/encoded paths and POST denial. Inspect sanitized logs locally.
 - Complete an active original through gateway **and nginx** for >65 seconds with
   exact hash/length. Cancel a separate live transfer and verify prompt upstream

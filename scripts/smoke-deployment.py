@@ -32,10 +32,9 @@ def command(*args):
 
 
 def request(args, path, method="GET", host=None, deadline=None, headers=None,
-            stream=False, origin=None, rate=0):
+            stream=False, rate=0):
     """Use numeric local HTTP only, no proxies, redirects, DNS or saved image files."""
-    consumer = origin is not None
-    origin = urllib.parse.urlsplit(origin or args.origin)
+    origin = urllib.parse.urlsplit(args.origin)
     connection = http.client.HTTPConnection(origin.hostname, origin.port, timeout=75)
     budget = args.transfer_timeout if stream else 80
     if deadline is not None:
@@ -43,7 +42,7 @@ def request(args, path, method="GET", host=None, deadline=None, headers=None,
     require(budget > 0, "eligible recovery deadline exceeded")
     signal.setitimer(signal.ITIMER_REAL, budget)
     try:
-        connection.request(method, path, headers={**(headers or {}), "Host": host or (origin.netloc if consumer else args.host)})
+        connection.request(method, path, headers={**(headers or {}), "Host": host or args.host})
         response = connection.getresponse()
         headers = {}
         for key, value in response.getheaders():
@@ -78,12 +77,15 @@ def read_original(response, args, rate):
             "last": last, "seconds": time.monotonic() - started}
 
 
-def media_headers(headers):
+def media_headers(headers, catalog=False):
     """Require constructed public headers and reject provider/header leakage."""
     require(headers.get("cache-control") == "no-store", "no-store failed")
     require(headers.get("x-content-type-options") == "nosniff", "nosniff failed")
     allowed = {"server", "date", "connection", "content-type", "content-length",
                "cache-control", "x-content-type-options", "accept-ranges", "content-range"}
+    if catalog:
+        allowed.add("access-control-allow-origin")
+        require(headers.get("access-control-allow-origin") == "*", "catalog CORS failed")
     require(set(headers) <= allowed, "unexpected media headers")
     length = headers.get("content-length", "")
     require(length.isdecimal(), "media length failed")
@@ -142,7 +144,7 @@ def video_ranges(args, source):
     print("PASS video range bytes, HEAD, 206, 416 and malformed range")
 
 
-def catalogue_pages(args, path, key, selectors):
+def catalog_pages(args, path, key, selectors):
     """Follow gateway continuations within a finite operator-controlled page budget."""
     cursor = None
     continued = False
@@ -151,29 +153,30 @@ def catalogue_pages(args, path, key, selectors):
         if cursor is not None:
             query["cursor"] = cursor
             continued = True
-        status, headers, body = request(args, path + "?" + urllib.parse.urlencode(query), origin=args.gateway_origin)
-        require(status == 200 and len(body) <= 512 * 1024, "catalogue response failed")
-        media_headers(headers)
-        require(headers.get("content-type") == "application/json", "catalogue type failed")
+        status, headers, body = request(args, path + "?" + urllib.parse.urlencode(query))
+        require(status == 200 and len(body) <= 512 * 1024, "catalog response failed")
+        media_headers(headers, catalog=True)
+        require(headers.get("content-type") == "application/json", "catalog type failed")
+        require(headers.get("access-control-allow-origin") == "*", "catalog CORS failed")
         page = json.loads(body)
-        require(set(page) == {key, "next_cursor"} and isinstance(page[key], list) and len(page[key]) <= 1, "catalogue page shape failed")
+        require(set(page) == {key, "next_cursor"} and isinstance(page[key], list) and len(page[key]) <= 1, "catalog page shape failed")
         for item in page[key]:
             if key == "collections":
                 require(set(item) == {"root", "collection_path"}, "collection projection failed")
             else:
-                catalogue_asset(item, args.source_metadata == "on")
+                catalog_asset(item, args.source_metadata == "on")
                 require(item["root"] == args.root and item["collection_path"] == args.collection, "collection selector failed")
         cursor = page["next_cursor"]
-        require(cursor is None or isinstance(cursor, str) and 0 < len(cursor) <= 2048, "catalogue cursor failed")
+        require(cursor is None or isinstance(cursor, str) and 0 < len(cursor) <= 2048, "catalog cursor failed")
         if cursor is None:
             break
     if not continued:
-        print("SKIP continuation absent in supplied catalogue")
+        print("SKIP continuation absent in supplied catalog")
     if cursor is not None:
-        print("REVIEW catalogue traversal stopped at explicit page budget")
+        print("REVIEW catalog traversal stopped at explicit page budget")
 
 
-def catalogue_asset(item, expose):
+def catalog_asset(item, expose):
     """Check only the public consumer projection; never print private response values."""
     fields = {"id", "media_type", "root", "collection_path", "filename", "width", "height",
               "duration_ms", "file_created_at", "local_date_time", "latitude", "longitude",
@@ -235,20 +238,21 @@ def product_checks(args):
                 print("SKIP long video transfer (use --long-video-rate)")
     else:
         print("SKIP video representatives")
-    if args.gateway_origin:
-        catalogue_pages(args, "/internal/collections", "collections", {})
-        catalogue_pages(args, "/internal/assets", "assets", {"root": args.root, "collection": args.collection})
+    if args.root and args.collection:
+        catalog_pages(args, "/catalog/collections", "collections", {})
+        catalog_pages(args, "/catalog/assets", "assets", {"root": args.root, "collection": args.collection})
         for asset in (args.eligible_id, args.video_id):
             if asset:
-                status, headers, body = request(args, f"/internal/assets/{asset}", origin=args.gateway_origin)
-                require(status == 200, "catalogue detail failed")
-                media_headers(headers)
+                status, headers, body = request(args, f"/catalog/assets/{asset}")
+                require(status == 200, "catalog detail failed")
+                require(headers.get("access-control-allow-origin") == "*", "catalog CORS failed")
+                media_headers(headers, catalog=True)
                 item = json.loads(body)
-                catalogue_asset(item, args.source_metadata == "on")
-                require(item["id"].lower() == asset.lower(), "catalogue detail identity failed")
+                catalog_asset(item, args.source_metadata == "on")
+                require(item["id"].lower() == asset.lower(), "catalog detail identity failed")
         print("PASS bounded collection/asset pages and detail")
     else:
-        print("SKIP direct-loopback catalogue (supply gateway origin/root/collection)")
+        print("SKIP public catalog (supply root/collection)")
 
 
 def image_check(args, deadline=None):
@@ -346,7 +350,7 @@ def outage_check(args):
 
 
 def validate_origin(value):
-    """Reject non-loopback origins before any optional consumer request."""
+    """Keep installed-origin qualification on numeric loopback nginx."""
     origin = urllib.parse.urlsplit(value)
     require(origin.scheme == "http" and origin.hostname and ipaddress.ip_address(origin.hostname).is_loopback and origin.port and not origin.username and not origin.password and origin.path in ("", "/") and not origin.query and not origin.fragment, "origin must be a numeric loopback HTTP origin with explicit port")
 
@@ -356,7 +360,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("origin", "host", "eligible-id", "private-id"):
         parser.add_argument("--" + name, required=True)
-    for name in ("near-match-id", "outside-root-id", "lifecycle-id", "video-id", "image-sha256", "video-sha256", "gateway-origin", "root", "collection", "unit", "user", "listen", "access-log", "error-log"):
+    for name in ("near-match-id", "outside-root-id", "lifecycle-id", "video-id", "image-sha256", "video-sha256", "root", "collection", "unit", "user", "listen", "access-log", "error-log"):
         parser.add_argument("--" + name)
     parser.add_argument("--host-checks", action="store_true")
     parser.add_argument("--gateway-outage", action="store_true", help="DISRUPTIVE: stop/start supplied gateway unit, then verify recovery")
@@ -365,7 +369,7 @@ def main():
     parser.add_argument("--max-original-bytes", type=int, default=1024 * 1024 * 1024, help="smoke budget, not a product size limit")
     parser.add_argument("--transfer-timeout", type=int, default=300, help="total smoke transfer budget in seconds")
     parser.add_argument("--long-video-rate", type=int, default=0, help="opt-in paced video read, bytes/second; requires >65s source")
-    parser.add_argument("--max-pages", type=int, default=4, help="maximum pages per catalogue operation")
+    parser.add_argument("--max-pages", type=int, default=4, help="maximum pages per catalog operation")
     args = parser.parse_args()
     require(args.source_metadata == "on" or not (args.image_original or args.image_sha256 or args.video_sha256 or args.long_video_rate), "original download options require --source-metadata on")
     require(args.max_original_bytes > 0 and args.transfer_timeout > 0 and args.long_video_rate >= 0 and 1 <= args.max_pages <= 100, "invalid smoke budget")
@@ -374,11 +378,7 @@ def main():
         require(not digest or re.fullmatch(r"[a-fA-F0-9]{64}", digest), "invalid expected SHA256")
     require(not args.image_sha256 or args.image_original, "image SHA256 requires image original check")
     require(not args.video_sha256 or args.video_id, "video SHA256 requires video representative")
-    if args.gateway_origin:
-        require(args.root and args.collection, "catalogue requires root and collection")
-        validate_origin(args.gateway_origin)
-    else:
-        require(not args.root and not args.collection, "catalogue selectors require gateway origin")
+    require(bool(args.root) == bool(args.collection), "catalog requires root and collection")
     validate_origin(args.origin)
     origin = urllib.parse.urlsplit(args.origin)
     require(re.fullmatch(r"[A-Za-z0-9.-]+(?::[0-9]+)?", args.host) and args.host != "invalid.example", "invalid expected Host")

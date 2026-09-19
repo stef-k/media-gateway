@@ -63,9 +63,9 @@ func testCursorBoundary(t *testing.T, expose bool) {
 			t.Error("invalid cursor accepted")
 		}
 	}
-	for _, route := range []string{"/internal/collections", "/internal/assets?root=images&collection=website/child"} {
+	for _, route := range []string{"/catalog/collections", "/catalog/assets?root=images&collection=website/child"} {
 		separator := "&"
-		if route == "/internal/collections" {
+		if route == "/catalog/collections" {
 			separator = "?"
 		}
 		resp, err := gateway.Client().Get(gateway.URL + route + separator + "cursor=" + url.QueryEscape(good))
@@ -105,7 +105,7 @@ func TestSelectorBoundary(t *testing.T) {
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
 	for _, collection := range []string{"", "/website", "website/", "website//x", "website/.", "website/..", `website\x`, "website\n", string([]byte{255}), strings.Repeat("x", 2049)} {
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=" + url.QueryEscape(collection))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestSelectorBoundary(t *testing.T) {
 		}
 	}
 	for _, suffix := range []string{"root=Images&collection=website", "root=missing&collection=website", "root=images&root=images&collection=website", "root=images", "collection=website"} {
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?" + suffix)
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?" + suffix)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestSelectorBoundary(t *testing.T) {
 		}
 	}
 	for _, query := range []string{"limit=0", "limit=101", "limit=-1", "limit=%2B1", "limit=1.0", "limit= 1", "limit=", "limit=1&limit=2", "root=images", "collection=website", "cursor=", "cursor=a&cursor=b", "unknown=" + strings.Repeat("x", 8192)} {
-		req := httptest.NewRequest("GET", "/internal/collections", nil)
+		req := httptest.NewRequest("GET", "/catalog/collections", nil)
 		req.URL.RawQuery = query
 		req.RemoteAddr = "127.0.0.1:1234"
 		out := httptest.NewRecorder()
@@ -138,7 +138,7 @@ func TestSelectorBoundary(t *testing.T) {
 		t.Fatal("malformed selectors reached provider")
 	}
 	for _, collection := range []string{"private", strings.Repeat("x", 2048), "website/a b", "website/%2e", "website/é"} {
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=" + url.QueryEscape(collection))
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=" + url.QueryEscape(collection))
 		if err != nil {
 			t.Fatal(err)
 		}

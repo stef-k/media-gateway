@@ -82,7 +82,7 @@ func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon a
 	defer provider.Close()
 	var logs bytes.Buffer
 	gateway := gatewayFor(t, provider, &logs, time.Second)
-	for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
+	for _, route := range []string{"/catalog/assets?root=images&collection=website", "/catalog/assets/" + testAsset} {
 		logs.Reset()
 		resp, err := gateway.Client().Get(gateway.URL + route)
 		if err != nil {
@@ -107,7 +107,7 @@ func checkCoordinateResponse(t *testing.T, exif string, invalid bool, lat, lon a
 			if resp.StatusCode != 200 || json.Unmarshal(body, &asset) != nil {
 				t.Fatalf("response: %d %s", resp.StatusCode, body)
 			}
-			if route == "/internal/assets?root=images&collection=website" {
+			if route == "/catalog/assets?root=images&collection=website" {
 				asset = asset["assets"].([]any)[0].(map[string]any)
 			}
 			want := map[string]any{"id": testAsset, "media_type": "image", "root": "images", "collection_path": "website", "filename": "a.jpg", "duration_ms": nil, "original_path": "/media/" + testAsset + "/original", "width": float64(640), "height": nil, "file_created_at": "2026-09-13T10:00:00Z", "local_date_time": "2026-09-13T12:00:00Z", "preview_path": testRoute}
@@ -165,7 +165,7 @@ func testCoordinatesDeniedCandidates(t *testing.T, expose bool) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
-			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/catalog/assets?root=images&collection=website", "/catalog/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
 					t.Fatal(err)
@@ -199,7 +199,7 @@ func TestCoordinatesMalformedJSON(t *testing.T) {
 			fmt.Fprintf(w, `{"assets":{"items":[%s],"count":1,"nextCursor":null}}`, raw)
 		}))
 		gateway := gatewayFor(t, provider, io.Discard, time.Second)
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=website")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -230,7 +230,7 @@ func TestCoordinateMixedPage(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website")
+	resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=website")
 	if err != nil {
 		t.Fatal(err)
 	}

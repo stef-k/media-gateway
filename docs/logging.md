@@ -30,7 +30,7 @@ Public-edge logging must not record secrets. In particular:
 
 The public media surface is intentionally path-based and requires no secret query parameter.
 The reference `media_gateway` access format records the peer, method, classified
-route (`preview`, `original` or `denied`), status, bytes, request/upstream timings
+route (`catalog`, `preview`, `original` or `denied`), status, bytes, request/upstream timings
 and request/connection limit outcomes. Routine limit events use `notice`, below
 the `warn` error-log threshold; 429 remains visible in access logs. It omits
 raw paths, asset IDs, query strings, Host, Referer, User-Agent and all credential
@@ -89,10 +89,10 @@ quiet. Exceptional failures before headers emit one `provider request failed`
 warning with the adapter's fixed sanitized outcome. Failed body copies emit only
 `media stream failed`; canceled public requests remain quiet. No request IDs,
 asset IDs, provider paths, Range/If-Range values or body text are logged.
-The consumer handler emits `provider search failed` with fixed provider failure
+The catalog handler emits `provider search failed` with fixed provider failure
 outcomes, mapping a search-endpoint HTTP 404 to unexpected provider status. It keeps
 successes, invalid pagination, private/missing denials and cancellation quiet.
-Consumer cursors and search results are never logged.
+Catalog cursors and search results are never logged.
 The standard HTTP server's connection error logger is discarded because its free
 text can include request-controlled data; lifecycle failures are reported separately
 through `slog`. Streaming failures use `http.ErrAbortHandler` to terminate incomplete responses

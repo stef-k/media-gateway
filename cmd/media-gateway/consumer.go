@@ -16,13 +16,13 @@ import (
 	"github.com/stef-k/media-gateway/internal/publication"
 )
 
-// Catalogue work and output stay finite even for sparse or changing libraries.
+// Catalog work and output stay finite even for sparse or changing libraries.
 const (
 	defaultConsumerLimit  = 25
 	maxConsumerQueryBytes = 8 << 10
 	maxConsumerJSONBytes  = 512 << 10
-	maxCatalogueCalls     = 8
-	catalogueTimeout      = 30 * time.Second
+	maxCatalogCalls       = 8
+	catalogTimeout        = 30 * time.Second
 )
 
 // consumerAsset is the complete safe allowlist, never embedded provider metadata.
@@ -61,13 +61,12 @@ type collectionPage struct {
 	NextCursor  *string              `json:"next_cursor"`
 }
 
-// gatewayHandler dispatches without path cleaning or redirects. nginx must never
-// proxy /internal/, even though a same-host proxy appears to have a local peer.
+// gatewayHandler dispatches the public catalog and media without cleaning or redirects.
 func gatewayHandler(client *immich.Client, policy config.Policy, privacy config.Privacy, key cursorKey, logger *slog.Logger) http.Handler {
 	public := deliveryHandler(client, policy, privacy, logger)
 	consumer := consumerHandler(client, policy, privacy, key, logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/internal/") {
+		if strings.HasPrefix(r.URL.Path, "/catalog/") {
 			consumer.ServeHTTP(w, r)
 			return
 		}
@@ -80,6 +79,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 	streams := immich.DiscoveryStreams(policy)
 	policyFingerprint := fingerprint(streams)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		query, ok := consumerQuery(r, policy)
@@ -101,9 +101,9 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 			publicError(w, r, http.StatusNotFound)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), catalogueTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), catalogTimeout)
 		defer cancel()
-		result, err := catalogue(ctx, client, policy, privacy, streams, key, queryFingerprint, query, state)
+		result, err := catalog(ctx, client, policy, privacy, streams, key, queryFingerprint, query, state)
 		if err != nil {
 			consumerSearchError(w, r, logger, err)
 			return
@@ -112,14 +112,14 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 	})
 }
 
-// catalogue fills only remaining output slots; every successful provider page is
+// catalog fills only remaining output slots; every successful provider page is
 // fully consumed. Stream transitions and sparse pages share the eight-call budget.
-func catalogue(ctx context.Context, client *immich.Client, policy config.Policy, privacy config.Privacy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogueQuery, state continuation) (any, error) {
+func catalog(ctx context.Context, client *immich.Client, policy config.Policy, privacy config.Privacy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogQuery, state continuation) (any, error) {
 	assets := consumerPage{Assets: []consumerAsset{}}
 	collections := collectionPage{Collections: []consumerCollection{}}
 	seen := map[consumerCollection]bool{}
 	count, more := 0, true
-	for calls := 0; calls < maxCatalogueCalls && count < query.Limit && more; calls++ {
+	for calls := 0; calls < maxCatalogCalls && count < query.Limit && more; calls++ {
 		providerQuery := immich.CandidateQuery{IncludeSourceMetadata: privacy.ExposeSourceMetadata, Limit: query.Limit - count, Cursor: state.Provider, ID: query.ID}
 		if query.Kind == 'c' {
 			if state.Stream >= len(streams) {

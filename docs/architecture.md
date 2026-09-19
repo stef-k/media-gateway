@@ -51,7 +51,7 @@ deployment-specific. The architectural requirements are:
 
 - the provider is not directly Internet-exposed by Media Gateway;
 - the gateway binds only to a numeric loopback address; other network boundaries require an explicit architecture revision;
-- the public reverse proxy exposes only public delivery routes;
+- the public reverse proxy exposes only public catalog and media delivery routes;
 - provider credentials stay on the trusted host and are never sent to consumers.
 
 ## Trust boundaries
@@ -95,7 +95,7 @@ precedence). Named roots must have unique names and canonical non-overlapping
 paths; `/` is invalid. The evaluator defensively denies zero or multiple matching
 roots. It returns only `Match{RootName, CollectionPath}` plus eligibility, with
 zero context on denial. The collection is the root-relative parent path without
-leading/trailing slashes. The trusted catalogue projects this context only after successful evaluation.
+leading/trailing slashes. The public catalog projects this context only after successful evaluation.
 
 This is a policy input, not a public filesystem mapping. Media Gateway never converts the provider path into an nginx alias or public URL.
 
@@ -176,7 +176,7 @@ The public surface is intentionally narrow:
 - `GET` and `HEAD` only for implemented media routes;
 - no health/readiness endpoint;
 - bounded headers, request sizes and upstream timeouts;
-- no public search;
+- GET-only policy-filtered public catalog with credential-free CORS;
 - no public provider metadata endpoint;
 - no configuration endpoint;
 - no arbitrary fetch/proxy endpoint;
@@ -184,18 +184,19 @@ The public surface is intentionally narrow:
 
 Private/missing/invalid/unauthorized assets should normally be indistinguishable through a `404` response.
 
-## Consumer/control surface
+## Public catalog surface
 
-Trusted same-host consumers browse paginated image/video collections and exact
-collection assets, with independently reauthorized detail. The listener and TCP
-peer must be loopback; forwarded headers are not identity. nginx never publishes
-`/internal/`. See the [consumer contract](consumer-api.md) for the full allowlist.
+Public clients browse paginated image/video collections and exact collection assets,
+with independently reauthorized detail. nginx exposes the GET-only `/catalog/` routes;
+the process remains numeric-loopback-bound. Catalog responses grant
+`Access-Control-Allow-Origin: *` without credentials or OPTIONS support. See the
+[catalog contract](catalog-api.md) for the full allowlist.
 
 Collection identities come from publication policy and are deduplicated within each page,
 with at-least-once discovery across pages. Stateless gateway HMAC cursors bind the
 query/policy and invalidate on restart. Each request has at most eight provider
 calls, a 30-second deadline and 512 KiB buffered JSON output. Provider page sizes
-never exceed remaining output slots. No catalogue database or folder-view API is used.
+never exceed remaining output slots. No catalog database or folder-view API is used.
 
 Assets expose logical root/relative collection, path basename, image/video type,
 nullable dimensions and integer `duration_ms`. Capture/local timestamps, coordinates
@@ -235,7 +236,7 @@ The provider boundary supplies:
 - fetch asset metadata by stable provider ID;
 - obtain media type;
 - obtain the indexed original path/folder metadata needed for policy evaluation;
-- search bounded metadata candidates for the trusted catalogue;
+- search bounded metadata candidates for the public catalog;
 - obtain fixed image previews/video posters and exact image/video originals.
 
 Do not build provider discovery, dynamic plugins or a generic provider SDK before a second provider establishes real requirements.
@@ -313,7 +314,6 @@ Representative shape:
 ```toml
 [server]
 listen = "127.0.0.1:2290"
-public_base_url = "https://media.example.com"
 
 [provider]
 type = "immich"
@@ -340,13 +340,13 @@ media = ["video"]
 ```
 
 The [committed example](https://github.com/stef-k/media-gateway/blob/main/deploy/config.toml.example) and [configuration contract](configuration.md) describe the validated schema, including the required provider request timeout. Preview/original are fixed image/video routes; exact originals require
-`privacy.expose_source_metadata=true`. Unsupported configuration fails strict decoding. `public_base_url` is optional.
+`privacy.expose_source_metadata=true`. Unsupported configuration fails strict decoding. Clients combine relative capability paths with their single Gateway origin; the server does not construct absolute URLs.
 
 Invalid policy must fail startup rather than silently widen access. Rules use exact normalized directory-segment equality; arbitrary regex/glob policy is not supported.
 
 ## State
 
-Media Gateway has no application database. The catalogue keeps only a random 32-byte HMAC key and deterministic discovery streams in process memory; no persistent cursor state or seen-set exists.
+Media Gateway has no application database. The catalog keeps only a random 32-byte HMAC key and deterministic discovery streams in process memory; no persistent cursor state or seen-set exists.
 
 Allowed state is limited to normal process/runtime state and, if later justified, disposable derived-media cache. A cache must never become publication authority; policy must still be checked before serving cached content unless an explicitly designed cache contract proves equivalent revocation semantics.
 
@@ -375,7 +375,7 @@ A small TOML parser is an acceptable dependency if chosen deliberately. Addition
 Potential later capabilities include:
 
 - signed or opaque public URLs if evidence justifies them;
-- additional private consumer integrations;
+- additional consumer integrations;
 - another provider, once a real second provider exists.
 
 These optional directions require concrete requirements before expanding the product.

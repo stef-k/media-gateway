@@ -91,7 +91,7 @@ the media type. Rules combine with OR semantics, with no deny or precedence rule
 Named roots require unique logical names and canonical, unique, non-overlapping
 paths other than `/`. Zero or multiple matching roots deny even for invalid
 in-memory policy. Successful evaluation returns only logical root identity and
-the root-relative parent collection; denial returns zero context. Trusted consumer
+the root-relative parent collection; denial returns zero context. Public catalog
 JSON exposes this logical context only after eligibility succeeds.
 
 ### Media type is independent of path
@@ -159,7 +159,7 @@ A compromised consumer may attempt to request arbitrary provider asset IDs. The 
 private asset ID -> gateway policy check -> 404
 ```
 
-The [private consumer API](consumer-api.md) returns only currently eligible image/video
+The [public catalog API](catalog-api.md) returns only currently eligible image/video
 assets and policy-derived collection identities. Every candidate passes current
 lifecycle and exact publication evaluation. Collection asset selectors additionally
 require exact logical root and parent-collection equality; descendants, near-prefix,
@@ -181,8 +181,10 @@ identities can recur across pages; no persistent seen-set is maintained.
 
 Only fixed structured Immich metadata search is used, never unpaginated folder
 view. Provider search filters optimize candidate selection, not authorization.
-The loopback TCP peer check ignores forwarded headers and grants no CORS access.
-nginx must never expose `/internal/`, including through a local proxy.
+The catalog is intentionally public. GET responses grant credential-free
+`Access-Control-Allow-Origin: *`; there is no cookie/session authentication,
+credentialed CORS or OPTIONS method. nginx exposes only the explicit catalog and
+media routes. Provider API/UI and all other routes remain denied.
 
 ## Request hardening
 
@@ -192,7 +194,7 @@ public. Valid-shaped UUID floods can still consume gateway/Immich metadata work,
 and many long originals can occupy streams and provider I/O.
 
 Existing abuse resistance includes strict Host/raw-route/GET/HEAD allowlists,
-no public `/internal/`, tiny unused bodies, bounded header/body inactivity, fixed
+GET-only `/catalog/`, tiny unused bodies, bounded header/body inactivity, fixed
 gateway/provider authorities and bounded provider metadata/header work. nginx has
 no retries, provider/storage fallback, buffering or cache. Established streams
 retain cancellation, inactivity deadlines and bounded shutdown. The documented
@@ -200,7 +202,7 @@ single video-range disambiguation probe remains a bounded application exception;
 there is no general provider retry or alternate representation fallback.
 
 The reference nginx template adds an aggregate public-origin abuse envelope:
-20 requests/second, burst 40 without delay, and 32 concurrent media requests.
+20 requests/second, burst 40 without delay, and 32 concurrent catalog/media requests.
 Excess admission returns nginx-origin 429 before upstream work. Existing
 route/method returns run before admission, so malformed noise retains its cheap
 fixed denial. These lax reference values constrain gateway/provider workload and
@@ -230,19 +232,18 @@ or inspect complete image contents.
 
 If provider previews retain unsafe metadata, public preview delivery must re-encode/strip metadata or remain blocked until a safe representation exists.
 
-The optional `privacy.expose_source_metadata` setting defaults to false. Trusted
+The optional `privacy.expose_source_metadata` setting defaults to false. Public catalog
 capture/local timestamps, coordinates and original paths remain present as null;
 search does not request EXIF and ignores hidden sensitive fields even if malformed.
 Dimensions and duration still validate. Canonical image/video originals return
 fixed 404 before any provider I/O or Range parsing, without metadata-dependent
 error distinctions. Qualified previews/posters remain unchanged.
 
-Enabling the setting deliberately exposes validated approved source-sensitive
+Enabling the setting deliberately publicly exposes validated approved source-sensitive
 fields and exact source bytes, potentially containing arbitrary EXIF/GPS or
 container metadata. Provider coordinate absence cannot prove original safety.
 There is no stripping, re-encoding, remuxing or metadata-clean original variant.
-This is not anonymity: filename and collection identity remain visible. No public
-metadata endpoint or coordinate/EXIF logging is introduced.
+This is not anonymity: filename and collection identity remain visible. Only approved catalog fields are published; coordinate/EXIF logging is forbidden.
 
 The following original contracts apply only when source metadata is enabled.
 
@@ -308,11 +309,11 @@ Fuzzing path-policy parsing is encouraged because this code is small and securit
 The reference systemd service should run unprivileged with no required Linux capabilities and with standard hardening options where compatible.
 
 The reference nginx configuration proxies only canonical GET/HEAD
-`/media/<UUIDv4>/preview` and `/media/<UUIDv4>/original` requests to fixed numeric loopback. An original-target
+`/media/<UUIDv4>/preview` and `/media/<UUIDv4>/original`, plus GET-only
+`/catalog/collections`, `/catalog/assets` and `/catalog/assets/<UUIDv4>` to fixed numeric loopback. An original-target
 allowlist rejects encoded/normalized aliases; `/media` has an explicit denial
 instead of nginx's automatic slash redirect. All private/unknown paths and
-unknown Hosts fail closed without upstream access. This matters because nginx's
-loopback peer would otherwise satisfy the private consumer API's peer check.
+unknown Hosts fail closed without upstream access.
 Caller headers/bodies are not forwarded, except Range on canonical original routes
 and explicitly constructed transport context, which never authorizes publication. No cache, direct-storage
 fallback, upload or WebSocket surface exists. Review inherited host configuration

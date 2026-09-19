@@ -159,9 +159,9 @@ on timeout the process closes connections and exits with failure. This fits insi
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
 Only image/video `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
-public metadata/control routes and unsupported methods remain fixed denials.
-The [consumer API](consumer-api.md) adds loopback `/internal/collections` and `/internal/assets` browse
-and asset detail routes; nginx must never publish `/internal/`. There is
+raw provider metadata/control routes and unsupported methods remain fixed denials.
+The [public catalog API](catalog-api.md) exposes `/catalog/collections`, `/catalog/assets`
+and asset detail routes through nginx with credential-free CORS. There is
 no startup provider probe: `listening` means the loopback listener was acquired,
 not that previews are qualified or available. HTTP limits are 5 seconds for
 headers, 10 seconds for request reads, 65 seconds for response writes, 30 seconds
@@ -259,16 +259,18 @@ port (example `8089`), replace `media.example.com` and adapt log paths. The loca
 edge must send that Host. Unknown/missing Host selects the explicit default deny
 server. Do not reuse an unrelated site's default listener or merge in its locations.
 
-Only canonical `/media/<UUIDv4>/preview` and `/media/<UUIDv4>/original` GET/HEAD requests reach the gateway.
+Only canonical media GET/HEAD and catalog GET routes reach the gateway.
 The raw request-target allowlist supplements nginx's normalized location matching;
 publication/lifecycle authorization still belongs exclusively to the application.
-Queries are ignored by the application and cannot select upstream behavior.
+Media queries are ignored. Catalog queries have a bounded strict selector allowlist;
+no query can select arbitrary upstream behavior.
 
 | Request to the configured Host | Expected ingress behavior |
 | --- | --- |
 | GET/HEAD `/media/<UUIDv4>/preview` or `/media/<UUIDv4>/original` | nginx admission may return 429; otherwise fixed loopback gateway and current policy/range validation decide 200/206/400/404/416/502 |
 | `/media`, `/media/`, extra segments or other representations | 404; no automatic slash redirect |
-| `/internal/assets` or any `/internal/...` | 404 without upstream access |
+| GET `/catalog/collections`, `/catalog/assets`, `/catalog/assets/<UUIDv4>` | Shared admission may return 429; application validates selectors, policy and bounded JSON |
+| Other catalog paths, catalog HEAD/OPTIONS or legacy `/internal/` paths | 404 without upstream access |
 | `/api`, `/api/...`, `/`, search/config/control/diagnostic/provider-looking or unknown paths | 404 without upstream access |
 | Encoded path characters, dot segments, repeated slashes, traversal into/out of `/media/` | Denied before proxying; malformed HTTP may get nginx 400 |
 | POST/PUT/PATCH/DELETE/OPTIONS on either media route | 404 without upstream access; malformed/oversized requests may be rejected earlier |
@@ -276,8 +278,8 @@ Queries are ignored by the application and cannot select upstream behavior.
 
 An exact `/media` location prevents nginx's implicit prefix slash redirect.
 `^~ /media/` prevents regex-location takeover; the raw allowlist denies normalization
-aliases. There is one fixed `proxy_pass` with no URI replacement or caller-selected
-authority. Do not add rewrites, extra locations, inherited error-page redirects,
+aliases. Both catalog and media locations use the same fixed upstream with no URI
+replacement or caller-selected authority. Do not add rewrites, extra locations, inherited error-page redirects,
 `alias`, `root`, `try_files`, storage fallback or forced cache behavior. Review the
 **effective** `nginx -T` configuration for inherited directives from shared `http`
 configuration, especially `error_page`, headers, authentication, cache and logging.
@@ -285,7 +287,8 @@ The template is not isolation from administrator-supplied nginx configuration.
 See nginx's [location rules](https://nginx.org/en/docs/http/ngx_http_core_module.html#location)
 and [proxy URI rules](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass).
 
-The proxy connect/send limits are 5/10 seconds. Read inactivity is 70 seconds,
+The proxy connect/send limits are 5/10 seconds. Catalog read inactivity is 35 seconds
+for its 30-second application deadline. Media read inactivity is 70 seconds,
 accommodating the gateway's 60-second original read/write inactivity bounds. nginx read/send
 limits are **between I/O operations**, not total response deadlines; application
 bounds still cap provider work. Client header/body inactivity is 5/10 seconds,
@@ -307,7 +310,7 @@ a tunnel the recorded peer may be the tunnel unless separately reviewed trusted
 real-IP handling is configured. No upload or WebSocket surface exists.
 
 Run `python3 scripts/test_nginx.py` with local nginx installed to exercise both
-canonical media routes, malformed/private/provider denials, header stripping and
+canonical catalog/media routes, malformed/private/provider denials, header stripping and
 route log classification in an isolated process. A skipped test is unavailable
 local nginx evidence, not a pass. This synthetic upstream does not qualify a deployed provider.
 
@@ -324,7 +327,7 @@ location after the existing return-only route/method checks:
 limit_req_zone $server_name zone=media_gateway_rate:1m rate=20r/s;
 limit_conn_zone $server_name zone=media_gateway_conn:1m;
 
-# Canonical media location: reject excess admission before gateway work.
+# Both canonical catalog/media locations: reject excess admission before gateway work.
 limit_req_status 429;
 limit_conn_status 429;
 limit_req zone=media_gateway_rate burst=40 nodelay;
@@ -332,7 +335,7 @@ limit_conn media_gateway_conn 32;
 ```
 
 This allows 20 requests/second with burst 40 and no queueing delay, plus 32
-concurrent media requests. Both limits return **429 Too Many Requests** from
+concurrent catalog/media requests. Both limits return **429 Too Many Requests** from
 nginx; application response contracts remain unchanged. Connection accounting
 starts after complete request headers while requests are being processed, not
 for every idle TCP socket. HTTP/2 and HTTP/3 count concurrent requests separately.
@@ -522,7 +525,7 @@ Errors expose only fixed outcome classes: invalid ID, missing (`400`/`404` in `A
 unsupported media. Cancellation and deadline errors are standard context
 sentinels. No upstream URL, body, key or private path is embedded in errors.
 The HTTP handler maps invalid/missing/unsupported outcomes to fixed 404 denials
-and other failures to fixed 502 responses. No public metadata endpoint exists.
+and other failures to fixed 502 responses. Only the approved catalog projection is public; raw provider metadata remains private.
 
 Immich v3.2.0 metadata lookup deliberately returns HTTP 400 for missing assets
 or absent `asset.read` access: see [the access gate](https://github.com/immich-app/immich/blob/v3.2.0/server/src/utils/access.ts)
@@ -590,8 +593,8 @@ No provider cursor, path, coordinates, raw body or credential is logged.
 
 Collection discovery is at least once, with only in-page identity deduplication.
 No folder-view endpoint is used: those endpoints are unpaginated and restricted
-to timeline visibility. There is no persistent catalogue/cursor state. See the
-[consumer API](consumer-api.md) for exact selectors, signatures, capabilities and
+to timeline visibility. There is no persistent catalog/cursor state. See the
+[consumer API](catalog-api.md) for exact selectors, signatures, capabilities and
 failure semantics. Public preview behavior and permissions remain unchanged.
 
 ### Reviewed preview contract

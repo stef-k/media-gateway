@@ -31,9 +31,9 @@ func TestDiscoveryStreams(t *testing.T) {
 	}
 }
 
-// TestCatalogueSearchModes checks fixed filters, literal SQL pattern escaping,
+// TestCatalogSearchModes checks fixed filters, literal SQL pattern escaping,
 // image/video decoding, and discovery independence from unrelated malformed metadata.
-func TestCatalogueSearchModes(t *testing.T) {
+func TestCatalogSearchModes(t *testing.T) {
 	for _, discovery := range []bool{false, true} {
 		t.Run(fmt.Sprint(discovery), func(t *testing.T) {
 			query := CandidateQuery{IncludeSourceMetadata: true, Limit: 1, Collection: &CollectionSelector{Root: config.Root{Name: "images", Path: "/root_%"}, Path: "public_%"}}

@@ -33,18 +33,19 @@ func testConsumerInputBoundary(t *testing.T, expose bool) {
 	var logs bytes.Buffer
 	gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
 	for _, route := range []string{
-		"/internal/assets/", "/internal/assets/not-a-uuid", "/internal/assets/" + testAsset + "/preview",
-		"/internal/assets/" + testAsset + "?limit=1", "/internal/assets/" + testAsset + "?",
-		"/internal/assets/%31" + testAsset[1:], "/internal//assets", "/internal/assets/../assets", "/internal/search",
+		"/catalog/assets/", "/catalog/assets/not-a-uuid", "/catalog/assets/" + testAsset + "/preview",
+		"/catalog/assets/" + testAsset + "?limit=1", "/catalog/assets/" + testAsset + "?",
+		"/catalog/assets/%31" + testAsset[1:], "/catalog//assets", "/catalog/assets/../assets", "/catalog/search",
+		"/internal/collections", "/internal/assets", "/internal/assets/" + testAsset,
 		"/assets", "/search", "/config", "/metadata", "/provider", "/health",
-		"/internal/assets?limit=0", "/internal/assets?limit=101", "/internal/assets?limit=-1", "/internal/assets?limit=%2B1",
-		"/internal/assets?limit=1.5", "/internal/assets?limit=999999999999999999999", "/internal/assets?limit=",
-		"/internal/assets?limit=1&limit=2", "/internal/assets?cursor=", "/internal/assets?cursor=a&cursor=b",
-		"/internal/assets?cursor=%00", "/internal/assets?cursor=%C2%85", "/internal/assets?cursor=%FF", "/internal/assets?cursor=%zz",
-		"/internal/assets?cursor=" + strings.Repeat("a", 1025), "/internal/assets?cursor=" + strings.Repeat("a", 4097),
-		"/internal/assets?filter=%7B%7D", "/internal/assets?path=/private", "/internal/assets?url=http://attacker.invalid",
-		"/internal/assets?withExif=true", "/internal/assets?expose_coordinates=true",
-		"/internal/assets?type=VIDEO", "/internal/assets?sort=originalPath", "/internal/assets?limit=1;cursor=a",
+		"/catalog/assets?limit=0", "/catalog/assets?limit=101", "/catalog/assets?limit=-1", "/catalog/assets?limit=%2B1",
+		"/catalog/assets?limit=1.5", "/catalog/assets?limit=999999999999999999999", "/catalog/assets?limit=",
+		"/catalog/assets?limit=1&limit=2", "/catalog/assets?cursor=", "/catalog/assets?cursor=a&cursor=b",
+		"/catalog/assets?cursor=%00", "/catalog/assets?cursor=%C2%85", "/catalog/assets?cursor=%FF", "/catalog/assets?cursor=%zz",
+		"/catalog/assets?cursor=" + strings.Repeat("a", 1025), "/catalog/assets?cursor=" + strings.Repeat("a", 4097),
+		"/catalog/assets?filter=%7B%7D", "/catalog/assets?path=/private", "/catalog/assets?url=http://attacker.invalid",
+		"/catalog/assets?withExif=true", "/catalog/assets?expose_coordinates=true",
+		"/catalog/assets?type=VIDEO", "/catalog/assets?sort=originalPath", "/catalog/assets?limit=1;cursor=a",
 	} {
 		resp, err := gateway.Client().Get(gateway.URL + route)
 		if err != nil {
@@ -57,7 +58,7 @@ func testConsumerInputBoundary(t *testing.T, expose bool) {
 		}
 	}
 	for _, method := range []string{"HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"} {
-		req, _ := http.NewRequest(method, gateway.URL+"/internal/assets?root=images&collection=website", nil)
+		req, _ := http.NewRequest(method, gateway.URL+"/catalog/assets?root=images&collection=website", nil)
 		resp, err := gateway.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -65,18 +66,6 @@ func testConsumerInputBoundary(t *testing.T, expose bool) {
 		resp.Body.Close()
 		if resp.StatusCode != 404 {
 			t.Errorf("%s: %d", method, resp.StatusCode)
-		}
-	}
-	// Direct handler calls simulate remote peers without opening a non-loopback listener.
-	for _, peer := range []string{"192.0.2.1:1234", "[2001:db8::1]:1234", "localhost:1234", ""} {
-		req := httptest.NewRequest("GET", "/internal/assets?root=images&collection=website", nil)
-		req.RemoteAddr = peer
-		req.Header.Set("X-Forwarded-For", "127.0.0.1")
-		req.Header.Set("Forwarded", "for=127.0.0.1")
-		resp := httptest.NewRecorder()
-		gateway.Config.Handler.ServeHTTP(resp, req)
-		if resp.Code != 404 {
-			t.Errorf("peer %q accepted", peer)
 		}
 	}
 	if calls.Load() != 0 || logs.Len() != 0 {
@@ -96,7 +85,7 @@ func TestConsumerFailures(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayFor(t, provider, &logs, time.Second)
-			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/catalog/assets?root=images&collection=website", "/catalog/assets/" + testAsset} {
 				logs.Reset()
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
@@ -148,7 +137,7 @@ func TestConsumerCancellation(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+"/internal/assets?root=images&collection=website", nil)
+				req, _ := http.NewRequestWithContext(ctx, "GET", gateway.URL+"/catalog/assets?root=images&collection=website", nil)
 				resp, err := gateway.Client().Do(req)
 				if err == nil {
 					resp.Body.Close()
@@ -214,7 +203,7 @@ func testConsumerResponseBound(t *testing.T, expose bool) {
 	gateway := gatewayWithPrivacy(t, provider, io.Discard, time.Second, expose)
 	for _, large := range []bool{false, true} {
 		oversized.Store(large)
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets?root=images&collection=website&limit=100")
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=website&limit=100")
 		if err != nil {
 			t.Fatal(err)
 		}

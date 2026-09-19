@@ -56,7 +56,7 @@ func TestConsumerDetail(t *testing.T) {
 			}))
 			defer provider.Close()
 			gateway := gatewayFor(t, provider, io.Discard, time.Second)
-			resp, err := gateway.Client().Get(gateway.URL + "/internal/assets/" + testAsset)
+			resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets/" + testAsset)
 			if err != nil {
 				t.Fatal(err)
 			}

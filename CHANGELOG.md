@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Breaking: replace the former loopback catalog routes with public GET-only
+  `/catalog/` discovery and credential-free CORS. Policy, lifecycle and metadata
+  privacy checks remain authoritative; nginx retains shared admission protection.
+- Remove unused `server.public_base_url`; clients use one Gateway origin and
+  relative media paths. Update configuration, clients and nginx together.
+- Standardize catalog terminology and update bundled guidance/smoke tooling.
+  The next release requires a major version for these incompatible contracts.
+
 ## 1.0.2 - 2026-09-19
 
 - Clarify operator and application-integrator documentation paths and deployment navigation.
@@ -25,13 +33,13 @@ First stable release for Linux amd64.
 
 - Named provider roots with global and root-scoped exact directory publication
   rules, fail-closed configuration and fresh lifecycle/policy checks.
-- Paginated trusted image/video collections and catalogue with safe metadata
+- Paginated trusted image/video collections and catalog with safe metadata
   and stable gateway URLs for same-host consumers.
 - Image previews and video posters plus exact authorized image/video originals;
   originals preserve embedded source metadata, including EXIF/GPS.
 - Validated video byte ranges and inactivity-bounded original streaming.
 - Hardened unprivileged systemd and loopback/nginx deployment templates that
-  keep the provider and trusted catalogue private, with an aggregate nginx
+  keep the provider and trusted catalog private, with an aggregate nginx
   public-origin abuse envelope for request rate and concurrency.
 - Deterministic bundle packaging, checksums, portable smoke checks and documented
   install, upgrade and rollback procedures.

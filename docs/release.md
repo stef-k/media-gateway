@@ -154,10 +154,20 @@ reload. Do not replace the host's complete nginx configuration.
 Run `systemd-analyze verify` on the installed unit, `systemctl daemon-reload`, then
 start/enable only the gateway unit. Startup is the TOML/key validator; there is no
 validation-only command. Check its journal/listener and run the smoke below before
-publishing. The always-present nullable coordinate metadata is private-consumer-only; nginx
-must continue denying `/internal/`.
+publishing. Source-sensitive catalog metadata is publicly exposed only with
+`privacy.expose_source_metadata=true`. Verify the explicit catalog and media routes.
 
 ## Upgrade and rollback
+
+The public catalog revision (#66) is an incompatible consumer/operator contract
+change: the next release requires a **major** version under the policy above.
+It removes the former `/internal/` routes and unused `server.public_base_url`
+setting. Remove that setting before startup; strict decoding rejects it. Update
+clients to one Gateway origin with `/catalog/`, and install the matching nginx
+template so the catalog shares the media admission limits. Reassess
+`privacy.expose_source_metadata`: true now explicitly publishes the approved
+sensitive catalog fields. Old binary/configuration/nginx sets must be restored
+together on rollback. This issue does not create a release tag or deploy.
 
 Stop on any failed command. These steps assume the reference paths and unit name;
 adapt only names that differ on the host. Work in a controlled maintenance window.
@@ -198,7 +208,7 @@ adapt only names that differ on the host. Work in a controlled maintenance windo
 
 Review the current [configuration schema](configuration.md) before upgrade and
 retain the old TOML/key with the old binary for coherent rollback. The optional
-`privacy.expose_source_metadata` defaults to false: sensitive catalogue fields and
+`privacy.expose_source_metadata` defaults to false: sensitive catalog fields and
 original capability become null, and originals return 404 without provider fetches.
 Enable it deliberately only when source metadata exposure is intended. Original
 smoke options require this opt-in; preview privacy checks do not prove original
@@ -217,7 +227,7 @@ python3 scripts/smoke-deployment.py \
   --eligible-id "$ELIGIBLE_ID" --private-id "$PRIVATE_ID" \
   --near-match-id "$NEAR_MATCH_ID" --outside-root-id "$OUTSIDE_ROOT_ID" \
   --lifecycle-id "$REVOKED_ID" --source-metadata off --video-id "$VIDEO_ID" \
-  --gateway-origin "$LOCAL_GATEWAY_ORIGIN" --root "$LOGICAL_ROOT" \
+  --root "$LOGICAL_ROOT" \
   --collection "$RELATIVE_COLLECTION"
 ```
 
@@ -231,7 +241,7 @@ The default original budget is 1 GiB/300 seconds per transfer; increase
 These are smoke limits, not product size or lifetime ceilings. No originals are saved.
 
 `--source-metadata off|on` declares the expected gateway mode; omission means off.
-It never changes configuration. Off requires all five sensitive catalogue keys to
+It never changes configuration. Off requires all five sensitive catalog keys to
 be present/null and checks eligible image/video original GET/HEAD/Range denial.
 `--video-id` still checks the poster while off. On requires validated timestamps,
 a valid nullable coordinate pair and the exact original capability; neither mode
@@ -249,13 +259,13 @@ originals to prove source identity; absent hashes are reported as SKIP. Hashes a
 response values are never printed. Policy representatives deny on preview and
 original, even with malformed Range (authorization must run first).
 
-`--gateway-origin` is a **separate direct numeric loopback** origin for the private
-catalogue, accompanied by `--root` and `--collection`. It follows collection and
+`--root` and `--collection` enable catalog checks through the same nginx origin
+and Host as media. They follow collection and
 asset cursors with limit 1, validates the safe projection and fetches supplied
 image/video details. `--max-pages` defaults to four per operation (maximum 100).
 Choose a collection with multiple assets; absent continuation is SKIP, and an
 unfinished scan at the explicit budget is REVIEW, not an exhaustion claim.
-nginx-origin checks independently require `/internal/collections` and assets to deny.
+Catalog checks verify wildcard CORS. Legacy `/internal/` paths must deny.
 
 For an explicit long-media check, add `--long-video-rate 262144` (paced bytes/second)
 and an adequate transfer budget/source size. It repeats the video original,
@@ -271,7 +281,7 @@ same UUID before revocation, after provider rescan, and after restoration in the
 isolated qualification run. For global/scoped convention coverage, rerun with
 representatives in each intended rule/root and supply a wrong-root scoped near miss.
 Startup of that instance validates publication policy; smoke does not read config/secrets or
-infer intended publication policy from the private catalogue.
+infer intended publication policy from the public catalog.
 
 On the installed Linux host, add `--host-checks --unit "$GATEWAY_UNIT" --user
 "$GATEWAY_USER" --listen "$GATEWAY_ENDPOINT" --access-log "$NGINX_ACCESS_LOG"
@@ -326,7 +336,7 @@ a substitute bundle on the target host.
    config/key permissions and repeat product smoke after upgrade and rollback.
    Restoration must include the old schema/key union when applicable. Do not run
    the persistent `/usr/local` or `/etc` installation commands unadapted.
-4. Inspect fixed upstream, Range forwarding, `/internal/` isolation and safe logs.
+4. Inspect fixed upstream, Range forwarding, explicit `/catalog/` ingress and safe logs.
    Perform outage/auth-failure and service stop/start only with explicit opt-in in
    the isolated instance, always restoring it. Classify unavailable representatives
    and privacy/manual evidence honestly; keep raw provider data out of shared reports.
