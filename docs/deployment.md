@@ -6,6 +6,27 @@ title: "Deployment"
 
 This document describes the reference deployment shape. The files under `deploy/` are templates, not unattended installers.
 
+## Operator path
+
+For a first local run, start with the [configuration quick start](configuration.md#get-started).
+For persistent installation, follow this sequence from a
+[verified release bundle](release.md#download-and-verify-a-release):
+
+1. Review [filesystem ownership](#filesystem-layout), then create the
+   [service identity and install files](#service-account-and-installation).
+2. Adapt [configuration and the protected credential](#configuration).
+3. Validate and [start systemd](#start-restart-and-stop).
+4. [Install and qualify nginx](#install-and-qualify-ingress), configure
+   [HTTPS / edge routing](#https--edge) and check the [host firewall](#host-firewall).
+5. Complete the [validation checklist](#validation-checklist) and
+   [deployment smoke checks](release.md#portable-smoke-interface).
+6. Use [logging](#logging) for operations and retain the
+   [upgrade and rollback procedure](release.md#upgrade-and-rollback).
+
+The [reviewed provider contracts](#provider-connectivity) below are reference
+material for provider qualification and upgrades; the links above keep the
+installation sequence accessible without moving that material.
+
 ## Filesystem layout
 
 The portable Linux service uses these regular files and directory, without extra ACL

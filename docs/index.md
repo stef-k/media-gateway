@@ -38,23 +38,28 @@ without provider fetches. Qualified previews/posters remain available. Set
 fields and exact originals, whose bytes may contain embedded metadata. Filenames
 and collection names remain visible in both modes.
 
-## Get started / operator guide
+## Operator / administrator
 
-1. [Configure a first instance](configuration.md#get-started): prerequisites,
-   dedicated credential and a minimal single-root configuration.
-2. [Understand media behavior](architecture.md#preview-delivery): previews,
-   originals, video Range/HEAD/206/416, revocation and streaming limits.
-3. [Install and deploy](deployment.md): dedicated service identity, protected
-   files, loopback listener and nginx isolation.
-4. [Validate and operate](release.md): checksummed bundle, smoke checks,
-   install/upgrade/rollback and isolated deployment validation.
+Install and administer the gateway on the host that can reach private Immich:
 
-## Consumer guide
+1. [Download and verify a release](release.md#download-and-verify-a-release).
+2. [Configure and run a first instance](configuration.md#get-started): provision
+   the credential, set publication rules and test in the foreground.
+3. [Install systemd and nginx](deployment.md#operator-path): follow the practical
+   host setup sequence to expose only public media routes.
+4. [Validate delivery](deployment.md#validation-checklist), then follow
+   [operations, upgrades and rollback](release.md#upgrade-and-rollback).
 
-[Integrate a trusted same-host application](consumer-api.md): browse collections,
-page through images/videos, resolve detail and use stable gateway URLs. The guide
-covers nullable metadata, cursor restart behavior and publication reauthorization.
-Never expose `/internal/` through a public proxy.
+## Application integrator / trusted consumer
+
+A **consumer** is an application on the gateway host that discovers eligible media
+and uses it in its own interface. It is not a gallery UI supplied by the gateway.
+
+[Follow the integration walkthrough](consumer-api.md#integration-walkthrough) to
+browse collections, page through assets and turn returned media paths into loopback
+and public URLs. The [consumer contract](consumer-api.md#routes-and-selectors)
+covers nullable metadata, pagination and reauthorization. Never expose
+`/internal/` through a public proxy.
 
 ## Deployment and operations
 

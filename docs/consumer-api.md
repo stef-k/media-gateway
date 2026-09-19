@@ -33,10 +33,60 @@ empty page can still have continuation. Restart browsing after gateway restart
 invalidates a cursor; merge collections by `(root, collection_path)` and avoid
 assuming a provider snapshot. Never print real catalogue responses into public logs.
 
-Use the returned non-null preview/original paths with your configured public gateway origin
-for public media, or loopback for trusted local use. Do not infer authorization
-from a stored URL. Handle 404 revocation and sanitized 502 failures at delivery.
-Your application owns selection persistence, captions and presentation.
+### From a selected asset to a public URL
+
+Select an asset from the `/internal/assets` response above. For example, these
+fields from a synthetic asset show the default privacy mode (other fields omitted):
+
+```json
+{
+  "id": "12345678-1234-4234-8234-123456789abc",
+  "preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
+  "original_path": null
+}
+```
+
+Copy the returned `preview_path` and test it on loopback while the gateway runs:
+
+```sh
+# Synthetic path: replace with the selected asset's returned preview_path.
+preview_path='/media/12345678-1234-4234-8234-123456789abc/preview'
+curl --fail --output /dev/null "http://127.0.0.1:2290$preview_path"
+```
+
+After the operator has [installed nginx and configured public HTTPS](deployment.md#operator-path),
+prepend the configured public gateway origin to the same path:
+
+```sh
+# Synthetic origin: replace with your configured public origin, without a trailing slash.
+public_base_url='https://media.example.com'
+# Requests https://media.example.com/media/12345678-1234-4234-8234-123456789abc/preview
+curl --fail --output /dev/null "$public_base_url$preview_path"
+```
+
+The consumer constructs this URL; catalogue responses contain paths, not full
+URLs. Setting an origin does not install nginx, configure DNS or enable HTTPS.
+
+When `privacy.expose_source_metadata` is omitted or false, `original_path` is
+null and public original GET/HEAD remains 404. Do not construct an original URL
+from the ID to bypass that setting. When explicitly true, use the returned
+non-null `original_path` in exactly the same way:
+
+```sh
+# Only with source metadata enabled; copy the selected asset's returned original_path.
+original_path='/media/12345678-1234-4234-8234-123456789abc/original'
+curl --fail --output /dev/null "$public_base_url$original_path"
+```
+
+Originals preserve exact source bytes, including embedded EXIF/GPS or container
+metadata. See [source-metadata privacy](#source-metadata-privacy) and
+[delivery semantics](architecture.md#preview-delivery) for the detailed contracts.
+
+A returned path is not proof that its representation is available. Each enabled
+delivery rechecks current lifecycle and publication policy; storing a URL never
+grants authority. Handle 404 revocation/missing representations and sanitized 502
+failures at delivery. Your application owns selection persistence, captions and
+presentation.
 
 ## Routes and selectors
 
