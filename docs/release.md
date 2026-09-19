@@ -53,8 +53,11 @@ coherent protected configuration/template backup until upgrade acceptance.
 
 The immutable Git tag is the sole version authority: `vMAJOR.MINOR.PATCH`, with
 no leading zeroes, prerelease suffix or build suffix. Choose major versions for
-incompatible operator/consumer contracts, minor versions for compatible additions,
-and patch versions for compatible fixes. Never move/reuse a published tag or replace
+incompatible established/supported operator/consumer contracts, minor versions for
+compatible additions, and patch versions for compatible fixes. A deliberately
+documented pre-adoption correction may use a minor version only when no accepted
+downstream consumer depends on the old contract; this is not general permission
+for incompatible minor releases. Never move/reuse a published tag or replace
 its assets. Keep `Unreleased` above dated `## X.Y.Z - YYYY-MM-DD` sections in
 `CHANGELOG.md`; each release needs one nonempty matching section before tagging.
 Entries describe visible changes and compatibility, not commit history.
@@ -159,8 +162,11 @@ publishing. Source-sensitive catalog metadata is publicly exposed only with
 
 ## Upgrade and rollback
 
-The public catalog revision (#66) is an incompatible consumer/operator contract
-change: the next release requires a **major** version under the policy above.
+The public catalog revision (#66) is released as **v1.1.0**, a documented
+pre-adoption v1 contract correction under the policy above. No accepted downstream
+consumer depends on the former contract; the first WordPress consumer has not
+shipped and is blocked pending this correction. The Go module path remains
+`github.com/stef-k/media-gateway`.
 It removes the former `/internal/` routes and unused `server.public_base_url`
 setting. Remove that setting before startup; strict decoding rejects it. Update
 clients to one Gateway origin with `/catalog/`, and install the matching nginx
