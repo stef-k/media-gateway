@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-09-19
+
+- Clarify operator and application-integrator documentation paths and deployment navigation.
+- Show how discovered preview and privacy-enabled original paths become public URLs.
+- Make release-download examples version-neutral and preserve the offline documentation journey.
+- Add a concise repository description and factual discovery topics.
+
 ## 1.0.1 - 2026-09-19
 
 - Add optional `privacy.expose_source_metadata`, default off, guarding source metadata.
