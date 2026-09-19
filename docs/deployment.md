@@ -159,7 +159,7 @@ on timeout the process closes connections and exits with failure. This fits insi
 `TimeoutStopSec=30s`. Configuration changes require a process restart.
 
 Only image/video `GET`/`HEAD /media/<asset-id>/preview` and `/media/<asset-id>/original` can deliver media. `/health`, search,
-public metadata/control routes and unsupported methods remain fixed denials.
+raw provider metadata/control routes and unsupported methods remain fixed denials.
 The [public catalog API](catalog-api.md) exposes `/catalog/collections`, `/catalog/assets`
 and asset detail routes through nginx with credential-free CORS. There is
 no startup provider probe: `listening` means the loopback listener was acquired,
@@ -327,7 +327,7 @@ location after the existing return-only route/method checks:
 limit_req_zone $server_name zone=media_gateway_rate:1m rate=20r/s;
 limit_conn_zone $server_name zone=media_gateway_conn:1m;
 
-# Canonical media location: reject excess admission before gateway work.
+# Both canonical catalog/media locations: reject excess admission before gateway work.
 limit_req_status 429;
 limit_conn_status 429;
 limit_req zone=media_gateway_rate burst=40 nodelay;

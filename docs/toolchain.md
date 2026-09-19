@@ -99,6 +99,7 @@ go test ./...
 go test -race ./...
 go build ./cmd/media-gateway
 python3 scripts/test_smoke.py
+python3 scripts/test_nginx.py # Requires local nginx; CI installs it explicitly.
 bash -n scripts/build-bundle.sh
 ```
 

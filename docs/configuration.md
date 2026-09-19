@@ -106,7 +106,7 @@ validated, even if unexpectedly returned. Width, height and duration still valid
 Image/video original GET/HEAD returns fixed 404 before provider access or Range
 parsing. Qualified previews/posters remain available.
 
-Set true only to deliberately expose validated capture/local timestamps and
+Set true only to deliberately publish validated capture/local timestamps and
 coordinates and enable exact originals. Original bytes may contain additional
 embedded EXIF/GPS, camera/device or container metadata; they are never sanitized.
 The [consumer matrix](catalog-api.md#source-metadata-privacy) defines the fields.

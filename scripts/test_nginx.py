@@ -24,6 +24,8 @@ class Upstream(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "image/jpeg")
         self.send_header("Content-Length", "7")
+        if self.path.startswith("/catalog/"):
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if self.command != "HEAD":
@@ -115,6 +117,7 @@ class Ingress(unittest.TestCase):
                 connection.request("GET", route, headers={"Host": "media.example.com"})
                 response = connection.getresponse()
                 self.assertEqual(response.status, 429)
+                self.assertEqual(response.getheader("Access-Control-Allow-Origin"), "*")
                 response.read()
                 self.assertEqual(len(upstream.requests), before + 32)
             finally:
@@ -204,6 +207,7 @@ class Ingress(unittest.TestCase):
             response.read()
             connection.close()
             self.assertEqual(response.status, 200 if allowed else 404, route)
+            self.assertEqual(response.getheader("Access-Control-Allow-Origin"), "*")
             self.assertEqual(len(upstream.requests), before + int(allowed), route)
             if allowed:
                 self.assertEqual(upstream.requests[-1][0], route)
