@@ -19,7 +19,7 @@ class ReleaseContractTests(unittest.TestCase):
     """Test public naming/notes and fail-closed version selection."""
 
     def test_semantic_tags(self):
-        for tag in ("v0.0.0", "v1.0.0", "v12.34.56"):
+        for tag in ("v0.0.0", "v1.0.0", "v1.1.0", "v12.34.56"):
             self.assertEqual(release.validate_tag(tag), tag)
         for tag in ("1.0.0", "v1.0", "v01.0.0", "v1.00.0", "v1.0.00", "v1.0.0-rc.1", "v1.0.0+build", "v1.0.0\n", "../v1.0.0"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
@@ -64,10 +64,10 @@ class BundleTests(unittest.TestCase):
             self.assertIn(f"revision={revision} modified=false go=go1.27.1", version)
             self.assertTrue((extracted / "CHANGELOG.md").is_file())
             # No tag is written to the caller's checkout or any remote.
-            subprocess.run(["git", "-c", "user.name=Release test", "-c", "user.email=release@example.invalid", "tag", "-a", "v1.0.0", "-m", "Synthetic release test"], cwd=source, check=True)
-            release.validate_source(source, "v1.0.0", "HEAD")
+            subprocess.run(["git", "-c", "user.name=Release test", "-c", "user.email=release@example.invalid", "tag", "-a", "v1.1.0", "-m", "Synthetic release test"], cwd=source, check=True)
+            release.validate_source(source, "v1.1.0", "HEAD")
             with self.assertRaises(subprocess.CalledProcessError):
-                release.validate_source(source, "v1.0.0", "HEAD^")
+                release.validate_source(source, "v1.1.0", "HEAD^")
             for tag in ("", "invalid", "v1.0.1"):
                 result = subprocess.run([str(builder), str(work / "invalid"), "--release", tag], capture_output=True)
                 self.assertNotEqual(result.returncode, 0)
@@ -76,24 +76,24 @@ class BundleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 release.validate_source(source, "v0.0.0")
             output = work / "release"
-            subprocess.run([str(builder), str(output), "--release", "v1.0.0"], check=True)
-            archive = output / "media-gateway-v1.0.0-linux-amd64.tar.gz"
-            release.verify_bundle(source, archive, "v1.0.0")
+            subprocess.run([str(builder), str(output), "--release", "v1.1.0"], check=True)
+            archive = output / "media-gateway-v1.1.0-linux-amd64.tar.gz"
+            release.verify_bundle(source, archive, "v1.1.0")
             with tarfile.open(archive) as bundle:
-                release_files = {str(pathlib.PurePosixPath(m.name).relative_to(release.archive_stem("v1.0.0"))) for m in bundle.getmembers() if m.isfile()}
+                release_files = {str(pathlib.PurePosixPath(m.name).relative_to(release.archive_stem("v1.1.0"))) for m in bundle.getmembers() if m.isfile()}
             self.assertEqual(release_files, {p.relative_to(extracted).as_posix() for p in extracted.rglob("*") if p.is_file()})
             with self.assertRaisesRegex(ValueError, "filename"):
-                release.verify_bundle(source, normal / "wrong-name.tar.gz", "v1.0.0")
+                release.verify_bundle(source, normal / "wrong-name.tar.gz", "v1.1.0")
             # The qualification archive has valid contents but the wrong release layout.
             wrong_layout = work / archive.name
             wrong_layout.hardlink_to(normal / f"media-gateway-linux-amd64-{revision}.tar.gz")
             with self.assertRaisesRegex(ValueError, "layout"):
-                release.verify_bundle(source, wrong_layout, "v1.0.0")
+                release.verify_bundle(source, wrong_layout, "v1.1.0")
             release.write_checksum(archive)
             subprocess.run(["sha256sum", "--check", "--strict", archive.name + ".sha256"], cwd=output, check=True)
             with self.assertRaises(FileExistsError):
                 release.write_checksum(archive)
-            result = subprocess.run([str(builder), str(output), "--release", "v1.0.0"], capture_output=True)
+            result = subprocess.run([str(builder), str(output), "--release", "v1.1.0"], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
 
 

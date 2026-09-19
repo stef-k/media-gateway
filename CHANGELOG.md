@@ -2,13 +2,17 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-09-19
+
 - Breaking: replace the former loopback catalog routes with public GET-only
   `/catalog/` discovery and credential-free CORS. Policy, lifecycle and metadata
   privacy checks remain authoritative; nginx retains shared admission protection.
 - Remove unused `server.public_base_url`; clients use one Gateway origin and
   relative media paths. Update configuration, clients and nginx together.
 - Standardize catalog terminology and update bundled guidance/smoke tooling.
-  The next release requires a major version for these incompatible contracts.
+- Release #66 as a documented pre-adoption v1 contract correction: no accepted
+  downstream consumer depends on the former contract; the first WordPress
+  consumer is blocked pending this correction. The Go module path is unchanged.
 
 ## 1.0.2 - 2026-09-19
 
