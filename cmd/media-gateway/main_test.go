@@ -121,7 +121,7 @@ func TestSignals(t *testing.T) {
 			if !ready {
 				t.Fatal("listener did not start")
 			}
-			for _, path := range []string{"/", "/health", "/media/known-private/preview", "/internal/search", "/../private-marker", "/%2e%2e/private-marker", "//private-marker?url=http://private-marker"} {
+			for _, path := range []string{"/", "/health", "/media/known-private/preview", "/catalog/search", "/../private-marker", "/%2e%2e/private-marker", "//private-marker?url=http://private-marker"} {
 				req, err := http.NewRequest(http.MethodGet, "http://"+address+path, nil)
 				if err != nil {
 					t.Fatal(err)

@@ -26,8 +26,7 @@ type Privacy struct {
 
 // Server restricts the future service to a numeric loopback listener.
 type Server struct {
-	Listen        string `toml:"listen"`
-	PublicBaseURL string `toml:"public_base_url"`
+	Listen string `toml:"listen"`
 }
 
 // Provider specifies the single trusted Immich authority and separate secret.

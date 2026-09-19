@@ -29,7 +29,7 @@ If implementation and documentation disagree on a security boundary, public/cons
 
 Media Gateway is a deliberately small convention-driven publication boundary between a private media provider and public HTTP delivery.
 
-Immich is the initial provider. Operators identify publishable media through configured provider-root and exact directory-component conventions. Trusted same-host consumers browse/select only currently eligible media. Consumer selection never grants publication authority.
+Immich is the initial provider. Operators identify publishable media through configured provider-root and exact directory-component conventions. Public consumers browse/select only currently eligible media. Consumer selection never grants publication authority.
 
 Do not turn the project into:
 
@@ -122,16 +122,16 @@ Root paths are canonical provider-reported POSIX metadata paths, never local mou
 A matching segment may occur at any descendant depth but must be exact component equality (`post` never matches `post process`).
 
 The canonical `publication.Evaluate` returns eligibility plus logical root name and
-root-relative parent collection path; denial returns zero context. The trusted catalogue projects this context only after eligibility succeeds. Root names are unique
+root-relative parent collection path; denial returns zero context. The public catalog projects this context only after eligibility succeeds. Root names are unique
 1..64 lowercase ASCII letters/digits/hyphens with alphanumeric ends. `/` and
 overlapping root paths are invalid. Explicit empty scopes and duplicate
 segment/unordered-scope pairs fail startup; distinct scopes combine with OR semantics.
 
 ## Public and private surfaces
 
-The same process may host public delivery and localhost-only consumer routes, but nginx publishes only the explicit public media surface.
+The process hosts public catalog and media delivery routes on numeric loopback; nginx publishes only those explicit routes.
 
-Never expose `/internal/`, provider search/API/UI, configuration, diagnostics containing provider data or control operations through the public vhost.
+Never expose provider search/API/UI, configuration, diagnostics containing provider data or control operations through the public vhost.
 
 No public health/readiness surface is required merely for convention.
 
@@ -148,20 +148,21 @@ GET/HEAD /media/<id>/original
 
 `original` means provider original bytes after current authorization. It must never silently mean preview, transcoded playback or another derivative. Original delivery does not imply metadata stripping; source EXIF/GPS/etc. are part of authorized original bytes.
 
-The settled media surface is catalogue + preview/poster + privacy-permitted exact
+The settled media surface is catalog + preview/poster + privacy-permitted exact
 original. Consumers own browsing, selection, presentation and consumer-specific
 derivative/caching strategy.
 
-## Trusted consumer catalogue
+## Public catalog
 
-#39 implements the generic loopback catalogue:
+#66 exposes the policy-filtered public catalog, replacing the historical #39 loopback contract:
 
 ```text
-GET /internal/collections?limit=<n>&cursor=<opaque>
-GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
-GET /internal/assets/<id>
+GET /catalog/collections?limit=<n>&cursor=<opaque>
+GET /catalog/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /catalog/assets/<id>
 ```
 
+Catalog responses grant credential-free `Access-Control-Allow-Origin: *`; GET is the only method.
 Large collections must be paginated. Keep a small default page and hard maximum; internal provider scanning/filling must itself be bounded.
 
 Safe projection may include logical root name, root-relative collection path, filename, image/video type, dimensions/duration, times, validated nullable coordinates and stable preview/original gateway paths.
@@ -187,14 +188,14 @@ Use bounded connect/header/metadata operations and explicit response validation.
 ## Source-metadata privacy
 
 The optional `[privacy] expose_source_metadata = false` setting defaults to false.
-It controls capture/local timestamps, coordinates, trusted original capability and
+It controls capture/local timestamps, coordinates, public original capability and
 exact image/video originals, not publication eligibility. Discovery always uses
 `withExif=false`; list/detail follows the immutable startup setting. While off,
 hidden sensitive values are ignored without validation and project as present/null;
 dimensions/duration still validate. Originals return fixed 404 before provider I/O
 or Range parsing. Qualified previews/posters and filename/collection identity remain.
 
-True retains validated timestamps/nullable coordinate pairs and enables the existing
+True deliberately publishes validated timestamps/nullable coordinate pairs and enables the existing
 exact-original contract, including arbitrary embedded source metadata. Never infer
 original safety from absent coordinates or add transformations. No caller-controlled
 metadata selectors, globals or privacy state in cursors; restart invalidates signing keys.
@@ -203,7 +204,7 @@ metadata selectors, globals or privacy state in cursors; restart invalidates sig
 
 #40 implements image GET/HEAD originals using provider GET `/api/assets/<UUIDv4>/original`, no query, and `asset.download`. The dedicated key union is `asset.read` + `asset.view` + `asset.download`; no administrator/write permission. Accept only direct 200, one parameter-free `image/*` content type and one explicit positive int64 length, no encoding/range headers, no size ceiling or fallback. HEAD closes the provider GET body after header validation. #41 extends this same seam to video, accepting parameter-free `video/*` or `application/mxf`. Fixed video posters use only thumbnail `size=preview`. Never substitute playback/transcoded bytes. M6 #41 qualification and cleanup passed before PR #47 merged; #42 final bundle qualification is complete.
 
-Do not smuggle either into unrelated policy/catalogue changes.
+Do not smuggle either into unrelated policy/catalog changes.
 
 Only after video-original authorization, parse at most one Range value of at most 128 bytes: `bytes=first-last`, `bytes=first-`, or `bytes=-positive-suffix`, unsigned signed-int64 decimals, no whitespace/signs/commas. Malformed input is fixed 400 with no original open; denied assets remain 404 first. Canonical Range is the only caller-derived provider header. Validate exact 206 interval mathematics and positive length/total; valid unsatisfiable 416 has `bytes */total` and a public zero body. Immich 3.2.0 range 404 triggers exactly one fixed no-Range original GET, without query/caller headers. Validate normal video 200 framing and resolve the range against its positive length. Unsatisfiable math closes the body and yields public 416. A suffix length greater than or equal to the total reuses that validated original body as full-representation 206 with `Content-Range: bytes 0-(total-1)/total`; HEAD closes it without reading. Other satisfiable ranges close the body and yield 502. No third request is made. Probe 404 remains public 404; all other probe failures yield sanitized 502. Normal 206 does not probe; no loops or playback. Provider 200 for a range is 502, never fallback. HEAD performs the same provider GET and closes it. Image originals ignore Range and retain full 200 without Accept-Ranges. Previews ignore Range; all conditionals remain unsupported and stripped.
 

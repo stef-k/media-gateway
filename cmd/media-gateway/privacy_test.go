@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// TestPrivacyOffCatalogue proves hidden malformed values are ignored, with stable keys.
-func TestPrivacyOffCatalogue(t *testing.T) {
+// TestPrivacyOffCatalog proves hidden malformed values are ignored, with stable keys.
+func TestPrivacyOffCatalog(t *testing.T) {
 	for _, malformed := range []bool{false, true} {
 		t.Run(fmt.Sprint(malformed), func(t *testing.T) {
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +35,7 @@ func TestPrivacyOffCatalogue(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, false)
-			for _, route := range []string{"/internal/collections", "/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/catalog/collections", "/catalog/assets?root=images&collection=website", "/catalog/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
 					t.Fatal(err)
@@ -48,7 +48,7 @@ func TestPrivacyOffCatalogue(t *testing.T) {
 				if strings.Contains(string(body)+logs.String(), "sensitive-marker") || logs.Len() != 0 {
 					t.Fatal("source metadata leaked")
 				}
-				if route == "/internal/collections" {
+				if route == "/catalog/collections" {
 					continue
 				}
 				var asset map[string]any

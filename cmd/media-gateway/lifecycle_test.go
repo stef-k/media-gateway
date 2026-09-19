@@ -132,7 +132,7 @@ func TestConsumerLifecycle(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayFor(t, provider, &logs, time.Second)
-			for _, route := range []string{"/internal/assets?root=images&collection=website", "/internal/assets/" + testAsset} {
+			for _, route := range []string{"/catalog/assets?root=images&collection=website", "/catalog/assets/" + testAsset} {
 				resp, err := gateway.Client().Get(gateway.URL + route)
 				if err != nil {
 					t.Fatal(err)

@@ -15,7 +15,7 @@ title: Media Gateway
 description: Fail-closed publication gateway for private media providers.
 
 # Canonical GitHub Pages host and project path. These values are documentation-site
-# settings only; they are unrelated to a deployed Media Gateway public_base_url.
+# settings only; they do not configure the deployed Gateway origin.
 url: https://stef-k.github.io
 baseurl: /media-gateway
 

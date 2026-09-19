@@ -14,9 +14,7 @@ convention revokes future delivery once Immich reports the change.
 [View on GitHub / project README](https://github.com/stef-k/media-gateway#readme)
 
 ```text
-private archive -> Immich -> Media Gateway (loopback) -> nginx -> public media
-                                  |
-                         trusted same-host catalogue
+private archive -> Immich -> Media Gateway (loopback) -> nginx -> public catalog + media
 ```
 
 The gateway supplies fixed preview/poster and original URLs for images and videos,
@@ -34,7 +32,7 @@ for operator and consumer changes.
 Source-metadata exposure is **off by default**. Capture/local timestamps,
 coordinates and original paths remain present as null; originals return fixed 404
 without provider fetches. Qualified previews/posters remain available. Set
-`privacy.expose_source_metadata=true` deliberately to enable sensitive catalogue
+`privacy.expose_source_metadata=true` deliberately to enable sensitive public catalog
 fields and exact originals, whose bytes may contain embedded metadata. Filenames
 and collection names remain visible in both modes.
 
@@ -46,20 +44,19 @@ Install and administer the gateway on the host that can reach private Immich:
 2. [Configure and run a first instance](configuration.md#get-started): provision
    the credential, set publication rules and test in the foreground.
 3. [Install systemd and nginx](deployment.md#operator-path): follow the practical
-   host setup sequence to expose only public media routes.
+   host setup sequence to expose only public catalog and media routes.
 4. [Validate delivery](deployment.md#validation-checklist), then follow
    [operations, upgrades and rollback](release.md#upgrade-and-rollback).
 
-## Application integrator / trusted consumer
+## Application integrator
 
-A **consumer** is an application on the gateway host that discovers eligible media
+A **consumer** is an application or browser that discovers eligible media
 and uses it in its own interface. It is not a gallery UI supplied by the gateway.
 
-[Follow the integration walkthrough](consumer-api.md#integration-walkthrough) to
-browse collections, page through assets and turn returned media paths into loopback
-and public URLs. The [consumer contract](consumer-api.md#routes-and-selectors)
-covers nullable metadata, pagination and reauthorization. Never expose
-`/internal/` through a public proxy.
+[Follow the integration walkthrough](catalog-api.md#integration-walkthrough) to
+browse collections, page through assets and combine returned media paths with one
+public Gateway origin. The [catalog contract](catalog-api.md#routes-and-selectors)
+covers nullable metadata, pagination, credential-free CORS and reauthorization.
 
 ## Deployment and operations
 

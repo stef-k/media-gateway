@@ -1,19 +1,23 @@
 ---
-title: "Trusted consumer API"
+title: "Public catalog API"
 ---
 
-# Trusted consumer API
+# Public catalog API
 
-The trusted catalogue serves trusted same-host applications through the numeric loopback listener. The TCP peer must be loopback; forwarded identity headers are ignored and no CORS grant is provided. **nginx must never publish `/internal/`**. A localhost proxy appears local, so the peer check does not replace ingress isolation.
+The public catalog exposes only currently policy-eligible media through the same
+Gateway origin as media delivery. nginx proxies its explicit GET routes to the
+numeric loopback process. Every catalog response grants
+`Access-Control-Allow-Origin: *`: browsers use ordinary GET without cookies,
+Authorization or other custom request headers. Credentialed CORS and OPTIONS are
+unsupported. Current lifecycle and publication policy authorize every result.
 
 ## Integration walkthrough
 
-Call the numeric loopback gateway directly from the trusted application, never
-through the public vhost. The following uses synthetic IDs and logical selectors:
+Call the public Gateway origin from the application or browser. The following uses synthetic IDs and logical selectors:
 
 ```sh
 # Browse a small page; URL-encode each subsequent opaque cursor unchanged.
-curl --fail --get 'http://127.0.0.1:2290/internal/collections' \
+curl --fail --get 'https://media.example.com/catalog/collections' \
   --data-urlencode 'limit=25'
 ```
 
@@ -21,21 +25,21 @@ Select one returned collection; descendants are separate collections. Use the qu
 key `collection` (the JSON response calls the field `collection_path`):
 
 ```sh
-curl --fail --get 'http://127.0.0.1:2290/internal/assets' \
+curl --fail --get 'https://media.example.com/catalog/assets' \
   --data-urlencode 'root=photos' --data-urlencode 'collection=2026/example-trip/public' \
   --data-urlencode 'limit=25'
-curl --fail 'http://127.0.0.1:2290/internal/assets/12345678-1234-4234-8234-123456789abc'
+curl --fail 'https://media.example.com/catalog/assets/12345678-1234-4234-8234-123456789abc'
 ```
 
 Consume each page, then repeat the same operation/selectors with
 `--data-urlencode "cursor=$NEXT_CURSOR"` until `next_cursor` is null. A short or
 empty page can still have continuation. Restart browsing after gateway restart
 invalidates a cursor; merge collections by `(root, collection_path)` and avoid
-assuming a provider snapshot. Never print real catalogue responses into public logs.
+assuming a provider snapshot. Never print real catalog responses into public logs.
 
 ### From a selected asset to a public URL
 
-Select an asset from the `/internal/assets` response above. For example, these
+Select an asset from the `/catalog/assets` response above. For example, these
 fields from a synthetic asset show the default privacy mode (other fields omitted):
 
 ```json
@@ -46,12 +50,12 @@ fields from a synthetic asset show the default privacy mode (other fields omitte
 }
 ```
 
-Copy the returned `preview_path` and test it on loopback while the gateway runs:
+Copy the returned `preview_path` and use the same public origin:
 
 ```sh
 # Synthetic path: replace with the selected asset's returned preview_path.
 preview_path='/media/12345678-1234-4234-8234-123456789abc/preview'
-curl --fail --output /dev/null "http://127.0.0.1:2290$preview_path"
+curl --fail --output /dev/null "https://media.example.com$preview_path"
 ```
 
 After the operator has [installed nginx and configured public HTTPS](deployment.md#operator-path),
@@ -59,12 +63,12 @@ prepend the configured public gateway origin to the same path:
 
 ```sh
 # Synthetic origin: replace with your configured public origin, without a trailing slash.
-public_base_url='https://media.example.com'
+gateway_origin='https://media.example.com'
 # Requests https://media.example.com/media/12345678-1234-4234-8234-123456789abc/preview
-curl --fail --output /dev/null "$public_base_url$preview_path"
+curl --fail --output /dev/null "$gateway_origin$preview_path"
 ```
 
-The consumer constructs this URL; catalogue responses contain paths, not full
+The consumer constructs this URL; catalog responses contain paths, not full
 URLs. Setting an origin does not install nginx, configure DNS or enable HTTPS.
 
 When `privacy.expose_source_metadata` is omitted or false, `original_path` is
@@ -75,7 +79,7 @@ non-null `original_path` in exactly the same way:
 ```sh
 # Only with source metadata enabled; copy the selected asset's returned original_path.
 original_path='/media/12345678-1234-4234-8234-123456789abc/original'
-curl --fail --output /dev/null "$public_base_url$original_path"
+curl --fail --output /dev/null "$gateway_origin$original_path"
 ```
 
 Originals preserve exact source bytes, including embedded EXIF/GPS or container
@@ -93,9 +97,9 @@ presentation.
 Only GET is accepted:
 
 ```text
-GET /internal/collections?limit=<n>&cursor=<opaque>
-GET /internal/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
-GET /internal/assets/<UUIDv4>
+GET /catalog/collections?limit=<n>&cursor=<opaque>
+GET /catalog/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /catalog/assets/<UUIDv4>
 ```
 
 Detail accepts no query, including an empty `?`. Routes are exact, with no path cleaning or redirects. Unknown/duplicate query keys, explicit empty values, invalid encoding and malformed selectors receive the fixed 404 denial before provider access.
@@ -114,7 +118,7 @@ Every active candidate passes `publication.Evaluate`. Asset browsing additionall
 | Encoded gateway cursor | 2 KiB |
 | Decoded collection selector | 2 KiB UTF-8 |
 | Provider calls per request | 8 |
-| Overall catalogue work | 30 seconds |
+| Overall catalog work | 30 seconds |
 | Encoded consumer JSON | 512 KiB |
 
 `limit` accepts decimal digits only, with value 1–100. Each provider page requests at most the remaining consumer output slots. All received candidates are consumed, so filling cannot skip an unconsumed tail. Sparse pages may exhaust the successful-work budget with fewer than `limit` results, including zero, and a continuation. Provider/auth/transport/malformed-metadata failures still fail the whole request; accumulated results are never returned as partial success. Disconnect cancels outstanding work.
@@ -218,7 +222,7 @@ with sanitized provider errors. Unrelated EXIF is discarded and never logged.
 
 This is source-metadata privacy, not complete anonymity: filenames and collection
 names can contain descriptive information. Enabling it deliberately exposes
-approved sensitive fields and exact source originals, whose bytes may contain
+approved sensitive fields publicly and enables exact source originals, whose bytes may contain
 arbitrary additional embedded metadata. No EXIF stripping, re-encoding or remuxing
 occurs. Absence of provider coordinates does not establish original-byte safety.
 
@@ -235,4 +239,4 @@ Provider absolute/NAS paths, URLs, credentials, owner/library IDs, checksums, pe
 
 All responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. JSON is buffered before success headers. Invalid/private/missing/unsupported/trashed/offline detail uses fixed 404 `not found`; provider/auth/transport/malformed-response/timeout failures use fixed 502 `media unavailable`. No provider bodies, paths, cursors, coordinates or raw query values enter routine logs.
 
-Consumers own picker/tree UI, selected-reference persistence, gallery ordering/captions, derivatives and any downstream publication of coordinates. Media Gateway owns current eligibility and safe metadata; it has no catalogue database, media manager or web UI.
+Consumers own picker/tree UI, selected-reference persistence, gallery ordering/captions, derivatives and presentation of publicly available coordinates. Media Gateway owns current eligibility and safe metadata; it has no catalog database, media manager or web UI.

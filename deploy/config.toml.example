@@ -18,12 +18,6 @@
 # IP and explicit port 1..65535 are required; hostnames are rejected.
 listen = "127.0.0.1:2290"
 
-# Public origin used when the application needs to construct absolute media URLs.
-# This is deployment-specific: e.g. https://media.example.com or
-# another operator-controlled origin. Optional: omit when absolute URLs are not needed.
-# When supplied it must be an HTTP(S) origin without userinfo, query or fragment.
-public_base_url = "https://media.example.com"
-
 [provider]
 # Provider adapter to use. Currently only Immich is supported; this explicit value
 # does not imply that provider behavior is generic or auto-detected.
@@ -102,9 +96,9 @@ media = ["video"]
 [privacy]
 # Privacy-preserving default.
 # When false, capture/local timestamps and coordinates are null in the
-# trusted catalogue and exact originals are unavailable.
+# public catalog and exact originals are unavailable.
 # Qualified previews/posters remain available.
-# Enabling deliberately exposes approved source-sensitive catalogue fields and
+# Enabling deliberately makes approved source-sensitive catalog fields public and
 # exact original bytes, which may contain further embedded EXIF/container metadata.
 # This is not an anonymity mode: filenames and collection names remain visible.
 expose_source_metadata = false

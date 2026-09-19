@@ -13,11 +13,11 @@ import (
 	"time"
 )
 
-const browseRoute = "/internal/assets?root=images&collection=website"
+const browseRoute = "/catalog/assets?root=images&collection=website"
 
-// TestCatalogueFill consumes every candidate, requests only remaining slots and
+// TestCatalogFill consumes every candidate, requests only remaining slots and
 // fails the whole request if a later page fails after an eligible result.
-func TestCatalogueFill(t *testing.T) {
+func TestCatalogFill(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(fmt.Sprint(fail), func(t *testing.T) {
 			var calls atomic.Int32
@@ -74,8 +74,8 @@ func TestCatalogueFill(t *testing.T) {
 	}
 }
 
-// TestCatalogueBudget proves finite sparse work, empty continuation and page resumption.
-func TestCatalogueBudget(t *testing.T) {
+// TestCatalogBudget proves finite sparse work, empty continuation and page resumption.
+func TestCatalogBudget(t *testing.T) {
 	var calls atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
@@ -158,7 +158,7 @@ func TestCollectionPagination(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, err := gateway.Client().Get(gateway.URL + "/internal/collections?limit=2")
+	resp, err := gateway.Client().Get(gateway.URL + "/catalog/collections?limit=2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestCollectionPagination(t *testing.T) {
 	if err != nil || resp.StatusCode != 200 || len(first.Collections) != 2 || first.NextCursor == nil {
 		t.Fatalf("first: %+v %v", first, err)
 	}
-	resp, err = gateway.Client().Get(gateway.URL + "/internal/collections?limit=2&cursor=" + url.QueryEscape(*first.NextCursor))
+	resp, err = gateway.Client().Get(gateway.URL + "/catalog/collections?limit=2&cursor=" + url.QueryEscape(*first.NextCursor))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,9 +180,9 @@ func TestCollectionPagination(t *testing.T) {
 	}
 }
 
-// TestCatalogueMembershipAndProjection rejects path-filter overmatches and derives
+// TestCatalogMembershipAndProjection rejects path-filter overmatches and derives
 // filename/context only from authorized paths, with accurate current capabilities.
-func TestCatalogueMembershipAndProjection(t *testing.T) {
+func TestCatalogMembershipAndProjection(t *testing.T) {
 	paths := []string{"/external/photos/website/a.jpg", "/external/photos/website/b.mp4", "/external/photos/website/child/c.jpg", "/external/photos/website-old/x.jpg", "/external/photos/Website/x.jpg", "/external/photos/wébsite/x.jpg", "/external/photos-old/website/x.jpg", "/outside/website/x.jpg", "/external/photos/private/x.jpg"}
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		items := []map[string]any{}

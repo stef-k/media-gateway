@@ -63,10 +63,10 @@ class Origin(http.server.BaseHTTPRequestHandler):
 
 
 class ProductOrigin(Origin):
-    """Serve bounded catalogue pages and source/range responses to the real CLI."""
+    """Serve bounded catalog pages and source/range responses to the real CLI."""
 
     def asset(self, identifier):
-        """Use only the shipped catalogue schema and synthetic source metadata."""
+        """Use only the shipped catalog schema and synthetic source metadata."""
         item = {"id": identifier, "media_type": "video" if identifier == VIDEO else "image",
                 "root": "images", "collection_path": "trip/public", "filename": "example",
                 "width": None, "height": None, "duration_ms": None,
@@ -86,14 +86,14 @@ class ProductOrigin(Origin):
         return item
 
     def do_GET(self):
-        if self.path.startswith("/internal/") and self.headers.get("Host") != "smoke.example":
+        if self.path.startswith("/catalog/") and self.headers.get("Host") == "smoke.example":
             target = urllib.parse.urlsplit(self.path)
             query = urllib.parse.parse_qs(target.query)
-            if target.path in ("/internal/collections", "/internal/assets"):
+            if target.path in ("/catalog/collections", "/catalog/assets"):
                 key = target.path.rsplit("/", 1)[1]
                 item = {"root": "images", "collection_path": "trip/public"} if key == "collections" else self.asset(ELIGIBLE)
                 payload = {key: [item], "next_cursor": None if "cursor" in query else "synthetic-cursor"}
-                if self.server.defect == "catalogue-leak":
+                if self.server.defect == "catalog-leak":
                     item["provider_path"] = "synthetic-private-marker"
             else:
                 payload = self.asset(target.path.rsplit("/", 1)[1])
@@ -139,6 +139,8 @@ class ProductOrigin(Origin):
         """Write GET/HEAD framing without logging identifiers or response data."""
         self.send_response(status)
         self.send_header("Content-Type", content_type)
+        if self.path.startswith("/catalog/"):
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -164,7 +166,6 @@ class SmokeContract(unittest.TestCase):
                 options = []
                 if product:
                     options = ["--video-id", VIDEO,
-                               "--gateway-origin", f"http://127.0.0.1:{server.server_port}",
                                "--root", "images", "--collection", "trip/public", "--lifecycle-id", PRIVATE]
                     if expose:
                         options += ["--source-metadata", "on", "--image-original",
@@ -187,7 +188,7 @@ class SmokeContract(unittest.TestCase):
         self.assertIn("PASS bounded collection/asset pages", result.stdout)
         self.assertNotIn("SKIP continuation", result.stdout)
         for defect, extra in (("range-bytes", ()), ("range-framing", ()),
-                              ("catalogue-leak", ()), (None, ("--max-original-bytes", "64")),
+                              ("catalog-leak", ()), (None, ("--max-original-bytes", "64")),
                               (None, ("--image-sha256", "0" * 64))):
             with self.subTest(defect=defect, extra=extra):
                 result = self.run_smoke(defect, product=True, extra=extra)
@@ -196,7 +197,7 @@ class SmokeContract(unittest.TestCase):
                 self.assertNotIn(VIDEO, result.stdout + result.stderr)
 
     def test_privacy_modes_and_option_coherence(self):
-        """Default-off catalogue and original denial must match the requested mode."""
+        """Default-off catalog and original denial must match the requested mode."""
         result = self.run_smoke(None, product=True, expose=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PASS privacy-off original", result.stdout)

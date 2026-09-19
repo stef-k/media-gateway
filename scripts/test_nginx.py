@@ -80,13 +80,14 @@ class Ingress(unittest.TestCase):
                         self.fail("isolated nginx did not start")
                     time.sleep(0.02)
             self.check_requests(port, upstream)
+            self.check_catalog(port, upstream)
             self.check_concurrency(port, upstream)
             self.check_burst(port, upstream, process)
         finally:
             process.terminate()
             process.wait(timeout=3)
         log = (directory / "media-gateway.access.log").read_text()
-        for route in ("preview", "original", "denied"):
+        for route in ("catalog", "preview", "original", "denied"):
             self.assertIn(f"route={route}", log)
         self.assertNotIn("caller-marker", log)
         self.assertIn("request_limit=REJECTED", log)
@@ -95,7 +96,7 @@ class Ingress(unittest.TestCase):
 
     def check_concurrency(self, port, upstream):
         """Hold 32 admitted responses; the next request and cheap denials stay local."""
-        route = "/media/12345678-1234-4234-8234-123456789abc/original"
+        route = "/catalog/collections"
         connections = []
         before = len(upstream.requests)
         upstream.release.clear()
@@ -111,7 +112,7 @@ class Ingress(unittest.TestCase):
             self.check_denials(port, upstream)
             connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
             try:
-                connection.request("HEAD", route, headers={"Host": "media.example.com"})
+                connection.request("GET", route, headers={"Host": "media.example.com"})
                 response = connection.getresponse()
                 self.assertEqual(response.status, 429)
                 response.read()
@@ -163,7 +164,7 @@ class Ingress(unittest.TestCase):
                 connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
                 connections.append(connection)
                 variant = "preview" if index % 2 else "original"
-                connection.request("GET", f"/media/12345678-1234-4234-8234-123456789abc/{variant}",
+                connection.request("GET", "/catalog/collections" if index % 3 == 0 else f"/media/12345678-1234-4234-8234-123456789abc/{variant}",
                                    headers={"Host": "media.example.com"})
         finally:
             process.send_signal(signal.SIGCONT)
@@ -181,6 +182,33 @@ class Ingress(unittest.TestCase):
         finally:
             for connection in connections:
                 connection.close()
+
+    def check_catalog(self, port, upstream):
+        """Expose only canonical catalog GETs, retaining selectors and stripping headers."""
+        asset = "12345678-1234-4234-8234-123456789abc"
+        routes = ("/catalog/collections?limit=1", "/catalog/assets?root=images&collection=trip%2Fpublic",
+                  f"/catalog/assets/{asset}")
+        cases = [("GET", route, True) for route in routes]
+        cases += [(method, "/catalog/collections", False) for method in ("HEAD", "OPTIONS", "POST")]
+        cases += [("GET", route, False) for route in (
+            "/catalog", "/catalog/", "/catalog/search", "/catalog//collections",
+            "/catalog/assets/../collections", "/catalog/%63ollections",
+            f"/catalog/assets/{asset}?", f"/catalog/assets/{asset}/extra")]
+        for method, route, allowed in cases:
+            before = len(upstream.requests)
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            connection.request(method, route, headers={"Host": "media.example.com",
+                               "Authorization": "caller-marker", "Cookie": "caller-marker",
+                               "Origin": "https://editor.example", "Range": "bytes=0-1"})
+            response = connection.getresponse()
+            response.read()
+            connection.close()
+            self.assertEqual(response.status, 200 if allowed else 404, route)
+            self.assertEqual(len(upstream.requests), before + int(allowed), route)
+            if allowed:
+                self.assertEqual(upstream.requests[-1][0], route)
+                forwarded = {key.lower() for key in upstream.requests[-1][1]}
+                self.assertFalse(forwarded & {"authorization", "cookie", "origin", "range"})
 
     def check_requests(self, port, upstream):
         """Canonical GET/HEAD succeed; malformed/unsupported traffic never reaches upstream."""

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,8 +12,8 @@ import (
 	"github.com/stef-k/media-gateway/internal/immich"
 )
 
-// catalogueQuery contains validated HTTP selectors, never provider filter syntax.
-type catalogueQuery struct {
+// catalogQuery contains validated HTTP selectors, never provider filter syntax.
+type catalogQuery struct {
 	Kind                   byte
 	Limit                  int
 	Cursor, ID, Collection string
@@ -22,46 +21,45 @@ type catalogueQuery struct {
 }
 
 // consumerQuery validates exact route/query syntax without repairing selectors.
-func consumerQuery(r *http.Request, policy config.Policy) (catalogueQuery, bool) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || !net.ParseIP(host).IsLoopback() || r.Method != http.MethodGet || r.URL.RawPath != "" || r.URL.IsAbs() || r.URL.Opaque != "" || len(r.URL.RawQuery) > maxConsumerQueryBytes {
-		return catalogueQuery{}, false
+func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
+	if r.Method != http.MethodGet || r.URL.RawPath != "" || r.URL.IsAbs() || r.URL.Opaque != "" || len(r.URL.RawQuery) > maxConsumerQueryBytes {
+		return catalogQuery{}, false
 	}
-	query := catalogueQuery{Kind: 'a', Limit: defaultConsumerLimit}
+	query := catalogQuery{Kind: 'a', Limit: defaultConsumerLimit}
 	switch r.URL.Path {
-	case "/internal/collections":
+	case "/catalog/collections":
 		query.Kind = 'c'
-	case "/internal/assets":
+	case "/catalog/assets":
 	default:
-		id, found := strings.CutPrefix(r.URL.Path, "/internal/assets/")
-		return catalogueQuery{Kind: 'a', ID: id, Limit: 1}, found && immich.ValidAssetID(id) && r.URL.RawQuery == "" && !r.URL.ForceQuery
+		id, found := strings.CutPrefix(r.URL.Path, "/catalog/assets/")
+		return catalogQuery{Kind: 'a', ID: id, Limit: 1}, found && immich.ValidAssetID(id) && r.URL.RawQuery == "" && !r.URL.ForceQuery
 	}
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
-		return catalogueQuery{}, false
+		return catalogQuery{}, false
 	}
 	for name, values := range values {
 		if len(values) != 1 || values[0] == "" {
-			return catalogueQuery{}, false
+			return catalogQuery{}, false
 		}
 		value := values[0]
 		switch name {
 		case "limit":
 			if strings.ContainsFunc(value, func(c rune) bool { return c < '0' || c > '9' }) {
-				return catalogueQuery{}, false
+				return catalogQuery{}, false
 			}
 			query.Limit, err = strconv.Atoi(value)
 			if err != nil || query.Limit < 1 || query.Limit > immich.MaxCandidates {
-				return catalogueQuery{}, false
+				return catalogQuery{}, false
 			}
 		case "cursor":
 			if len(value) > maxConsumerCursorBytes {
-				return catalogueQuery{}, false
+				return catalogQuery{}, false
 			}
 			query.Cursor = value
 		case "root":
 			if query.Kind != 'a' {
-				return catalogueQuery{}, false
+				return catalogQuery{}, false
 			}
 			for _, root := range policy.Roots {
 				if root.Name == value {
@@ -71,11 +69,11 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogueQuery, bool)
 			}
 		case "collection":
 			if query.Kind != 'a' || !validCollection(value) {
-				return catalogueQuery{}, false
+				return catalogQuery{}, false
 			}
 			query.Collection = value
 		default:
-			return catalogueQuery{}, false
+			return catalogQuery{}, false
 		}
 	}
 	return query, query.Kind == 'c' || (query.Root.Name != "" && query.Collection != "")

@@ -19,9 +19,6 @@ func (c Config) validate() error {
 	if err != nil || ipErr != nil || !ip.IsLoopback() || ip.Zone() != "" || portErr != nil || n < 1 || n > 65535 {
 		return errors.New("config: server.listen requires a numeric loopback address and port 1..65535")
 	}
-	if c.Server.PublicBaseURL != "" && !validOrigin(c.Server.PublicBaseURL) {
-		return errors.New("config: server.public_base_url must be an HTTP(S) origin")
-	}
 	if c.Provider.Type != "immich" {
 		return errors.New("config: provider.type must be immich")
 	}

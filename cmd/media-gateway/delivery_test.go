@@ -132,6 +132,10 @@ func assertPublicHeaders(t *testing.T, resp *http.Response) {
 	t.Helper()
 	for name := range resp.Header {
 		switch name {
+		case "Access-Control-Allow-Origin":
+			if !strings.HasPrefix(resp.Request.URL.Path, "/catalog/") || resp.Header.Get(name) != "*" {
+				t.Error("unexpected CORS grant")
+			}
 		case "Date", "Content-Type", "Content-Length", "Cache-Control", "X-Content-Type-Options":
 		default:
 			t.Errorf("unexpected public header: %s", name)
@@ -173,7 +177,7 @@ func testDeliveryDenials(t *testing.T, variant string) {
 		{name: "trailing slash", route: "/media/" + testAsset + "/preview/"},
 		{name: "extra variant", route: "/media/" + testAsset + "/fullsize"},
 		{name: "health", route: "/health"},
-		{name: "search", route: "/internal/search"},
+		{name: "search", route: "/catalog/search"},
 		{name: "metadata route", route: "/media/" + testAsset},
 		{name: "post", method: "POST"}, {name: "put", method: "PUT"}, {name: "delete", method: "DELETE"},
 		{name: "options", method: "OPTIONS"}, {name: "connect", method: "CONNECT"},

@@ -63,7 +63,7 @@ Adapt and save the TOML, then start in the foreground:
 ```
 
 Startup validates TOML/key before binding; it does not probe provider readiness.
-Use the [consumer guide](consumer-api.md#integration-walkthrough) against loopback
+Use the [consumer guide](catalog-api.md#integration-walkthrough) against loopback
 to find an eligible asset, then check its preview GET/HEAD. Originals return 404 unless source metadata is enabled. Confirm a
 known private asset remains 404. Stop with Ctrl-C; use the
 [deployment guide](deployment.md) for persistent systemd/nginx integration.
@@ -78,7 +78,6 @@ working-directory or home-directory configuration discovery occurs.
 Connectivity and credential requirements:
 
 - `server.listen`: numeric loopback IP, including IPv6, and port 1..65535. No DNS resolution, wildcard binds, zone identifiers or ephemeral ports.
-- `server.public_base_url`: optional HTTP(S) origin.
 - `provider.type`: exactly `immich` until another provider creates a real requirement.
 - `provider.base_url`: required trusted HTTP(S) origin; reject userinfo, query, fragment, non-root path and invalid ports.
 - `provider.request_timeout`: required positive Go duration for bounded provider setup/metadata work. Established originals instead use fixed 60-second per-I/O inactivity bounds.
@@ -101,7 +100,7 @@ expose_source_metadata = false
 ```
 
 Omitted or false keeps `file_created_at`, `local_date_time`, `latitude`,
-`longitude` and `original_path` present as null in trusted asset JSON. Catalogue
+`longitude` and `original_path` present as null in public asset JSON. Catalog
 requests use `withExif=false`; hidden timestamps and EXIF are not decoded or
 validated, even if unexpectedly returned. Width, height and duration still validate.
 Image/video original GET/HEAD returns fixed 404 before provider access or Range
@@ -110,7 +109,7 @@ parsing. Qualified previews/posters remain available.
 Set true only to deliberately expose validated capture/local timestamps and
 coordinates and enable exact originals. Original bytes may contain additional
 embedded EXIF/GPS, camera/device or container metadata; they are never sanitized.
-The [consumer matrix](consumer-api.md#source-metadata-privacy) defines the fields.
+The [consumer matrix](catalog-api.md#source-metadata-privacy) defines the fields.
 This is not an anonymity mode: filenames and collection identity remain visible.
 
 Configuration is immutable until restart. Unknown/unsupported fields and wrong

@@ -42,7 +42,7 @@ func TestCollectionStreamTransitions(t *testing.T) {
 	defer client.CloseIdleConnections()
 	policy := config.Policy{Roots: []config.Root{{Name: "z", Path: "/z"}, {Name: "a", Path: "/a"}}, Rules: []config.Rule{{Segment: "public", Media: []string{"image"}}}}
 	handler := consumerHandler(client, policy, config.Privacy{ExposeSourceMetadata: true}, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
-	route := "/internal/collections?limit=1"
+	route := "/catalog/collections?limit=1"
 	for _, root := range []string{"a", "z"} {
 		req := httptest.NewRequest("GET", route, nil)
 		req.RemoteAddr = "127.0.0.1:1234"
@@ -56,7 +56,7 @@ func TestCollectionStreamTransitions(t *testing.T) {
 			if page.NextCursor == nil {
 				t.Fatal("next stream lost")
 			}
-			route = "/internal/collections?limit=1&cursor=" + url.QueryEscape(*page.NextCursor)
+			route = "/catalog/collections?limit=1&cursor=" + url.QueryEscape(*page.NextCursor)
 			// A changed policy definition rejects the old stream cursor before provider I/O.
 			changed := config.Policy{Roots: policy.Roots, Rules: []config.Rule{{Segment: "changed", Media: []string{"image"}}}}
 			req := httptest.NewRequest("GET", route, nil)
@@ -75,9 +75,9 @@ func TestCollectionStreamTransitions(t *testing.T) {
 	}
 }
 
-// TestCatalogueOverallDeadline proves the HTTP contract's 30-second work bound
+// TestCatalogOverallDeadline proves the HTTP contract's 30-second work bound
 // independently of a longer provider timeout; it also observes upstream cancellation.
-func TestCatalogueOverallDeadline(t *testing.T) {
+func TestCatalogOverallDeadline(t *testing.T) {
 	t.Parallel()
 	stopped := make(chan struct{})
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -104,13 +104,13 @@ func TestCatalogueOverallDeadline(t *testing.T) {
 	}
 }
 
-// TestCatalogueDetailRevocation reauthorizes a previously returned video reference.
-func TestCatalogueDetailRevocation(t *testing.T) {
+// TestCatalogDetailRevocation reauthorizes a previously returned video reference.
+func TestCatalogDetailRevocation(t *testing.T) {
 	var state atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == representationTarget(testAsset, "original") || r.URL.Path == "/api/assets/"+testAsset+"/thumbnail" {
 			if state.Load() != 0 {
-				t.Error("revoked catalogue reference opened bytes")
+				t.Error("revoked catalog reference opened bytes")
 			}
 			kind := "video/mp4"
 			if r.URL.Path != representationTarget(testAsset, "original") {
@@ -141,7 +141,7 @@ func TestCatalogueDetailRevocation(t *testing.T) {
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
 	for i := int32(0); i < 4; i++ {
 		state.Store(i)
-		resp, err := gateway.Client().Get(gateway.URL + "/internal/assets/" + testAsset)
+		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets/" + testAsset)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +158,7 @@ func TestCatalogueDetailRevocation(t *testing.T) {
 			io.Copy(io.Discard, response.Body)
 			response.Body.Close()
 			if response.StatusCode != want {
-				t.Fatal("stored catalogue reference bypassed delivery reauthorization")
+				t.Fatal("stored catalog reference bypassed delivery reauthorization")
 			}
 		}
 		if resp.StatusCode != want {

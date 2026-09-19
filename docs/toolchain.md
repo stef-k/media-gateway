@@ -68,7 +68,6 @@ TOML values are deployment configuration, not hard-coded product assumptions.
 Operators may configure, subject to strict validation:
 
 - gateway listen address;
-- public base URL/hostname when needed;
 - provider type and trusted provider base URL;
 - provider credential file path;
 - provider request timeout;
@@ -77,7 +76,7 @@ Operators may configure, subject to strict validation:
 
 Image/video preview/original are fixed product routes. The optional
 `privacy.expose_source_metadata` flag defaults to false and controls approved
-source-sensitive catalogue fields and exact original availability.
+source-sensitive public catalog fields and exact original availability.
 
 Security semantics are not configurable:
 
