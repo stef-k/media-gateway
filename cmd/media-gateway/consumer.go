@@ -93,7 +93,9 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 			queryFingerprint = fingerprint(struct {
 				Policy           [32]byte
 				Root, Collection string
-			}{policyFingerprint, query.Root.Name, query.Collection})
+				// Omission preserves the existing no-search fingerprint.
+				Search string `json:",omitempty"`
+			}{policyFingerprint, query.Root.Name, query.Collection, query.Search})
 			streamCount = 1
 		}
 		state, ok := key.verify(query.Cursor, query.Kind, queryFingerprint, streamCount)
@@ -147,6 +149,9 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 					count++
 				}
 			} else if query.ID != "" || (match.RootName == query.Root.Name && match.CollectionPath == query.Collection) {
+				if !matchesFilename(item.OriginalPath, query.SearchTerms) {
+					continue
+				}
 				assets.Assets = append(assets.Assets, projectAsset(item, match, privacy))
 				count++
 			}
@@ -180,6 +185,20 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 	}
 	assets.NextCursor = next
 	return assets, nil
+}
+
+// matchesFilename applies all normalized terms only to an authorized basename.
+func matchesFilename(originalPath string, terms []string) bool {
+	if len(terms) == 0 {
+		return true
+	}
+	filename := strings.ToLower(path.Base(originalPath))
+	for _, term := range terms {
+		if !strings.Contains(filename, term) {
+			return false
+		}
+	}
+	return true
 }
 
 // projectAsset advertises only implemented representations after exact authorization.
