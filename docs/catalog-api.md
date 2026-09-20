@@ -98,7 +98,7 @@ Only GET is accepted:
 
 ```text
 GET /catalog/collections?limit=<n>&cursor=<opaque>
-GET /catalog/assets?root=<logical-root>&collection=<relative-path>&limit=<n>&cursor=<opaque>
+GET /catalog/assets?root=<logical-root>&collection=<relative-path>&q=<query>&limit=<n>&cursor=<opaque>
 GET /catalog/assets/<UUIDv4>
 ```
 
@@ -107,6 +107,37 @@ Detail accepts no query, including an empty `?`. Routes are exact, with no path 
 Asset browsing requires an exact configured logical `root` and a canonical relative POSIX `collection`: nonempty valid UTF-8, no leading/trailing slash, empty/dot/dot-dot components, backslashes or control characters. Normal query decoding applies once; selectors are never cleaned or Unicode-normalized into validity. Consumers never supply an absolute provider path.
 
 Every active candidate passes `publication.Evaluate`. Asset browsing additionally requires exact root and parent-collection equality: descendants are separate collections. A valid known-root selector with no eligible media returns 200 with an empty page, without revealing whether a private directory exists. A stored asset reference grants no authority; detail independently rechecks current lifecycle and publication policy.
+
+### Filename search
+
+Add optional `q` to the asset-list route to search the entire selected exact
+collection through pagination:
+
+```sh
+curl --fail --get 'https://media.example.com/catalog/assets' \
+  --data-urlencode 'root=photos' --data-urlencode 'collection=2026/example-trip/public' \
+  --data-urlencode 'q=215006 DxO' --data-urlencode 'limit=25'
+```
+
+The Gateway splits the decoded query on Unicode whitespace and lowercases terms
+and eligible basenames using Go Unicode case conversion. Every term must occur
+as a substring of the basename, in any order: `215006 DxO` matches
+`20231026_215006_DxO.jpg`. Responses preserve the original filename. Matching does
+not search parent paths or provider display names and adds no ranking, stemming
+or fuzzy matching.
+
+`q` is accepted only on asset lists. Explicit empty or whitespace-only values,
+duplicate keys, malformed encoding, invalid UTF-8, control characters and queries
+longer than 256 decoded UTF-8 bytes receive fixed 404 before provider access.
+Omitting `q` preserves ordinary browsing behavior.
+
+Search filters the existing candidate stream after lifecycle, publication policy
+and exact root/collection checks; it adds no provider filename predicate. The same
+eight-call and 30-second bounds apply. Nonmatches consume scan work, so a page can
+be empty with a non-null continuation. Keep the exact decoded `q` value on every
+continuation request, even its case and spacing, and continue until `next_cursor`
+is null. Stable eligible streams eventually expose matching assets; provider
+pagination is not a snapshot, so library changes can cause repeats or skips.
 
 ## Bounds and pagination
 
@@ -117,6 +148,7 @@ Every active candidate passes `publication.Evaluate`. Asset browsing additionall
 | Raw query | 8 KiB |
 | Encoded gateway cursor | 2 KiB |
 | Decoded collection selector | 2 KiB UTF-8 |
+| Decoded filename query | 256 UTF-8 bytes |
 | Provider calls per request | 8 |
 | Overall catalog work | 30 seconds |
 | Encoded consumer JSON | 512 KiB |
@@ -125,7 +157,7 @@ Every active candidate passes `publication.Evaluate`. Asset browsing additionall
 
 Cursors are gateway-owned versioned HMAC-SHA256 tokens, authenticated using a random 32-byte process-start key. Startup fails if randomness is unavailable. There is no cursor file, configuration, database or session cache. The payload contains only version, operation, query/policy fingerprint, discovery-stream index and opaque provider continuation. No provider paths or credentials are included. MAC comparison is constant-time.
 
-Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector and policy; collection tokens bind deterministic effective discovery streams. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
+Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector, optional decoded `q` and policy; collection tokens bind deterministic effective discovery streams. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
 
 ## Collections
 

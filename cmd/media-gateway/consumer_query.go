@@ -18,6 +18,8 @@ type catalogQuery struct {
 	Limit                  int
 	Cursor, ID, Collection string
 	Root                   config.Root
+	Search                 string
+	SearchTerms            []string
 }
 
 // consumerQuery validates exact route/query syntax without repairing selectors.
@@ -44,6 +46,15 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 		}
 		value := values[0]
 		switch name {
+		case "q":
+			if query.Kind != 'a' || len(value) > 256 || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
+				return catalogQuery{}, false
+			}
+			query.Search = value
+			query.SearchTerms = strings.Fields(strings.ToLower(value))
+			if len(query.SearchTerms) == 0 {
+				return catalogQuery{}, false
+			}
 		case "limit":
 			if strings.ContainsFunc(value, func(c rune) bool { return c < '0' || c > '9' }) {
 				return catalogQuery{}, false
