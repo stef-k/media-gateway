@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-09-20
+
+- Add optional collection-scoped filename search through `q` on public
+  `/catalog/assets`.
+- Search uses case-insensitive multi-term substring matching over authorized
+  filenames while preserving existing policy/lifecycle checks, bounded scanning,
+  pagination and cursor integrity.
+
 ## 1.1.0 - 2026-09-19
 
 - Breaking: replace the former loopback catalog routes with public GET-only
