@@ -18,10 +18,11 @@ private archive -> Immich -> Media Gateway (loopback) -> nginx -> public catalog
 ```
 
 The gateway supplies fixed preview/poster and original URLs for images and videos,
-paginated eligible collections, video ranges and long original streams bounded by
-inactivity. Originals include source metadata such as EXIF/GPS. Consumer references
-never grant publication authority. There is no gallery UI, database, direct NAS
-access, arbitrary proxy or transcoding service.
+paginated eligible collections with bounded collection-scoped filename search,
+video ranges and long original streams bounded by inactivity. Originals include
+source metadata such as EXIF/GPS. Consumer references never grant publication
+authority. There is no gallery UI, database, direct NAS access, arbitrary proxy or
+transcoding service.
 
 Supported Linux amd64 binaries are distributed through
 [GitHub Releases](https://github.com/stef-k/media-gateway/releases).
@@ -54,9 +55,10 @@ A **consumer** is an application or browser that discovers eligible media
 and uses it in its own interface. It is not a gallery UI supplied by the gateway.
 
 [Follow the integration walkthrough](catalog-api.md#integration-walkthrough) to
-browse collections, page through assets and combine returned media paths with one
-public Gateway origin. The [catalog contract](catalog-api.md#routes-and-selectors)
-covers nullable metadata, pagination, credential-free CORS and reauthorization.
+browse collections, page or search assets by filename, and combine returned media
+paths with one public Gateway origin. The
+[catalog contract](catalog-api.md#routes-and-selectors) covers nullable metadata,
+pagination, bounded filename search, credential-free CORS and reauthorization.
 
 ## Deployment and operations
 
