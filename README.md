@@ -15,7 +15,8 @@ the gateway does not mount storage, transform media or provide a gallery UI.
 Originals preserve source bytes, including embedded EXIF/GPS.
 
 - Named roots with global and root-scoped exact conventions.
-- Paginated image/video collections and safe metadata on public `/catalog/`.
+- Paginated image/video collections, safe metadata and bounded collection-scoped
+  filename search on public `/catalog/`.
 - Public `GET`/`HEAD /media/<id>/preview` and `/media/<id>/original`.
 - Video byte ranges, validated 206/416 framing and inactivity-bounded streaming.
 - One Go binary, strict TOML, separate credential, systemd/nginx templates and
