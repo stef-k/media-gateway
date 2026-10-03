@@ -40,7 +40,7 @@ func validateRoots(roots []Root) error {
 	}
 	names := make(map[string]bool)
 	for i, root := range roots {
-		if !validRootName(root.Name) || names[root.Name] {
+		if !ValidRootName(root.Name) || names[root.Name] {
 			return errors.New("config: policy.roots name requires unique 1..64 lowercase ASCII letters, digits or hyphens with alphanumeric ends")
 		}
 		names[root.Name] = true
@@ -56,8 +56,9 @@ func validateRoots(roots []Root) error {
 	return nil
 }
 
-// validRootName accepts only stable consumer-safe ASCII identifiers.
-func validRootName(name string) bool {
+// ValidRootName accepts stable consumer-safe ASCII identifiers without looking
+// up configuration. HTTP root filters use the same vocabulary as startup policy.
+func ValidRootName(name string) bool {
 	if len(name) < 1 || len(name) > 64 || name[0] == '-' || name[len(name)-1] == '-' {
 		return false
 	}

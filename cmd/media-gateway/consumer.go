@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -91,12 +92,22 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 			return
 		}
 		queryFingerprint := policyFingerprint
-		streamCount := len(streams)
-		if query.Kind == 'c' && query.Search != "" {
+		queryStreams := streams
+		if query.Media != "" {
+			queryStreams = []immich.DiscoveryStream{}
+			for _, stream := range streams {
+				if slices.Contains(stream.Media, query.Media) {
+					stream.Media = []string{query.Media}
+					queryStreams = append(queryStreams, stream)
+				}
+			}
+		}
+		streamCount := len(queryStreams)
+		if query.Kind == 'c' && (query.Search != "" || query.RootFilter != "" || query.Media != "") {
 			queryFingerprint = fingerprint(struct {
-				Policy [32]byte
-				Search string
-			}{policyFingerprint, query.Search})
+				Policy              [32]byte
+				Search, Root, Media string
+			}{policyFingerprint, query.Search, query.RootFilter, query.Media})
 		}
 		if query.Kind == 'a' {
 			queryFingerprint = fingerprint(struct {
@@ -114,7 +125,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), catalogTimeout)
 		defer cancel()
-		result, err := catalog(ctx, client, policy, privacy, streams, key, queryFingerprint, query, state)
+		result, err := catalog(ctx, client, policy, privacy, queryStreams, key, queryFingerprint, query, state)
 		if err != nil {
 			consumerSearchError(w, r, logger, err)
 			return
@@ -151,7 +162,7 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 				continue
 			}
 			if query.Kind == 'c' {
-				if !matchesSearch(match.RootName+"/"+match.CollectionPath, query.SearchTerms) {
+				if (query.RootFilter != "" && match.RootName != query.RootFilter) || (query.Media != "" && item.Media != query.Media) || !matchesSearch(match.RootName+"/"+match.CollectionPath, query.SearchTerms) {
 					continue
 				}
 				if !seen[match] {
