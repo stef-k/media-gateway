@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-10-03
+
 - Add optional `media=image|video` to public asset lists, with cursor-bound
   selectors and provider type narrowing followed by current Gateway authorization.
   Preserve filename-search semantics and the eight-call / 30-second work bounds.
