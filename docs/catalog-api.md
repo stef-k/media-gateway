@@ -111,7 +111,7 @@ Only GET is accepted:
 
 ```text
 GET /catalog/collections?q=<query>&root=<logical-root>&media=<image|video>&limit=<n>&cursor=<opaque>
-GET /catalog/assets?root=<logical-root>&collection=<relative-path>&q=<query>&limit=<n>&cursor=<opaque>
+GET /catalog/assets?root=<logical-root>&collection=<relative-path>&media=<image|video>&q=<query>&limit=<n>&cursor=<opaque>
 GET /catalog/assets/<UUIDv4>
 ```
 
@@ -121,6 +121,19 @@ Asset browsing requires an exact configured logical `root` and a canonical relat
 
 Every active candidate passes `publication.Evaluate`. Asset browsing additionally requires exact root and parent-collection equality: descendants are separate collections. A valid known-root selector with no eligible media returns 200 with an empty page, without revealing whether a private directory exists. A stored asset reference grants no authority; detail independently rechecks current lifecycle and publication policy.
 
+### Asset media filter
+
+Asset lists accept optional `media=image` or `media=video`; omission preserves
+mixed image/video browsing. The selector narrows the provider type predicate, but
+every candidate still passes current lifecycle, publication policy, exact logical
+root and parent collection, requested media, optional filename search and safe
+projection. It cannot make a wrong-rule or otherwise private asset public.
+
+Empty, unknown or duplicate media values receive fixed 404 before provider I/O.
+Detail accepts no query. Keep the same media selector on continuations; changing,
+adding or removing it invalidates the cursor. Response fields, source-metadata
+privacy and independently authorized preview/original delivery are unchanged.
+
 ### Filename search
 
 Add optional `q` to the asset-list route to search the entire selected exact
@@ -129,7 +142,8 @@ collection through pagination:
 ```sh
 curl --fail --get 'https://media.example.com/catalog/assets' \
   --data-urlencode 'root=photos' --data-urlencode 'collection=2026/example-trip/public' \
-  --data-urlencode 'q=215006 DxO' --data-urlencode 'limit=25'
+  --data-urlencode 'media=image' --data-urlencode 'q=215006 DxO' \
+  --data-urlencode 'limit=25'
 ```
 
 The Gateway splits the decoded query on Unicode whitespace and lowercases terms
@@ -144,13 +158,25 @@ duplicate keys, malformed encoding, invalid UTF-8, control characters and querie
 longer than 256 decoded UTF-8 bytes receive fixed 404 before provider access.
 Omitting `q` preserves ordinary browsing behavior.
 
-Search filters the existing candidate stream after lifecycle, publication policy
-and exact root/collection checks; it adds no provider filename predicate. The same
+Search filters the existing candidate stream after lifecycle, publication policy,
+exact root/collection and optional media checks; it adds no provider filename predicate. The same
 eight-call and 30-second bounds apply. Nonmatches consume scan work, so a page can
 be empty with a non-null continuation. Keep the exact decoded `q` value on every
 continuation request, even its case and spacing, and continue until `next_cursor`
 is null. Stable eligible streams eventually expose matching assets; provider
 pagination is not a snapshot, so library changes can cause repeats or skips.
+
+Immich v3.2.2's structured
+[`originalFileName` pattern filter](https://github.com/immich-app/immich/blob/v3.2.2/server/src/dtos/search.dto.ts)
+was rechecked on 2026-10-03. Its stored original filename is not guaranteed to
+equal the path basename that Gateway searches: the
+[upload service](https://github.com/immich-app/immich/blob/v3.2.2/server/src/services/asset-media.service.ts)
+stores it separately, and
+[storage templates](https://github.com/immich-app/immich/blob/v3.2.2/server/src/services/storage-template.service.ts)
+can rename the source path. The predicate could therefore exclude a valid Gateway
+match. Final Gateway matching can reject provider overmatches but cannot recover
+omitted candidates, so filename narrowing remains disabled. This preserves all
+existing Unicode, multi-term and exact decoded-query semantics within the same bounds.
 
 ## Bounds and pagination
 
@@ -170,7 +196,7 @@ pagination is not a snapshot, so library changes can cause repeats or skips.
 
 Cursors are gateway-owned versioned HMAC-SHA256 tokens, authenticated using a random 32-byte process-start key. Startup fails if randomness is unavailable. There is no cursor file, configuration, database or session cache. The payload contains only version, operation, query/policy fingerprint, discovery-stream index and opaque provider continuation. No provider paths or credentials are included. MAC comparison is constant-time.
 
-Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector, optional decoded `q` and policy; collection tokens bind deterministic effective discovery streams and the exact decoded `q`, `root` and `media` filters. Preserve their case and spacing on continuations; changing or omitting a filter invalidates the cursor. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
+Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector, optional decoded `q` and `media`, and policy; collection tokens bind deterministic effective discovery streams and the exact decoded `q`, `root` and `media` filters. Preserve their case and spacing on continuations; changing or omitting a filter invalidates the cursor. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
 
 ## Collections
 

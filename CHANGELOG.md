@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add optional `media=image|video` to public asset lists, with cursor-bound
+  selectors and provider type narrowing followed by current Gateway authorization.
+  Preserve filename-search semantics and the eight-call / 30-second work bounds.
 - Add optional logical collection search (`q`), root and image/video filters to
   public `/catalog/collections`, with query-bound cursors and non-enumerating root
   behavior under the existing eight-call / 30-second bounds.

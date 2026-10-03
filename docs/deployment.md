@@ -560,6 +560,18 @@ filters traverse the same streams without topology lookup. The
 counts provider matches, which do not prove exact Gateway-eligible collection totals;
 no statistics call or additional permission is introduced.
 
+Asset-list media narrowing and structured `originalFileName` patterns were
+rechecked against **v3.2.2** on **2026-10-03**. The
+[search DTO](https://github.com/immich-app/immich/blob/v3.2.2/server/src/dtos/search.dto.ts)
+allows filename `like`, `startsWith` and `endsWith`; the query builder applies
+case/accent-insensitive patterns with provider-supplied wildcards. However,
+[`originalFileName` is stored separately from the upload path](https://github.com/immich-app/immich/blob/v3.2.2/server/src/services/asset-media.service.ts),
+and [storage templates can change the path basename](https://github.com/immich-app/immich/blob/v3.2.2/server/src/services/storage-template.service.ts).
+There is no guaranteed equality with the authorized path basename that Gateway
+`q` searches, so filename narrowing could lose valid public matches and remains
+disabled. This is source review only; Gateway Unicode multi-term matching remains
+authoritative, without additional provider I/O or renewed deployed qualification.
+
 Use only `POST /api/search/metadata`, `x-api-key`, permission **asset.read**, and
 HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/search.dto.ts),
 [query builder](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/database.ts),
@@ -567,7 +579,8 @@ HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immi
 and [asset mapper/schema](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/asset-response.dto.ts)
 define the reviewed request and response contract.
 
-Gateway-generated filters always include `type.in` with eligible IMAGE/VIDEO media,
+Gateway-generated filters always include `type.in` with IMAGE/VIDEO media
+(narrowed to the optional requested asset-list or discovery media),
 `isOffline.eq=false` and `trashedAt.eq=null`. Discovery adds a configured root
 `originalPath.startsWith` and segment-shaped `like` filter; collection assets add
 a prefix resolved from the configured root plus validated relative selector.
