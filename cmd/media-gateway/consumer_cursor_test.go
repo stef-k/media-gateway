@@ -124,7 +124,7 @@ func TestSelectorBoundary(t *testing.T) {
 			t.Error("invalid root selector")
 		}
 	}
-	for _, query := range []string{"limit=0", "limit=101", "limit=-1", "limit=%2B1", "limit=1.0", "limit= 1", "limit=", "limit=1&limit=2", "root=images", "collection=website", "cursor=", "cursor=a&cursor=b", "unknown=" + strings.Repeat("x", 8192)} {
+	for _, query := range []string{"limit=0", "limit=101", "limit=-1", "limit=%2B1", "limit=1.0", "limit= 1", "limit=", "limit=1&limit=2", "root=Images", "collection=website", "cursor=", "cursor=a&cursor=b", "unknown=" + strings.Repeat("x", 8192)} {
 		req := httptest.NewRequest("GET", "/catalog/collections", nil)
 		req.URL.RawQuery = query
 		req.RemoteAddr = "127.0.0.1:1234"
@@ -136,6 +136,13 @@ func TestSelectorBoundary(t *testing.T) {
 	}
 	if calls.Load() != 0 {
 		t.Fatal("malformed selectors reached provider")
+	}
+	for _, root := range []string{"images", "missing"} {
+		out := httptest.NewRecorder()
+		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", "/catalog/collections?root="+root, nil))
+		if out.Code != 200 || out.Body.String() != `{"collections":[],"next_cursor":null}` {
+			t.Fatal("known-empty and unknown roots differ")
+		}
 	}
 	for _, collection := range []string{"private", strings.Repeat("x", 2048), "website/a b", "website/%2e", "website/é"} {
 		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets?root=images&collection=" + url.QueryEscape(collection))
