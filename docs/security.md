@@ -165,6 +165,16 @@ lifecycle and exact publication evaluation. Collection asset selectors additiona
 require exact logical root and parent-collection equality; descendants, near-prefix,
 case and accent overmatches do not grant access. Detail reauthorizes independently.
 
+Collection search applies only to authorized `root/collection_path`; root/media
+selectors grant no authority. A collection root selector is syntax-checked without
+configuration lookup and filters the same discovery streams for every valid name.
+Unknown and configured-but-nonpublic roots therefore share successful empty pages
+and bounded continuation behavior, including non-null cursors before exhaustion.
+No root list, exact count or special-case topology probe is exposed. Media predicates
+remain provider optimizations followed by exact Gateway checks. Representative
+preview/media fields come from the already eligible candidate without extra fetches;
+representatives may change and later delivery independently reauthorizes.
+
 Only the fixed safe projection leaves this boundary: logical context, path basename,
 media type, nullable dimensions/duration in milliseconds, privacy-controlled time strings,
 always-present nullable coordinates and gateway capabilities.

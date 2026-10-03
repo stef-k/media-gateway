@@ -198,6 +198,21 @@ query/policy and invalidate on restart. Each request has at most eight provider
 calls, a 30-second deadline and 512 KiB buffered JSON output. Provider page sizes
 never exceed remaining output slots. No catalog database or folder-view API is used.
 
+Collection discovery accepts optional Unicode multi-term `q` over the authorized
+`root/collection_path`, an exact logical `root`, and `media=image|video`. Root syntax
+is validated without configuration lookup; every valid root selector traverses
+the same streams and filters only authorized results, so unknown and nonpublic
+roots share empty-page/continuation behavior. Media narrows provider types and
+skips incompatible streams, with final Gateway checks still authoritative.
+Empty filtered pages retain continuation until stream exhaustion; no page-size or
+global sorting guarantee exists. Cursors bind all exact decoded filters.
+
+Each collection advertises a representative preview path and media type from its
+already eligible candidate, without extra provider I/O. It is presentation metadata
+that may change across occurrences or later fail delivery, never collection identity
+or authority. Exact counts are omitted because provider statistics do not prove
+policy-equivalent public totals. See the catalog contract for the rationale.
+
 Assets expose logical root/relative collection, path basename, image/video type,
 nullable dimensions and integer `duration_ms`. Capture/local timestamps, coordinates
 and original paths are present but null by default; immutable

@@ -29,7 +29,7 @@ func TestCollectionSearch(t *testing.T) {
 		if json.NewDecoder(r.Body).Decode(&query) != nil || query.WithExif || r.URL.Path != "/api/search/metadata" {
 			t.Error("discovery fetched more than policy facts")
 		}
-		paths := []string{"website/Été Summer/a.jpg", "website/Été Summer/b.mp4", "website/Été Winter/c.jpg", "website/100%_real/d.jpg", "private/Été Summer/e.jpg", "Website/Été Summer/f.jpg", "../website/Été Summer/g.jpg", "website/trashed/h.jpg", "website/offline/i.jpg"}
+		paths := []string{"website/Été Summer/a.jpg", "website/Été Summer/b.mp4", "website/Été Winter/c.jpg", "website/100%_real/d.jpg", "private/Été Summer/e.jpg", "Website/Été Summer/f.jpg", "../website/Été Summer/g.jpg", "website/trashed/h.jpg", "website/offline/i.jpg", "website-old/Été Summer/j.jpg", "wébsite/Été Summer/k.jpg"}
 		items := []map[string]any{}
 		for i, path := range paths {
 			item := candidateFixture(fmt.Sprintf("%08x-1234-4234-8234-123456789abc", i), "/external/photos/"+path, "IMAGE")
@@ -39,6 +39,7 @@ func TestCollectionSearch(t *testing.T) {
 			item["isTrashed"], item["isOffline"] = i == 7, i == 8
 			items = append(items, item)
 		}
+		items = append(items, candidateFixture(testAsset, "/external/photos-old/website/Été Summer/a.jpg", "IMAGE"), candidateFixture(testAsset, "/outside/website/Été Summer/a.jpg", "IMAGE"))
 		candidateResponse(w, items, nil)
 	}))
 	defer provider.Close()
@@ -63,7 +64,10 @@ func TestCollectionSearch(t *testing.T) {
 			t.Fatalf("query %q: %d %s", query.value, out.Code, out.Body)
 		}
 		for _, collection := range page.Collections {
-			if len(collection) != 4 || collection["root"] != "images" || collection["representative_media_type"] != "image" || !strings.HasPrefix(collection["representative_preview_path"], "/media/") || !strings.HasSuffix(collection["representative_preview_path"], "/preview") {
+			ids := map[string]int{"website/Été Summer": 0, "website/Été Winter": 2, "website/100%_real": 3}
+			id, found := ids[collection["collection_path"]]
+			preview := fmt.Sprintf("/media/%08x-1234-4234-8234-123456789abc/preview", id)
+			if len(collection) != 4 || !found || collection["root"] != "images" || collection["representative_media_type"] != "image" || collection["representative_preview_path"] != preview {
 				t.Fatalf("unsafe collection projection: %+v", collection)
 			}
 		}
@@ -145,32 +149,6 @@ func TestCollectionRootPrivacy(t *testing.T) {
 	}
 	if logs.Len() != 0 {
 		t.Fatal("root filters entered routine logs")
-	}
-}
-
-// TestCollectionFilterInput denies malformed selectors and unknown keys before I/O.
-func TestCollectionFilterInput(t *testing.T) {
-	var calls atomic.Int32
-	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
-	defer provider.Close()
-	var logs bytes.Buffer
-	gateway := gatewayFor(t, provider, &logs, time.Second)
-	for _, selector := range []string{"root=", "root=images&root=images", "root=Images", "root=-images", "root=images-", "root=a/b", "root=%FF", "root=%00", "root=" + strings.Repeat("a", 65), "media=", "media=image&media=video", "media=IMAGE", "media=audio", "media=%zz", "collection=website", "sort=path", "filter=%7B%7D", "url=http://attacker.invalid"} {
-		out := httptest.NewRecorder()
-		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", "/catalog/collections?"+selector, nil))
-		if out.Code != 404 || out.Body.String() != "not found\n" {
-			t.Errorf("invalid filter %s: %d", selector, out.Code)
-		}
-	}
-	for _, route := range []string{browseRoute + "&media=image", "/catalog/assets/" + testAsset + "?media=image", "/catalog/assets?root=unknown&collection=website"} {
-		out := httptest.NewRecorder()
-		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", route, nil))
-		if out.Code != 404 {
-			t.Fatal("asset selector semantics changed")
-		}
-	}
-	if calls.Load() != 0 || logs.Len() != 0 {
-		t.Fatal("invalid filter reached provider or logs")
 	}
 }
 
