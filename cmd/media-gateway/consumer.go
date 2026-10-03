@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,10 +50,13 @@ type consumerPage struct {
 	NextCursor *string         `json:"next_cursor"`
 }
 
-// consumerCollection is the policy-derived identity; counts are intentionally absent.
+// consumerCollection carries policy-derived identity and a candidate preview;
+// the representative may change between occurrences. Counts are intentionally absent.
 type consumerCollection struct {
-	Root           string `json:"root"`
-	CollectionPath string `json:"collection_path"`
+	Root                      string `json:"root"`
+	CollectionPath            string `json:"collection_path"`
+	RepresentativePreviewPath string `json:"representative_preview_path"`
+	RepresentativeMediaType   string `json:"representative_media_type"`
 }
 
 // collectionPage makes terminal continuation explicit and carries no counts.
@@ -88,7 +92,23 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 			return
 		}
 		queryFingerprint := policyFingerprint
-		streamCount := len(streams)
+		queryStreams := streams
+		if query.Media != "" {
+			queryStreams = []immich.DiscoveryStream{}
+			for _, stream := range streams {
+				if slices.Contains(stream.Media, query.Media) {
+					stream.Media = []string{query.Media}
+					queryStreams = append(queryStreams, stream)
+				}
+			}
+		}
+		streamCount := len(queryStreams)
+		if query.Kind == 'c' && (query.Search != "" || query.RootFilter != "" || query.Media != "") {
+			queryFingerprint = fingerprint(struct {
+				Policy              [32]byte
+				Search, Root, Media string
+			}{policyFingerprint, query.Search, query.RootFilter, query.Media})
+		}
 		if query.Kind == 'a' {
 			queryFingerprint = fingerprint(struct {
 				Policy           [32]byte
@@ -105,7 +125,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), catalogTimeout)
 		defer cancel()
-		result, err := catalog(ctx, client, policy, privacy, streams, key, queryFingerprint, query, state)
+		result, err := catalog(ctx, client, policy, privacy, queryStreams, key, queryFingerprint, query, state)
 		if err != nil {
 			consumerSearchError(w, r, logger, err)
 			return
@@ -119,7 +139,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 func catalog(ctx context.Context, client *immich.Client, policy config.Policy, privacy config.Privacy, streams []immich.DiscoveryStream, key cursorKey, hash [32]byte, query catalogQuery, state continuation) (any, error) {
 	assets := consumerPage{Assets: []consumerAsset{}}
 	collections := collectionPage{Collections: []consumerCollection{}}
-	seen := map[consumerCollection]bool{}
+	seen := map[publication.Match]bool{}
 	count, more := 0, true
 	for calls := 0; calls < maxCatalogCalls && count < query.Limit && more; calls++ {
 		providerQuery := immich.CandidateQuery{IncludeSourceMetadata: privacy.ExposeSourceMetadata, Limit: query.Limit - count, Cursor: state.Provider, ID: query.ID}
@@ -142,14 +162,19 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 				continue
 			}
 			if query.Kind == 'c' {
-				identity := consumerCollection{match.RootName, match.CollectionPath}
-				if !seen[identity] {
-					seen[identity] = true
-					collections.Collections = append(collections.Collections, identity)
+				if (query.RootFilter != "" && match.RootName != query.RootFilter) || (query.Media != "" && item.Media != query.Media) || !matchesSearch(match.RootName+"/"+match.CollectionPath, query.SearchTerms) {
+					continue
+				}
+				if !seen[match] {
+					seen[match] = true
+					collections.Collections = append(collections.Collections, consumerCollection{
+						Root: match.RootName, CollectionPath: match.CollectionPath,
+						RepresentativePreviewPath: "/media/" + item.ID + "/preview", RepresentativeMediaType: item.Media,
+					})
 					count++
 				}
 			} else if query.ID != "" || (match.RootName == query.Root.Name && match.CollectionPath == query.Collection) {
-				if !matchesFilename(item.OriginalPath, query.SearchTerms) {
+				if !matchesSearch(path.Base(item.OriginalPath), query.SearchTerms) {
 					continue
 				}
 				assets.Assets = append(assets.Assets, projectAsset(item, match, privacy))
@@ -187,14 +212,14 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 	return assets, nil
 }
 
-// matchesFilename applies all normalized terms only to an authorized basename.
-func matchesFilename(originalPath string, terms []string) bool {
+// matchesSearch applies all normalized terms only to an authorized logical value.
+func matchesSearch(value string, terms []string) bool {
 	if len(terms) == 0 {
 		return true
 	}
-	filename := strings.ToLower(path.Base(originalPath))
+	value = strings.ToLower(value)
 	for _, term := range terms {
-		if !strings.Contains(filename, term) {
+		if !strings.Contains(value, term) {
 			return false
 		}
 	}

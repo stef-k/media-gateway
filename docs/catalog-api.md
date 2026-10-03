@@ -37,6 +37,19 @@ empty page can still have continuation. Restart browsing after gateway restart
 invalidates a cursor; merge collections by `(root, collection_path)` and avoid
 assuming a provider snapshot. Never print real catalog responses into public logs.
 
+For an interactive collection browser, optionally add logical search and filters:
+
+```sh
+curl --fail --get 'https://media.example.com/catalog/collections' \
+  --data-urlencode 'q=2026 trip' --data-urlencode 'root=photos' \
+  --data-urlencode 'media=image' --data-urlencode 'limit=25'
+```
+
+Use each collection's `representative_preview_path` with the same public origin
+for a thumbnail. It may change on later pages or return 404 after revocation.
+To fill a first screen, consumers may automatically follow a small bounded number
+of continuations, merging identities. A short page does not establish exhaustion.
+
 ### From a selected asset to a public URL
 
 Select an asset from the `/catalog/assets` response above. For example, these
@@ -97,7 +110,7 @@ presentation.
 Only GET is accepted:
 
 ```text
-GET /catalog/collections?limit=<n>&cursor=<opaque>
+GET /catalog/collections?q=<query>&root=<logical-root>&media=<image|video>&limit=<n>&cursor=<opaque>
 GET /catalog/assets?root=<logical-root>&collection=<relative-path>&q=<query>&limit=<n>&cursor=<opaque>
 GET /catalog/assets/<UUIDv4>
 ```
@@ -126,7 +139,7 @@ as a substring of the basename, in any order: `215006 DxO` matches
 not search parent paths or provider display names and adds no ranking, stemming
 or fuzzy matching.
 
-`q` is accepted only on asset lists. Explicit empty or whitespace-only values,
+`q` is accepted on asset lists and collection discovery. Explicit empty or whitespace-only values,
 duplicate keys, malformed encoding, invalid UTF-8, control characters and queries
 longer than 256 decoded UTF-8 bytes receive fixed 404 before provider access.
 Omitting `q` preserves ordinary browsing behavior.
@@ -148,7 +161,7 @@ pagination is not a snapshot, so library changes can cause repeats or skips.
 | Raw query | 8 KiB |
 | Encoded gateway cursor | 2 KiB |
 | Decoded collection selector | 2 KiB UTF-8 |
-| Decoded filename query | 256 UTF-8 bytes |
+| Decoded search query | 256 UTF-8 bytes |
 | Provider calls per request | 8 |
 | Overall catalog work | 30 seconds |
 | Encoded consumer JSON | 512 KiB |
@@ -157,24 +170,85 @@ pagination is not a snapshot, so library changes can cause repeats or skips.
 
 Cursors are gateway-owned versioned HMAC-SHA256 tokens, authenticated using a random 32-byte process-start key. Startup fails if randomness is unavailable. There is no cursor file, configuration, database or session cache. The payload contains only version, operation, query/policy fingerprint, discovery-stream index and opaque provider continuation. No provider paths or credentials are included. MAC comparison is constant-time.
 
-Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector, optional decoded `q` and policy; collection tokens bind deterministic effective discovery streams. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
+Wrong version/kind/fingerprint, invalid MAC, malformed or oversized tokens fail before provider I/O. Asset tokens bind the exact decoded `(root, collection)` selector, optional decoded `q` and policy; collection tokens bind deterministic effective discovery streams and the exact decoded `q`, `root` and `media` filters. Preserve their case and spacing on continuations; changing or omitting a filter invalidates the cursor. Cursors never grant publication authority and are never logged. Restart invalidates existing tokens: consumers restart browsing. Consumers cannot directly submit provider cursors.
 
 ## Collections
 
 ```json
 {
   "collections": [
-    {"root": "photos", "collection_path": "2026/example-trip/public-images"}
+    {
+      "root": "photos",
+      "collection_path": "2026/example-trip/public-images",
+      "representative_preview_path": "/media/12345678-1234-4234-8234-123456789abc/preview",
+      "representative_media_type": "image"
+    }
   ],
   "next_cursor": null
 }
 ```
 
-Collection identity is exactly `(root, collection_path)`, derived only from the successful publication policy result for an active eligible asset. No collection counts are returned. `next_cursor` is always present as a string or `null`.
+Collection identity is exactly `(root, collection_path)`, derived only from the successful publication policy result for an active eligible asset. `next_cursor` is always present as a string or `null`.
+
+Every collection includes a normal preview path and `image` or `video` media type
+from the same eligible candidate that discovered it. There is no additional detail,
+preview or original fetch. These fields are presentation metadata, not identity or
+delivery authorization. A later occurrence of the collection may nominate a
+different candidate; each preview request independently reauthorizes and may 404.
+The additions do not change the identity fields used by existing consumers.
 
 Discovery combines applicable global and root-scoped rules by exact segment, unions media sets, and traverses streams sorted by logical root name then segment. Provider root-prefix and segment-shaped filters only narrow candidates. Immich's case/accent-insensitive matching never replaces exact policy evaluation. Discovery uses `withExif=false` and decodes only lifecycle/path/media facts; unrelated dimensions, times or EXIF cannot fail discovery.
 
 Collection discovery is **at least once**: identities are deduplicated within a response page, but may recur on later pages. Consumers must idempotently merge by `(root, collection_path)`. Stable accessible candidate streams eventually expose their eligible collections. Immich offset pagination is not a snapshot; library mutations can also cause repeats/skips. There are no persistent seen sets or cursor sessions. Immich folder-view endpoints are not used: their unpaginated, timeline-specific behavior does not satisfy this contract.
+
+### Collection search and filters
+
+All collection filters are optional and may be combined. Omitting them preserves
+the existing discovery stream and ordering; no global collection sorting is offered.
+
+- `q` searches exactly `root + "/" + collection_path` after authorization, never
+  provider absolute paths or asset filenames. The same Unicode whitespace,
+  lowercase and every-term substring rules and 256-byte decoded limit described
+  for filename search apply. Terms may occur in any order.
+- `root` selects an exact logical name: 1–64 lowercase ASCII letters, digits or
+  hyphens with alphanumeric ends. Syntax is validated without looking up configured
+  roots. Unknown roots and configured roots with no currently eligible public
+  result both return successful empty pages with the same bounded continuation
+  behavior. The selector filters only authorized logical results over the same
+  discovery streams for every valid root. No configured-root enumeration or
+  special-case topology probe exists; asset-route root semantics are unchanged.
+- `media` accepts only `image` or `video`. A collection is included only when a
+  candidate of that type passes current lifecycle and publication policy, and its
+  representative has that type. The provider type predicate narrows candidates
+  and incompatible rule streams are skipped; overmatches still fail Gateway checks.
+
+Malformed, empty, duplicate or unsupported filters receive the fixed 404 before
+provider I/O. Search/filter matches confined to private, wrong-media, trashed or
+offline assets yield ordinary empty pages. Raw values never enter routine logs.
+
+Duplicates and nonmatches consume the same eight-call / 30-second work budget.
+An empty filtered page may therefore carry `next_cursor`; only terminal stream
+exhaustion yields null. This also applies to unknown roots. No request promises
+exactly `limit` collections or hides a full-library crawl.
+
+Collection `q` adds no provider path predicate. Immich v3.2.2 still offers
+structured `originalPath` patterns, but absolute provider prefixes differ from
+logical identity and its case/accent matching is not the Go Unicode matcher.
+There is no proven complete translation for every logical multi-term query.
+Existing trusted root/convention narrowing remains non-authoritative; the final
+logical search runs in the Gateway, with bounded sparse-search continuations.
+
+### Why exact counts are absent
+
+No `image_count` or `video_count` fields are returned. Immich v3.2.2
+[search statistics](https://github.com/immich-app/immich/blob/v3.2.2/server/src/repositories/search.repository.ts)
+count provider-filter matches. Its
+[path predicates](https://github.com/immich-app/immich/blob/v3.2.2/server/src/utils/database.ts)
+can overmatch case/accents and do not perform the Gateway's canonical-path, exact
+collection, lifecycle and publication evaluation. Neither raw totals nor the
+consumed candidate page prove full eligible image/video totals. No exact,
+policy-equivalent, non-N+1 aggregation was established, so counts are omitted
+instead of adding scans, persistent state or approximate integers.
 
 ## Asset JSON
 

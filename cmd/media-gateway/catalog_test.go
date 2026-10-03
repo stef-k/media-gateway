@@ -139,7 +139,8 @@ func TestCollectionPagination(t *testing.T) {
 			if q.Size != 2 || q.Cursor != "" {
 				t.Error("first discovery size")
 			}
-			candidateResponse(w, []map[string]any{item, item}, "next")
+			sibling := candidateFixture("87654321-1234-4234-8234-123456789abc", "/external/photos/website/sibling.jpg", "IMAGE")
+			candidateResponse(w, []map[string]any{item, sibling}, "next")
 		case 2:
 			if q.Size != 1 || q.Cursor != "next" {
 				t.Error("dedup remaining slot")
@@ -150,6 +151,7 @@ func TestCollectionPagination(t *testing.T) {
 			if q.Cursor != "later" {
 				t.Error("cross-page continuation")
 			}
+			item["id"], item["type"] = "87654321-1234-4234-8234-123456789abc", "IMAGE"
 			candidateResponse(w, []map[string]any{item}, nil)
 		default:
 			t.Error("excess discovery")
@@ -175,8 +177,11 @@ func TestCollectionPagination(t *testing.T) {
 	var second collectionPage
 	err = json.NewDecoder(resp.Body).Decode(&second)
 	resp.Body.Close()
-	if err != nil || len(second.Collections) != 1 || second.Collections[0] != first.Collections[0] || second.NextCursor != nil || calls.Load() != 3 {
+	if err != nil || len(second.Collections) != 1 || second.Collections[0].Root != first.Collections[0].Root || second.Collections[0].CollectionPath != first.Collections[0].CollectionPath || second.NextCursor != nil || calls.Load() != 3 {
 		t.Fatalf("at least once: %+v %v", second, err)
+	}
+	if first.Collections[0].RepresentativePreviewPath != testRoute || first.Collections[0].RepresentativeMediaType != "video" || second.Collections[0].RepresentativePreviewPath != "/media/87654321-1234-4234-8234-123456789abc/preview" || second.Collections[0].RepresentativeMediaType != "image" {
+		t.Fatal("representative became collection identity")
 	}
 }
 

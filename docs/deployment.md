@@ -549,6 +549,17 @@ source review does not establish deployed behavior on v3.2.1. The optional boole
 `withExif` search schema was rechecked against both versions on 2026-09-19 for
 the source-metadata privacy guard.
 
+Structured path/type filtering, lifecycle projection and search statistics were
+rechecked against **v3.2.2** on **2026-10-03** for collection discovery. This is
+source evidence, not renewed deployed-provider qualification. The
+[v3.2.2 query builder](https://github.com/immich-app/immich/blob/v3.2.2/server/src/utils/database.ts)
+retains case/accent-insensitive `originalPath` patterns. Collection `q` is matched
+only in the Gateway; `media` narrows the existing type predicate. Logical root
+filters traverse the same streams without topology lookup. The
+[statistics repository](https://github.com/immich-app/immich/blob/v3.2.2/server/src/repositories/search.repository.ts)
+counts provider matches, which do not prove exact Gateway-eligible collection totals;
+no statistics call or additional permission is introduced.
+
 Use only `POST /api/search/metadata`, `x-api-key`, permission **asset.read**, and
 HTTP 200 `application/json`. The [search DTO](https://github.com/immich-app/immich/blob/v3.2.1/server/src/dtos/search.dto.ts),
 [query builder](https://github.com/immich-app/immich/blob/v3.2.1/server/src/utils/database.ts),

@@ -18,8 +18,10 @@ type catalogQuery struct {
 	Limit                  int
 	Cursor, ID, Collection string
 	Root                   config.Root
-	Search                 string
-	SearchTerms            []string
+	// RootFilter is a logical collection selector, never a configuration lookup.
+	RootFilter, Media string
+	Search            string
+	SearchTerms       []string
 }
 
 // consumerQuery validates exact route/query syntax without repairing selectors.
@@ -47,7 +49,7 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 		value := values[0]
 		switch name {
 		case "q":
-			if query.Kind != 'a' || len(value) > 256 || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
+			if len(value) > 256 || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
 				return catalogQuery{}, false
 			}
 			query.Search = value
@@ -69,8 +71,12 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 			}
 			query.Cursor = value
 		case "root":
-			if query.Kind != 'a' {
-				return catalogQuery{}, false
+			if query.Kind == 'c' {
+				if !config.ValidRootName(value) {
+					return catalogQuery{}, false
+				}
+				query.RootFilter = value
+				continue
 			}
 			for _, root := range policy.Roots {
 				if root.Name == value {
@@ -78,6 +84,11 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 					break
 				}
 			}
+		case "media":
+			if query.Kind != 'c' || (value != "image" && value != "video") {
+				return catalogQuery{}, false
+			}
+			query.Media = value
 		case "collection":
 			if query.Kind != 'a' || !validCollection(value) {
 				return catalogQuery{}, false

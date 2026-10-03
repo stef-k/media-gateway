@@ -46,6 +46,13 @@ func testConsumerInputBoundary(t *testing.T, expose bool) {
 		"/catalog/assets?filter=%7B%7D", "/catalog/assets?path=/private", "/catalog/assets?url=http://attacker.invalid",
 		"/catalog/assets?withExif=true", "/catalog/assets?expose_coordinates=true",
 		"/catalog/assets?type=VIDEO", "/catalog/assets?sort=originalPath", "/catalog/assets?limit=1;cursor=a",
+		"/catalog/collections?root=", "/catalog/collections?root=images&root=images", "/catalog/collections?root=Images",
+		"/catalog/collections?root=-images", "/catalog/collections?root=images-", "/catalog/collections?root=a/b",
+		"/catalog/collections?root=%FF", "/catalog/collections?root=%00", "/catalog/collections?root=" + strings.Repeat("a", 65),
+		"/catalog/collections?media=", "/catalog/collections?media=image&media=video", "/catalog/collections?media=IMAGE",
+		"/catalog/collections?media=audio", "/catalog/collections?media=%zz", "/catalog/collections?collection=website",
+		"/catalog/collections?sort=path", "/catalog/collections?filter=%7B%7D", "/catalog/collections?url=http://attacker.invalid",
+		browseRoute + "&media=image", "/catalog/assets/" + testAsset + "?media=image", "/catalog/assets?root=unknown&collection=website",
 	} {
 		resp, err := gateway.Client().Get(gateway.URL + route)
 		if err != nil {

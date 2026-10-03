@@ -162,7 +162,10 @@ def catalog_pages(args, path, key, selectors):
         require(set(page) == {key, "next_cursor"} and isinstance(page[key], list) and len(page[key]) <= 1, "catalog page shape failed")
         for item in page[key]:
             if key == "collections":
-                require(set(item) == {"root", "collection_path"}, "collection projection failed")
+                fields = {"root", "collection_path", "representative_preview_path", "representative_media_type"}
+                require(set(item) == fields and item["representative_media_type"] in ("image", "video"), "collection projection failed")
+                preview = item["representative_preview_path"]
+                require(isinstance(preview, str) and re.fullmatch(r"/media/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/preview", preview), "collection preview capability failed")
             else:
                 catalog_asset(item, args.source_metadata == "on")
                 require(item["root"] == args.root and item["collection_path"] == args.collection, "collection selector failed")

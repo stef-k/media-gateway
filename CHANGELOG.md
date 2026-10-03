@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add optional logical collection search (`q`), root and image/video filters to
+  public `/catalog/collections`, with query-bound cursors and non-enumerating root
+  behavior under the existing eight-call / 30-second bounds.
+- Include representative preview paths and media types from already eligible
+  discovery candidates, without additional provider requests. Retain at-least-once
+  paging; exact collection counts remain omitted because provider totals do not
+  prove Gateway publication eligibility.
+
 ## 1.2.0 - 2026-09-20
 
 - Add optional collection-scoped filename search through `q` on public
