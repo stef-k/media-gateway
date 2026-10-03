@@ -34,11 +34,16 @@ func TestDiscoveryStreams(t *testing.T) {
 // TestCatalogSearchModes checks fixed filters, literal SQL pattern escaping,
 // image/video decoding, and discovery independence from unrelated malformed metadata.
 func TestCatalogSearchModes(t *testing.T) {
-	for _, discovery := range []bool{false, true} {
-		t.Run(fmt.Sprint(discovery), func(t *testing.T) {
+	for _, mode := range []string{"collection", "image", "video", "discovery"} {
+		t.Run(mode, func(t *testing.T) {
+			discovery := mode == "discovery"
 			query := CandidateQuery{IncludeSourceMetadata: true, Limit: 1, Collection: &CollectionSelector{Root: config.Root{Name: "images", Path: "/root_%"}, Path: "public_%"}}
 			pathFilter := map[string]any{"startsWith": `/root\_\%/public\_\%/`}
 			media := []any{"IMAGE", "VIDEO"}
+			if mode == "image" || mode == "video" {
+				query.Collection.Media = mode
+				media = []any{strings.ToUpper(mode)}
+			}
 			if discovery {
 				query.Collection = nil
 				query.Discovery = &DiscoveryStream{Root: config.Root{Name: "images", Path: "/root_%"}, Segment: "public_%", Media: []string{"video"}}

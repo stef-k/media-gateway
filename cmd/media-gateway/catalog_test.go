@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,6 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stef-k/media-gateway/internal/config"
+	"github.com/stef-k/media-gateway/internal/immich"
 )
 
 const browseRoute = "/catalog/assets?root=images&collection=website"
@@ -206,30 +210,66 @@ func TestCatalogMembershipAndProjection(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
-	resp, err := gateway.Client().Get(gateway.URL + browseRoute)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	var page consumerPage
-	if resp.StatusCode != 200 || json.Unmarshal(body, &page) != nil || len(page.Assets) != 2 {
-		t.Fatalf("membership: %s", body)
-	}
-	for i, item := range page.Assets {
-		if item.Root != "images" || item.CollectionPath != "website" || item.Latitude != nil || item.Longitude != nil {
-			t.Fatalf("projection: %+v", item)
+	for _, media := range []string{"", "image", "video"} {
+		route, count := browseRoute, 2
+		if media != "" {
+			route, count = route+"&media="+media, 1
 		}
-		if i == 0 && (item.Filename != "a.jpg" || item.PreviewPath == nil || item.OriginalPath == nil || *item.OriginalPath != "/media/"+item.ID+"/original" || item.DurationMS != nil) {
-			t.Fatal("image capability")
+		resp, err := gateway.Client().Get(gateway.URL + route)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if i == 1 && (item.Filename != "b.mp4" || item.PreviewPath == nil || item.OriginalPath == nil || item.DurationMS == nil || *item.DurationMS != 23800) {
-			t.Fatal("video capability/units")
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var page consumerPage
+		if resp.StatusCode != 200 || json.Unmarshal(body, &page) != nil || len(page.Assets) != count {
+			t.Fatalf("media %q membership: %s", media, body)
+		}
+		for _, item := range page.Assets {
+			if item.Root != "images" || item.CollectionPath != "website" || item.Latitude != nil || item.Longitude != nil || (media != "" && item.MediaType != media) {
+				t.Fatalf("projection: %+v", item)
+			}
+			if item.MediaType == "image" && (item.Filename != "a.jpg" || item.PreviewPath == nil || item.OriginalPath == nil || *item.OriginalPath != "/media/"+item.ID+"/original" || item.DurationMS != nil) {
+				t.Fatal("image capability")
+			}
+			if item.MediaType == "video" && (item.Filename != "b.mp4" || item.PreviewPath == nil || item.OriginalPath == nil || item.DurationMS == nil || *item.DurationMS != 23800) {
+				t.Fatal("video capability/units")
+			}
+		}
+		for _, marker := range []string{"originalFileName", "filename-marker", "/external/", "provider-marker", testKey, "exifInfo", "child"} {
+			if strings.Contains(string(body), marker) {
+				t.Fatalf("leaked %s", marker)
+			}
 		}
 	}
-	for _, marker := range []string{"originalFileName", "filename-marker", "/external/", "provider-marker", testKey, "exifInfo", "child"} {
-		if strings.Contains(string(body), marker) {
-			t.Fatalf("leaked %s", marker)
+}
+
+// TestAssetMediaPolicy proves a requested provider type cannot override the rule's media scope.
+func TestAssetMediaPolicy(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		candidateResponse(w, []map[string]any{
+			candidateFixture(testAsset, "/external/photos/website/wrong-type.jpg", "IMAGE"),
+			candidateFixture("87654321-1234-4234-8234-123456789abc", "/external/photos/website/clip.mp4", "VIDEO"),
+		}, nil)
+	}))
+	defer provider.Close()
+	client := immich.New(config.Provider{BaseURL: provider.URL, RequestTimeout: time.Second}, testKey)
+	defer client.CloseIdleConnections()
+	policy := config.Policy{Roots: []config.Root{{Name: "images", Path: "/external/photos"}}, Rules: []config.Rule{{Segment: "website", Media: []string{"video"}, Roots: []string{"images"}}}}
+	handler := consumerHandler(client, policy, config.Privacy{}, cursorKey{1}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	for _, media := range []string{"", "image", "video"} {
+		route, count := browseRoute, 1
+		if media != "" {
+			route += "&media=" + media
+		}
+		if media == "image" {
+			count = 0
+		}
+		out := httptest.NewRecorder()
+		handler.ServeHTTP(out, httptest.NewRequest("GET", route, nil))
+		var page consumerPage
+		if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Assets) != count || page.NextCursor != nil {
+			t.Fatalf("media %q bypassed publication rule: %d %s", media, out.Code, out.Body)
 		}
 	}
 }

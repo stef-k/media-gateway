@@ -19,9 +19,11 @@ type catalogQuery struct {
 	Cursor, ID, Collection string
 	Root                   config.Root
 	// RootFilter is a logical collection selector, never a configuration lookup.
-	RootFilter, Media string
-	Search            string
-	SearchTerms       []string
+	RootFilter string
+	// Media narrows collection and asset lists only; detail accepts no query.
+	Media       string
+	Search      string
+	SearchTerms []string
 }
 
 // consumerQuery validates exact route/query syntax without repairing selectors.
@@ -85,7 +87,7 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 				}
 			}
 		case "media":
-			if query.Kind != 'c' || (value != "image" && value != "video") {
+			if value != "image" && value != "video" {
 				return catalogQuery{}, false
 			}
 			query.Media = value

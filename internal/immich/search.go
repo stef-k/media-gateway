@@ -72,6 +72,9 @@ func (c *Client) SearchCandidates(ctx context.Context, query CandidateQuery) (Ca
 	if query.Limit < 1 || query.Limit > MaxCandidates || !validCandidateCursor(query.Cursor) || (query.ID != "" && (query.Cursor != "" || query.Discovery != nil || query.Collection != nil)) || (query.Discovery != nil && query.Collection != nil) {
 		return CandidatePage{}, ErrSearchQuery
 	}
+	if collection := query.Collection; collection != nil && collection.Media != "" && collection.Media != "image" && collection.Media != "video" {
+		return CandidatePage{}, ErrSearchQuery
+	}
 	// Only gateway-owned keys/operators can appear in the structured search body.
 	filter := candidateFilter(query)
 	if query.ID != "" {

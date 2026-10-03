@@ -52,7 +52,10 @@ func testConsumerInputBoundary(t *testing.T, expose bool) {
 		"/catalog/collections?media=", "/catalog/collections?media=image&media=video", "/catalog/collections?media=IMAGE",
 		"/catalog/collections?media=audio", "/catalog/collections?media=%zz", "/catalog/collections?collection=website",
 		"/catalog/collections?sort=path", "/catalog/collections?filter=%7B%7D", "/catalog/collections?url=http://attacker.invalid",
-		browseRoute + "&media=image", "/catalog/assets/" + testAsset + "?media=image", "/catalog/assets?root=unknown&collection=website",
+		browseRoute + "&media=", browseRoute + "&media=image&media=video", browseRoute + "&media=image&media=image",
+		browseRoute + "&media=IMAGE", browseRoute + "&media=audio", browseRoute + "&media=image,video",
+		browseRoute + "&media=%zz", browseRoute + "&media=%FF", browseRoute + "&media=%00",
+		"/catalog/assets/" + testAsset + "?media=image", "/catalog/assets/" + testAsset + "?media=video", "/catalog/assets?root=unknown&collection=website",
 	} {
 		resp, err := gateway.Client().Get(gateway.URL + route)
 		if err != nil {
