@@ -47,7 +47,7 @@ func consumerQuery(r *http.Request, policy config.Policy) (catalogQuery, bool) {
 		value := values[0]
 		switch name {
 		case "q":
-			if query.Kind != 'a' || len(value) > 256 || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
+			if len(value) > 256 || !utf8.ValidString(value) || strings.ContainsFunc(value, unicode.IsControl) {
 				return catalogQuery{}, false
 			}
 			query.Search = value

@@ -152,13 +152,15 @@ func TestFilenameSearchInput(t *testing.T) {
 	var logs bytes.Buffer
 	gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, false)
 	for _, suffix := range []string{"", "+++", "%E2%80%83", "a&q=b", "%zz", "%FF", "%00", "a%09b", "%C2%85", strings.Repeat("a", 257), url.QueryEscape(strings.Repeat("é", 129))} {
-		out := httptest.NewRecorder()
-		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", browseRoute+"&q="+suffix, nil))
-		if out.Code != 404 || out.Body.String() != "not found\n" {
-			t.Errorf("invalid search %q: %d", suffix, out.Code)
+		for _, route := range []string{browseRoute + "&q=", "/catalog/collections?q="} {
+			out := httptest.NewRecorder()
+			gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", route+suffix, nil))
+			if out.Code != 404 || out.Body.String() != "not found\n" {
+				t.Errorf("invalid search %q: %d", suffix, out.Code)
+			}
 		}
 	}
-	for _, route := range []string{"/catalog/collections?q=photo", "/catalog/assets/" + testAsset + "?q=photo"} {
+	for _, route := range []string{"/catalog/assets/" + testAsset + "?q=photo"} {
 		out := httptest.NewRecorder()
 		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", route, nil))
 		if out.Code != 404 {

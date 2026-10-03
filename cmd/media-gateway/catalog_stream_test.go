@@ -49,7 +49,7 @@ func TestCollectionStreamTransitions(t *testing.T) {
 		out := httptest.NewRecorder()
 		handler.ServeHTTP(out, req)
 		var page collectionPage
-		if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Collections) != 1 || page.Collections[0] != (consumerCollection{root, "public"}) {
+		if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Collections) != 1 || page.Collections[0] != (consumerCollection{Root: root, CollectionPath: "public", RepresentativePreviewPath: testRoute, RepresentativeMediaType: "image"}) {
 			t.Fatalf("stream response: %s", out.Body)
 		}
 		if root == "a" {
@@ -139,6 +139,12 @@ func TestCatalogDetailRevocation(t *testing.T) {
 	}))
 	defer provider.Close()
 	gateway := gatewayFor(t, provider, io.Discard, time.Second)
+	out := httptest.NewRecorder()
+	gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", "/catalog/collections", nil))
+	var collection collectionPage
+	if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &collection) != nil || len(collection.Collections) != 1 || collection.Collections[0].RepresentativePreviewPath != testRoute {
+		t.Fatal("missing eligible collection representative")
+	}
 	for i := int32(0); i < 4; i++ {
 		state.Store(i)
 		resp, err := gateway.Client().Get(gateway.URL + "/catalog/assets/" + testAsset)
@@ -150,8 +156,8 @@ func TestCatalogDetailRevocation(t *testing.T) {
 		if i == 0 {
 			want = 200
 		}
-		for _, variant := range []string{"preview", "original"} {
-			response, err := gateway.Client().Get(gateway.URL + "/media/" + testAsset + "/" + variant)
+		for _, path := range []string{collection.Collections[0].RepresentativePreviewPath, "/media/" + testAsset + "/original"} {
+			response, err := gateway.Client().Get(gateway.URL + path)
 			if err != nil {
 				t.Fatal(err)
 			}
