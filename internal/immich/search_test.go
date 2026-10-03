@@ -89,6 +89,10 @@ func TestSearchInvalidInput(t *testing.T) {
 		{Limit: 1, ID: "https://example.com/" + assetID}, {Limit: 1, ID: "../" + assetID},
 		{Limit: 1, ID: assetID + "?filter=VIDEO"}, {Limit: 1, ID: strings.Replace(assetID, "4abc", "7abc", 1)},
 		{Limit: 1, ID: assetID, Cursor: "next"},
+		{Limit: 1, Collection: &CollectionSelector{Media: "IMAGE"}},
+		{Limit: 1, Collection: &CollectionSelector{Media: "audio"}},
+		{Limit: 1, Collection: &CollectionSelector{Media: "image,video"}},
+		{Limit: 1, ID: assetID, Collection: &CollectionSelector{Media: "image"}},
 	} {
 		got, err := client.SearchCandidates(context.Background(), q)
 		if err == nil || got.Items != nil || got.NextCursor != "" {

@@ -163,7 +163,10 @@ The [public catalog API](catalog-api.md) returns only currently eligible image/v
 assets and policy-derived collection identities. Every candidate passes current
 lifecycle and exact publication evaluation. Collection asset selectors additionally
 require exact logical root and parent-collection equality; descendants, near-prefix,
-case and accent overmatches do not grant access. Detail reauthorizes independently.
+case and accent overmatches do not grant access. Optional asset-list media and
+filename filters apply only after those checks and never override a rule's media
+scope. Provider type narrowing is non-authoritative; media joins the exact query
+fingerprint. Detail reauthorizes independently and accepts no query.
 
 Collection search applies only to authorized `root/collection_path`; root/media
 selectors grant no authority. A collection root selector is syntax-checked without

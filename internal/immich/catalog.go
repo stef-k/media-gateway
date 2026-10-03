@@ -19,6 +19,8 @@ type DiscoveryStream struct {
 type CollectionSelector struct {
 	Root config.Root
 	Path string
+	// Media optionally narrows to image or video; callers still authorize candidates.
+	Media string
 }
 
 // DiscoveryStreams merges effective media sets and fixes root/segment traversal order.
@@ -65,6 +67,9 @@ func candidateFilter(query CandidateQuery) map[string]any {
 	}
 	if collection := query.Collection; collection != nil {
 		pathFilter["startsWith"] = escapeSearchPattern(collection.Root.Path + "/" + collection.Path + "/")
+		if collection.Media != "" {
+			media = []string{strings.ToUpper(collection.Media)}
+		}
 	}
 	filter := map[string]any{
 		"type":      map[string]any{"in": media},

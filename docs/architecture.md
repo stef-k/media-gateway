@@ -243,7 +243,11 @@ nullable coordinate pair; hidden sensitive fields are ignored. Unavailable candi
 consumed metadata fails the request. Provider path/media/lifecycle filters are
 optimizers only: case/accent overmatches still pass exact `publication.Evaluate`.
 The handler fills pages within its finite budget and requires exact root/parent
-membership for collection assets. See the
+membership for collection assets. Optional asset-list `media=image|video` narrows
+provider types and filters authorized exact members before filename matching and
+projection; detail accepts no query. Filename search remains Gateway-only because
+Immich's stored original filename can differ from the authorized path basename.
+See the
 [reviewed search contract](deployment.md#reviewed-candidate-search-contract).
 
 The provider boundary supplies:

@@ -18,6 +18,10 @@ func TestFilenameSearch(t *testing.T) {
 	for _, expose := range []bool{false, true} {
 		t.Run(fmt.Sprint(expose), func(t *testing.T) {
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var query struct{ Filter map[string]any }
+				if json.NewDecoder(r.Body).Decode(&query) != nil || query.Filter["originalFileName"] != nil {
+					t.Error("search narrowed by provider display filename")
+				}
 				paths := []string{"website/20231026_215006_Été_DxO.jpg", "website/215006_Été.mp4", "website/other.jpg", "website/child/215006_Été.jpg", "private/215006_Été.jpg", "website-old/215006_Été.jpg", "../website/215006_Été.jpg", "website/trashed_215006_Été.jpg", "website/offline_215006_Été.jpg"}
 				items := []map[string]any{}
 				for i, path := range paths {
@@ -38,14 +42,18 @@ func TestFilenameSearch(t *testing.T) {
 			defer provider.Close()
 			var logs bytes.Buffer
 			gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, expose)
-			var baseline []consumerAsset
+			baseline := map[string]consumerAsset{}
 			for _, tc := range []struct {
-				query string
-				count int
+				media, query string
+				count        int
 			}{
-				{"", 3}, {"215006", 2}, {"éTÉ 215006", 2}, {"  DxO\u2003215006  ", 1}, {"215006 missing", 0}, {"website", 0}, {"filename-marker", 0},
+				{"", "", 3}, {"", "215006", 2}, {"", "éTÉ 215006", 2}, {"", "  DxO\u2003215006  ", 1}, {"", "215006 missing", 0}, {"", "website", 0}, {"", "filename-marker", 0},
+				{"image", "", 2}, {"video", "", 1}, {"image", "éTÉ 215006", 1}, {"video", "éTÉ 215006", 1}, {"video", "DxO", 0}, {"image", "trashed", 0}, {"video", "private", 0},
 			} {
 				route := browseRoute
+				if tc.media != "" {
+					route += "&media=" + tc.media
+				}
 				if tc.query != "" {
 					route += "&q=" + url.QueryEscape(tc.query)
 				}
@@ -53,19 +61,19 @@ func TestFilenameSearch(t *testing.T) {
 				gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", route, nil))
 				var page consumerPage
 				if out.Code != 200 || json.Unmarshal(out.Body.Bytes(), &page) != nil || len(page.Assets) != tc.count || page.NextCursor != nil {
-					t.Fatalf("query %q: %d %s", tc.query, out.Code, out.Body)
+					t.Fatalf("media %q query %q: %d %s", tc.media, tc.query, out.Code, out.Body)
 				}
 				if out.Header().Get("Access-Control-Allow-Origin") != "*" || out.Header().Get("Cache-Control") != "no-store" || out.Header().Get("X-Content-Type-Options") != "nosniff" {
 					t.Fatal("security headers changed")
 				}
-				if tc.query == "" {
-					baseline = page.Assets
-				}
-				for i, asset := range page.Assets {
+				for _, asset := range page.Assets {
+					if tc.media == "" && tc.query == "" {
+						baseline[asset.ID] = asset
+					}
 					got, _ := json.Marshal(asset)
-					want, _ := json.Marshal(baseline[i])
-					if !bytes.Equal(got, want) {
-						t.Fatal("search changed projection")
+					want, _ := json.Marshal(baseline[asset.ID])
+					if !bytes.Equal(got, want) || (tc.media != "" && asset.MediaType != tc.media) {
+						t.Fatal("filter changed projection or admitted wrong media")
 					}
 				}
 			}
@@ -76,8 +84,22 @@ func TestFilenameSearch(t *testing.T) {
 	}
 }
 
-// TestFilenameSearchPagination proves sparse scan bounds and exact search binding.
+// TestFilenameSearchPagination proves sparse scan bounds and exact search/media binding.
 func TestFilenameSearchPagination(t *testing.T) {
+	for _, media := range []string{"", "image", "video"} {
+		t.Run("media="+media, func(t *testing.T) { testFilenameSearchPagination(t, media) })
+	}
+}
+
+// testFilenameSearchPagination checks the same bounded continuation contract for each media selector.
+func testFilenameSearchPagination(t *testing.T, media string) {
+	mediaQuery, providerMedia := "", `{"in":["IMAGE","VIDEO"]}`
+	itemMedia := "IMAGE"
+	if media != "" {
+		mediaQuery = "&media=" + media
+		itemMedia = strings.ToUpper(media)
+		providerMedia = `{"in":["` + itemMedia + `"]}`
+	}
 	var calls atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		call := calls.Add(1)
@@ -92,7 +114,8 @@ func TestFilenameSearchPagination(t *testing.T) {
 		if call > 1 && q.Cursor != fmt.Sprint(call-1) {
 			t.Error("candidate continuation skipped")
 		}
-		if len(q.Filter) != 4 {
+		types, _ := json.Marshal(q.Filter["type"])
+		if len(q.Filter) != 4 || string(types) != providerMedia {
 			t.Errorf("provider filter changed: %+v", q.Filter)
 		}
 		filename := "other.jpg"
@@ -103,12 +126,12 @@ func TestFilenameSearchPagination(t *testing.T) {
 		if call == 10 {
 			next = nil
 		}
-		candidateResponse(w, []map[string]any{candidateFixture(testAsset, "/external/photos/website/"+filename, "IMAGE")}, next)
+		candidateResponse(w, []map[string]any{candidateFixture(testAsset, "/external/photos/website/"+filename, itemMedia)}, next)
 	}))
 	defer provider.Close()
 	var logs bytes.Buffer
 	gateway := gatewayWithPrivacy(t, provider, &logs, time.Second, false)
-	route := browseRoute + "&limit=1&q=match"
+	route := browseRoute + "&limit=1&q=match" + mediaQuery
 	for pageNumber := 0; pageNumber < 3; pageNumber++ {
 		out := httptest.NewRecorder()
 		gateway.Config.Handler.ServeHTTP(out, httptest.NewRequest("GET", route, nil))
@@ -130,14 +153,24 @@ func TestFilenameSearchPagination(t *testing.T) {
 			t.Fatal("sparse page lost continuation")
 		}
 		cursor := "&cursor=" + url.QueryEscape(*page.NextCursor)
-		for _, search := range []string{"", "&q=other", "&q=MATCH", "&q=match+"} {
+		changed := []string{"", "&q=other" + mediaQuery, "&q=MATCH" + mediaQuery, "&q=match+" + mediaQuery}
+		for _, value := range []string{"", "image", "video"} {
+			if value != media {
+				search := "&q=match"
+				if value != "" {
+					search += "&media=" + value
+				}
+				changed = append(changed, search)
+			}
+		}
+		for _, search := range changed {
 			denied := httptest.NewRecorder()
 			gateway.Config.Handler.ServeHTTP(denied, httptest.NewRequest("GET", browseRoute+search+cursor, nil))
 			if denied.Code != 404 || calls.Load() != int32(8+pageNumber) {
 				t.Fatal("cross-query cursor reached provider")
 			}
 		}
-		route = browseRoute + "&limit=1&q=match" + cursor
+		route = browseRoute + "&limit=1&q=match" + mediaQuery + cursor
 	}
 }
 

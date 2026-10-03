@@ -93,7 +93,7 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 		}
 		queryFingerprint := policyFingerprint
 		queryStreams := streams
-		if query.Media != "" {
+		if query.Kind == 'c' && query.Media != "" {
 			queryStreams = []immich.DiscoveryStream{}
 			for _, stream := range streams {
 				if slices.Contains(stream.Media, query.Media) {
@@ -113,9 +113,9 @@ func consumerHandler(client *immich.Client, policy config.Policy, privacy config
 			queryFingerprint = fingerprint(struct {
 				Policy           [32]byte
 				Root, Collection string
-				// Omission preserves the existing no-search fingerprint.
-				Search string `json:",omitempty"`
-			}{policyFingerprint, query.Root.Name, query.Collection, query.Search})
+				// Omission preserves existing no-media/no-search fingerprints.
+				Search, Media string `json:",omitempty"`
+			}{policyFingerprint, query.Root.Name, query.Collection, query.Search, query.Media})
 			streamCount = 1
 		}
 		state, ok := key.verify(query.Cursor, query.Kind, queryFingerprint, streamCount)
@@ -150,7 +150,7 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 			}
 			providerQuery.Discovery = &streams[state.Stream]
 		} else if query.ID == "" {
-			providerQuery.Collection = &immich.CollectionSelector{Root: query.Root, Path: query.Collection}
+			providerQuery.Collection = &immich.CollectionSelector{Root: query.Root, Path: query.Collection, Media: query.Media}
 		}
 		page, err := client.SearchCandidates(ctx, providerQuery)
 		if err != nil {
@@ -174,7 +174,7 @@ func catalog(ctx context.Context, client *immich.Client, policy config.Policy, p
 					count++
 				}
 			} else if query.ID != "" || (match.RootName == query.Root.Name && match.CollectionPath == query.Collection) {
-				if !matchesSearch(path.Base(item.OriginalPath), query.SearchTerms) {
+				if (query.Media != "" && item.Media != query.Media) || !matchesSearch(path.Base(item.OriginalPath), query.SearchTerms) {
 					continue
 				}
 				assets.Assets = append(assets.Assets, projectAsset(item, match, privacy))
