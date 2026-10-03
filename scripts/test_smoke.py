@@ -92,6 +92,13 @@ class ProductOrigin(Origin):
             if target.path in ("/catalog/collections", "/catalog/assets"):
                 key = target.path.rsplit("/", 1)[1]
                 item = {"root": "images", "collection_path": "trip/public"} if key == "collections" else self.asset(ELIGIBLE)
+                if key == "collections":
+                    representative = VIDEO if "cursor" in query else ELIGIBLE
+                    item.update(representative_preview_path=f"/media/{representative}/preview", representative_media_type="video" if representative == VIDEO else "image")
+                    if self.server.defect == "collection-preview":
+                        item["representative_preview_path"] = "https://provider.invalid/synthetic-private-marker"
+                    if self.server.defect == "collection-media":
+                        item["representative_media_type"] = "audio"
                 payload = {key: [item], "next_cursor": None if "cursor" in query else "synthetic-cursor"}
                 if self.server.defect == "catalog-leak":
                     item["provider_path"] = "synthetic-private-marker"
@@ -188,7 +195,7 @@ class SmokeContract(unittest.TestCase):
         self.assertIn("PASS bounded collection/asset pages", result.stdout)
         self.assertNotIn("SKIP continuation", result.stdout)
         for defect, extra in (("range-bytes", ()), ("range-framing", ()),
-                              ("catalog-leak", ()), (None, ("--max-original-bytes", "64")),
+                              ("catalog-leak", ()), ("collection-preview", ()), ("collection-media", ()), (None, ("--max-original-bytes", "64")),
                               (None, ("--image-sha256", "0" * 64))):
             with self.subTest(defect=defect, extra=extra):
                 result = self.run_smoke(defect, product=True, extra=extra)
