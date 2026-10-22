@@ -39,7 +39,7 @@ Start with the [operator quick start](docs/configuration.md#get-started),
 [catalog guide](docs/catalog-api.md), or [release and operations](docs/release.md).
 Download supported binaries from [GitHub Releases](https://github.com/stef-k/media-gateway/releases)
 and follow [archive verification](docs/release.md#download-and-verify-a-release).
-Source builds use the reviewed [Go 1.27.1 toolchain](docs/toolchain.md).
+Source builds use the reviewed [Go 1.27.3 toolchain](docs/toolchain.md).
 
 ## License
 

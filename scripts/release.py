@@ -94,7 +94,7 @@ def verify_bundle(root, archive, tag):
                 source = "deploy/" + name
             if (payload / name).read_bytes() != (root / source).read_bytes():
                 raise ValueError("packaged asset differs from tagged source: " + name)
-        expected = f"media-gateway version={tag} revision={revision} modified=false go=go1.27.1\n"
+        expected = f"media-gateway version={tag} revision={revision} modified=false go=go1.27.3\n"
         actual = subprocess.check_output([str(payload / "media-gateway"), "-version"], text=True)
         if actual != expected:
             raise ValueError("release binary provenance mismatch: " + actual.strip())

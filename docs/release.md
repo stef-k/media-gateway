@@ -76,7 +76,7 @@ formatting/vet/tests/race/build/smoke regressions, and builds the distribution o
 through `scripts/build-bundle.sh OUTPUT --release vX.Y.Z`. It verifies all internal
 checksums, versioned layout, tagged-source assets and exact binary metadata before
 creating the external checksum. Notes come from the matching changelog section.
-Go 1.27.1 supplies the exact v1 tag version directly; there is no injected version.
+Go 1.27.3 supplies the exact v1 tag version directly; there is no injected version.
 Future major releases require reviewing Go module-path/tag compatibility: the
 current module path does not embed v2+ tags as exact versions, and validation
 rejects any tag/binary version mismatch.
@@ -161,6 +161,12 @@ publishing. Source-sensitive catalog metadata is publicly exposed only with
 `privacy.expose_source_metadata=true`. Verify the explicit catalog and media routes.
 
 ## Upgrade and rollback
+
+For CVE-2026-111943, replace binaries built with Go 1.27.1 with the patched
+Go 1.27.3 build, then restart the service and verify both installed and live
+`-version` output. Updating Go or CA packages on the host does not rebuild the
+executable. Keep host CA trust current as well. A rollback to an older binary
+also restores its older certificate verifier; it does not retain this mitigation.
 
 The public catalog revision (#66) is released as **v1.1.0**, a documented
 pre-adoption v1 contract correction under the policy above. No accepted downstream

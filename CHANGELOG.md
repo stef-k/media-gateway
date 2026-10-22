@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-10-22
+
+- Rebuild Linux amd64 binaries with Go 1.27.3, including the compromised
+  intermediate certificate denylist for CVE-2026-111943 in outbound HTTPS.
+  Upgrade the executable and restart the service to apply the mitigation.
+
 ## 1.3.0 - 2026-10-03
 
 - Add optional `media=image|video` to public asset lists, with cursor-bound

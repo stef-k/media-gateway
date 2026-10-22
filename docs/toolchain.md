@@ -8,20 +8,26 @@ Media Gateway intentionally keeps its implementation stack small and auditable.
 
 ## Go baseline
 
-The reviewed toolchain is **Go 1.27.1**.
+The reviewed toolchain is **Go 1.27.3**.
 
 Go does not publish a separate LTS channel. Its release policy supports each major release until two newer major releases exist, with critical/security fixes shipped as minor revisions. For this project, "latest stable" therefore means the newest supported stable Go release, updated deliberately rather than automatically.
 
 Project policy:
 
 - language/toolchain family: Go 1.27;
-- development and CI toolchain: Go 1.27.1;
+- development and CI toolchain: Go 1.27.3;
 - use stable releases only; no beta/RC toolchains;
 - update patch releases promptly after normal CI/security review;
 - major Go upgrades are deliberate changes with full tests and deployment validation;
 - Linux amd64 is the first production target, but application code should remain portable where that costs nothing.
 
-`go.mod` declares Go 1.27.0 as the language minimum and Go 1.27.1 as the reviewed toolchain. CI explicitly selects Go 1.27.1.
+`go.mod` declares Go 1.27.0 as the language minimum and Go 1.27.3 as the reviewed toolchain. CI explicitly selects Go 1.27.3.
+
+Go 1.27.3 adds the `crypto/x509` denylist for compromised intermediate keys
+([CVE-2026-111943](https://pkg.go.dev/vuln/GO-2026-6809)). Build with this reviewed
+toolchain; the language minimum alone does not enforce the security patch.
+Existing executables must be rebuilt and replaced; updating the host's Go
+installation does not update their embedded standard library.
 
 Official release policy/history: <https://go.dev/doc/devel/release>
 
@@ -90,7 +96,7 @@ Security semantics are not configurable:
 
 ## Build and CI baseline
 
-The single Linux job in `.github/workflows/ci.yml` runs on pull requests and pushes to `main`. Run the same baseline locally with Go 1.27.1:
+The single Linux job in `.github/workflows/ci.yml` runs on pull requests and pushes to `main`. Run the same baseline locally with Go 1.27.3:
 
 ```sh
 test -z "$(gofmt -l $(git ls-files '*.go'))"
@@ -106,7 +112,7 @@ bash -n scripts/build-bundle.sh
 `-version` reports module version, embedded VCS revision/dirty state and Go version.
 Local builds may show a generated module pseudo-version or `(devel)`; absent VCS
 revision/dirty metadata is reported as `unknown`.
-At an exact release tag, Go 1.27.1 reads the semantic module version directly
+At an exact release tag, Go 1.27.3 reads the semantic module version directly
 from Git. Release validation requires the tag version, exact commit, clean state
 and reviewed toolchain; no custom version injection or version file is used. `scripts/build-bundle.sh` builds Linux amd64
 with CGO disabled from a clean checkout and packages an explicit file allowlist.

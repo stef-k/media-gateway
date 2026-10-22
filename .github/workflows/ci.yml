@@ -17,7 +17,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: '1.27.1' # Deliberate reviewed patch, not a floating family.
+          go-version: '1.27.3' # Deliberate reviewed security patch, not a floating family.
       - name: Check formatting
         run: test -z "$(gofmt -l $(git ls-files '*.go'))"
       - name: Vet
@@ -49,7 +49,7 @@ jobs:
           tar -xzf "$bundle_dir/media-gateway-linux-amd64-$(git rev-parse HEAD).tar.gz" -C "$bundle_dir/extracted"
           (cd "$bundle_dir/extracted" && sha256sum --check --strict SHA256SUMS)
           "$bundle_dir/extracted/media-gateway" -version | tee "$bundle_dir/version"
-          grep -F "revision=$(git rev-parse HEAD) modified=false go=go1.27.1" "$bundle_dir/version"
+          grep -F "revision=$(git rev-parse HEAD) modified=false go=go1.27.3" "$bundle_dir/version"
           for template in config.toml.example media-gateway.service nginx.conf; do
             cmp "deploy/$template" "$bundle_dir/extracted/$template"
           done

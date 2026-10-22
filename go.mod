@@ -3,6 +3,6 @@ module github.com/stef-k/media-gateway
 
 go 1.27.0
 
-toolchain go1.27.1
+toolchain go1.27.3
 
 require github.com/pelletier/go-toml/v2 v2.4.3
