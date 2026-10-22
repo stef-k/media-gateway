@@ -147,6 +147,17 @@ Every handler response has `Cache-Control: no-store` and
 `X-Content-Type-Options: nosniff`. Provider headers, cookies, filenames, cache
 directives and conditional validators are never copied to the public response.
 
+## Provider TLS trust
+
+HTTPS provider connections use Go's standard certificate verification and the
+host CA roots, including the separate original-stream TLS dialer. There is no
+verification bypass or custom trust pool. Go 1.27.3 adds a denylist for compromised
+intermediate keys ([CVE-2026-111943](https://pkg.go.dev/vuln/GO-2026-6809)); release
+binaries embed that verifier. Replace older executables and restart the service
+to apply the mitigation. A Go 1.27.1 build alone does not establish exploitability:
+the configured provider scheme and effective host trust also matter. Plain HTTP
+loopback provider connections do not perform certificate verification.
+
 ## Consumer-compromise boundary
 
 A consumer such as WordPress may be Internet-facing and therefore less trusted than the gateway/provider boundary.
