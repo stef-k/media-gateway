@@ -5,6 +5,8 @@ permalink: /
 
 # Media Gateway
 
+![Media Gateway: controlled publication from a private media library](assets/images/media-gateway.png)
+
 Publish selected images and videos from private Immich through a small,
 fail-closed gateway. Configure named provider roots and exact directory conventions
 such as `public`, `public-images`, `public-videos`, or a root-scoped `post`.

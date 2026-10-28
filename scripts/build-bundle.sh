@@ -42,6 +42,9 @@ install -m 0755 scripts/smoke-deployment.py "$payload/"
 # Include referenced operator authorities for offline use.
 mkdir "$payload/docs"
 install -m 0644 docs/{index,release,deployment,configuration,logging,toolchain,catalog-api,architecture,security,product-completion,roadmap,video-qualification}.md "$payload/docs/"
+# Keep documentation graphics available in the offline guides.
+mkdir -p "$payload/docs/assets/images"
+install -m 0644 docs/assets/images/{media-gateway,workflow}.png "$payload/docs/assets/images/"
 (
     cd "$payload"
     find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS

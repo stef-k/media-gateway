@@ -63,6 +63,9 @@ class BundleTests(unittest.TestCase):
             version = subprocess.check_output([str(extracted / "media-gateway"), "-version"], text=True)
             self.assertIn(f"revision={revision} modified=false go=go1.27.3", version)
             self.assertTrue((extracted / "CHANGELOG.md").is_file())
+            for name in ("media-gateway.png", "workflow.png"):
+                asset = pathlib.Path("docs/assets/images") / name
+                self.assertEqual((extracted / asset).read_bytes(), (source / asset).read_bytes())
             # No tag is written to the caller's checkout or any remote.
             subprocess.run(["git", "-c", "user.name=Release test", "-c", "user.email=release@example.invalid", "tag", "-a", "v1.3.1", "-m", "Synthetic release test"], cwd=source, check=True)
             release.validate_source(source, "v1.3.1", "HEAD")

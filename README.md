@@ -1,5 +1,7 @@
 # Media Gateway
 
+![Media Gateway: controlled publication from a private media library](docs/assets/images/media-gateway.png)
+
 A small, fail-closed publication gateway for images and videos managed by private
 [Immich](https://immich.app/). Publish through exact directory conventions beneath
 named provider roots; public clients browse eligible collections,
@@ -29,6 +31,13 @@ without provider fetches. Qualified previews/posters remain available. Set
 `privacy.expose_source_metadata=true` deliberately to enable sensitive public catalog
 fields and exact originals, whose bytes may contain embedded metadata. Filenames
 and collection names remain visible in both modes.
+
+## How it works
+
+![Private archive indexed by Immich, publication rules checked by Media Gateway, and eligible media served to applications and clients](docs/assets/images/workflow.png)
+
+See the [architecture guide](docs/architecture.md) for deployment boundaries and
+the request flow.
 
 ## Getting started
 
