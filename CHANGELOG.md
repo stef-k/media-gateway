@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add the project banner and workflow illustration to the README and documentation,
+  including both images in offline documentation bundles.
+
 ## 1.3.1 - 2026-10-22
 
 - Rebuild Linux amd64 binaries with Go 1.27.3, including the compromised
