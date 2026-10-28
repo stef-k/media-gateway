@@ -12,6 +12,8 @@ Immich is the supported provider. Immich remains private and indexes a read-only
 
 The service is intentionally smaller than the applications consuming it. It has no media-management UI, no publication database, no direct NAS access and no generic proxy behavior.
 
+![Private archive indexed by Immich, publication rules checked by Media Gateway, and eligible media served to applications and clients](assets/images/workflow.png)
+
 ## Reference deployment
 
 ```text
